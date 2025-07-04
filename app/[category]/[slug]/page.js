@@ -1,17 +1,17 @@
-// app/blog/[slug]/page.js
-import { getAllPosts, getPostBySlug } from '@/lib/posts';
+import { getPostByCategoryAndSlug, getAllPosts } from '@/lib/posts';
 import Markdown from 'markdown-to-jsx';
 
 export async function generateStaticParams() {
   const posts = getAllPosts();
 
   return posts.map((post) => ({
-    slug: post.slug, // will be used as params.slug
+    category: post.category,
+    slug: post.slug,
   }));
 }
 
-export default function BlogPostPage({ params }) {
-  const post = getPostBySlug(params.slug);
+export default function PostPage({ params }) {
+  const post = getPostByCategoryAndSlug(params.category, params.slug);
 
   return (
     <main className="p-6 max-w-3xl mx-auto">

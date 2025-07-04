@@ -1,12 +1,9 @@
 import { getSortedPosts } from '@/lib/posts';
 import Markdown from 'markdown-to-jsx';
 
-export async function getStaticProps() {
+export default async function HomePage() {
   const posts = getSortedPosts();
-  return { props: { posts } };
-}
 
-export default function HomePage({ posts }) {
   return (
     <main className="p-6">
       <h1 className="text-3xl font-bold mb-4">Theater Club Blog</h1>

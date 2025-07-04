@@ -1,4 +1,4 @@
-import { getSortedPosts } from '@/lib/posts';
+import { getSortedPosts } from '../lib/posts';
 import Markdown from 'markdown-to-jsx';
 
 export default async function HomePage() {

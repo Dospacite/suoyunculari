@@ -6,12 +6,12 @@ export default function HomePage() {
 
   return (
     <main className="p-6">
-      <h1 className="text-3xl font-bold mb-6">Theater Club Content</h1>
+      <h1 className="text-3xl font-bold mb-6">SUOyuncuları</h1>
       {categories.map((category) => (
         <Link
           key={category}
           href={`/${category}`}
-          className="block text-xl text-blue-600 hover:underline mb-2 capitalize"
+          className="block text-xl text-black hover:underline mb-2 capitalize"
         >
           {category}
         </Link>

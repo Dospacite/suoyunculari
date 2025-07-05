@@ -12,7 +12,35 @@ collections:
     fields: # The fields for each document, usually in front matter
       - { label: "Layout", name: "layout", widget: "hidden", default: "blog" }
       - { label: "Title", name: "title", widget: "string" }
+      - { label: "Description", name: "description", widget: "markdown" }
+      - { label: "Authors", name: "authors", widget: "list", default: [""] }
+      - { label: "Tags", name: "tags", widget: "list", default: [""] }
       - { label: "Publish Date", name: "date", widget: "datetime" }
-      - { label: "Featured Image", name: "thumbnail", widget: "image" }
-      - { label: "Rating (scale of 1-5)", name: "rating", widget: "number" }
+      - { label: "Thumbnail", name: "thumbnail", widget: "image" }
       - { label: "Body", name: "body", widget: "markdown" }
+  
+  - name: "rehearsal" # Used in routes, e.g., /admin/collections/blog
+    label: "Rehearsal" # Used in the UI
+    folder: "_posts/rehearsal" # The path to the folder where the documents are stored
+    create: true # Allow users to create new documents in this collection
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}" # Filename template, e.g., YYYY-MM-DD-title.md
+    fields: # The fields for each document, usually in front matter
+      - { label: "Layout", name: "layout", widget: "hidden", default: "rehearsal" }
+      - { label: "Title", name: "title", widget: "string" }
+      - { label: "Difficulty (1-7)", name: "difficulty", widget: "number", default: 4, min: 1, max: 7 }
+      - { label: "Tags", name: "tags", widget: "list", default: [""] }
+      - { label: "Body", name: "body", widget: "markdown" }
+    
+  - name: "play" # Used in routes, e.g., /admin/collections/blog TODO: UPDATE THIS
+    label: "Play" # Used in the UI
+    folder: "_posts/play" # The path to the folder where the documents are stored
+    create: true # Allow users to create new documents in this collection
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}" # Filename template, e.g., YYYY-MM-DD-title.md
+    fields: # The fields for each document, usually in front matter
+      - { label: "Layout", name: "layout", widget: "hidden", default: "rehearsal" }
+      - { label: "Title", name: "title", widget: "string" }
+      - { label: "Tags", name: "tags", widget: "list", default: [""] }
+      - { label: "Body", name: "body", widget: "markdown" }
+  
+  
+  

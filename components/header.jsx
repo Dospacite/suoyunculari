@@ -1,32 +1,20 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import favicon from 'public/favicon.svg';
-
-const navItems = [
-    { linkText: 'Ana Sayfa', href: '/' },
-    { linkText: 'Provalar', href: '/provalar' },
-    { linkText: 'Oyunlar', href: '/oyunlar' },
-    { linkText: 'Metinler', href: '/metinler' },
-    { linkText: 'Kaynaklar', href: '/kaynaklar' }
-];
+import logo from 'public/images/logo.svg';
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 export function Header() {
     return (
-        <nav className="flex flex-wrap items-center gap-4 pt-6 pb-12 sm:pt-12 md:pb-24">
+        <nav className="flex flex-wrap w-full justify-between items-center px-6 border-b border-gray-500">
             <Link href="/">
-                <Image src={favicon} alt="SUO logo" />
+                <Image src={logo} alt="SUO logo" className='w-20 h-20'/>
             </Link>
-            {!!navItems?.length && (
-                <ul className="flex flex-wrap gap-x-4 gap-y-1">
-                    {navItems.map((item, index) => (
-                        <li key={index}>
-                            <Link href={item.href} className="inline-flex px-1.5 py-1 sm:px-3 sm:py-2">
-                                {item.linkText}
-                            </Link>
-                        </li>
-                    ))}
-                </ul>
-            )}
+            <Link href="/" className='inline-flex items-center text-3xl font-semibold no-underline absolute left-1/2 transform -translate-x-1/2'>
+                <span className='font-extrabold'>SUO</span><span>yunculari.com</span>
+            </Link>
+            <button>
+                <MagnifyingGlassIcon className='w-8 h-8 hover:cursor-pointer'></MagnifyingGlassIcon>
+            </button>
         </nav>
     );
 }

@@ -1,21 +1,16 @@
-import { getAllCategories } from '@/lib/posts';
+import { getAllCategories, getLatestPosts, getPostsByCategories } from '@/lib/posts';
 import Link from 'next/link';
+import Image from 'next/image';
+import { PostHero } from '@/components/post_hero';
 
 export default function HomePage() {
-  const categories = getAllCategories();
+  const latestPosts = getPostsByCategories(["blog", "play"]);
 
   return (
-    <main className="p-6">
-      <h1 className="text-3xl font-bold mb-6">SUOyuncuları</h1>
-      {categories.map((category) => (
-        <Link
-          key={category}
-          href={`/${category}`}
-          className="block text-xl text-black hover:underline mb-2 capitalize"
-        >
-          {category}
-        </Link>
-      ))}
+    <main className="flex flex-col items-center grow p-8">
+      <div>
+        <PostHero post={latestPosts[0]}></PostHero>
+      </div>
     </main>
   );
 }

@@ -1,0 +1,177 @@
+items:
+  - id: 1
+    type: introduction
+    name: Boş Harf Oyunu
+    description: Katılımcılardan çember olmaları istenir. Sırayla isimlerinin baş harfleriyle aynı sıfatı bulmaları istenir ve isimlerinin önüne bu sıfatı koyarak söylenmesi beklenir.
+    example: Roy = isim\nRenkli = bulunan sıfat\nRenkli Roy şeklinde kendini tanıtır.
+    difficulty: null
+  - id: 2
+    type: improv
+    name: Tek Kelime Doğaçlama
+    description: Katılımcılara bir kelime verilir ve bu kelimeyi sadece üç kere söyleyerek doğaçlama ile bir şey anlatmaları istenir. Başka bir şey söylemesi yasaktır.
+    example: Anne (bu kelime birçok açıdan çok farklı anlamlarda kullanılabilir, basit ama etkili bir kelimedir.), Tanrı
+    difficulty: null
+  - id: 3
+    type: improv
+    name: Sessiz Doğaçlama
+    description: Katılımcıların sesle anlatılması gereken durumları sessiz oynamaları istenir.
+    example: null
+    difficulty: null
+  - id: 4
+    type: improv
+    name: Durum Doğaçlamaları
+    description: Aşırı duygu hallerinin yansıtılması istenir.
+    example: Asansörde kalma,
+    difficulty: null
+  - id: 5
+    type: improv
+    name: Cıbırca Doğaçlama
+    description: Kısa küçük konuların cıbırca oynatılması. Konuyu tamamen katılımcılar da yaratabilir. Eğer tıkanırlar ya da konu bulamazlarsa konu da verilebilir. Bir kişi cıbırca konuşurken diğeri onun çevirisini Türkçe olarak yapar.
+    example: Karpuz kabuğundan gemiler yapmış bir profesörün konuşması, milletler meclisi (4 kişilik)
+    difficulty: null
+  - id: 6
+    type: addition
+    name: Doğaçlama Yerleri / Başlangıç
+    description: Hayal edilmesi gerekmeyen basit yerler
+    example: Tren istasyonu, hastane, havaalanı, park, dişçi, okul, restoran, meydan, müze, orman, sanat galerisi
+    difficulty: null
+  - id: 7
+    type: addition
+    name: Doğaçlama Yerleri / Orta
+    description: Daha önce bulunulmamış ama hayal edilmesi kolay yerler
+    example: Tundra, Çöl, Yağmur ormanları, Uzay gemisi, 1980'ler, 1990'lar, Victorian Dönemi
+    difficulty: null
+  - id: 8
+    type: addition
+    name: Doğaçlama Yerleri / Zor
+    description: Zihnin uzun bir süreçten geçirmesi gereken yerler
+    example: İnsanların koltuk olduğu yerler, Meme Ucu Gezegeni, Uzaylı Gemisi, 1800'ler, Victorian Dönemi, Uzayda süzülen dev bir kaplumbağanın sırtındaki dört filin hortumlarıyla yukarı kaldırdıkları disk şeklinde bir evren, Ay'ın karanlık yüzündeki Naziler
+    difficulty: null
+  - id: 9
+    type: improv
+    name: 2 Kişili Doğaçlama
+    description: Katılımcılara yer, konu, tipleme verilerek yaptırılabilir. Bu doğaçlamalarda yer, konu, tipleme(kişi) üçü de verilebilir. İkisi verilip biri serbest kalabilir ya da biri verilip ikisi serbest kalabilir.
+    example: Bazı ikili kişi vs. eşleşmeleri\nDoğaçlama sonunda biri çıldırıyor, biri dine dönüyor.\nŞizofren ve simetri hastası.\nPilot kabini -> otomatik pilot kontrolü ele geçirmiş.\nTren yoluna bağlanmışlar (4 dk var trene).\nKobay ve aşk doktoru\nMarsta mahsur iki kişi\nPandomimci ve kemancı sevgili\nJakoben ve hardcore liboş\nAslan terbiyecisi ve hayvansever\nKiralik katıl ve psikolog\nHippi ve hayatını daha fazla para kazanmaya adamış işi adamı\nYapışık ikizler
+    difficulty: null
+  - id: 10
+    type: improv
+    name: Haber Sunma
+    description: Katılımcılar tek tek çıkarak haber spikerliği yaparlar. Konular moderatör tarafından verilir.
+    example: Dünyadaki bütün çikolatalar bitmiş.\nGökyüzü düşüyor.\nDemet Akalın çocuğumun babası Zeus'tur dedi.\nRusya'da votka bitmiş.
+    difficulty: null
+  - id: 11
+    type: addition
+    name: Karakter Özellikleri
+    description: Kötü => Paranoyak, Hiperaktif, Klostrofobik, yüksek egolu, konuşkan, depresyonlu, küfürbaz, acı içerisinde, miskin, sapık, dominant, boşboğaz, cadaloz, çok bilmiş, ezik, fingirdek, günahkar, hırbo, karacahil, maymun iştahlı, obur, paragöz, sarhoş\n
+                 İyi => İyilik sever, Onurlu, Masum, saf, mutlu, cengaver, aziz, delidolu, fotojenik, jön\n
+                 Belirsiz => Uzaylı, tavukların tanrıların melekleri olduğunu zanneden, iki kolunu savaşta kaybetmiş, hayatının son on yılı boyunca durmaksızın baş ağrısı çekmiş.
+    example: null
+    difficulty: null
+  - id: 12
+    type: addition
+    name: Doğaçlama Konuları / Kolay, Orta
+    description: null
+    example: Asker uğurlama, hapisten kaçma, ilk buluşma, aynı kıza aşık olma, TV yarışması, maç izleme, hamilelik, yapışık ikizler.
+    difficulty: null
+  - id: 13
+    type: addition
+    name: Doğaçlama Konuları / Zor
+    description: null
+    example: Marsa ilk Türk uzay seferi, Türkiye başkanı seçilen köpeğin korumalığını yapmak, evrendeki tüm bıyık ve sakalların sahiplerine saldırması, beş yıldır işkence gören bir insan, seri katil sorgulaması, hafızası olmayan adam.
+    difficulty: null
+  - id: 14
+    type: addition
+    name: Tiplemeler
+    description: null
+    example: Azgın Yaşlı\nSavaş Gazisi Amca\nGay Seri Katil\nEski Pandomim Sanatçısı\nKungfu ustası\nAlaman Rapçi\nHer şeye fobisi olan adam\nArtistik patinaj şampiyonu\nİnsan burun kıllarını çekici bulan\nKoltuklara cinsel olarak çekilen
+    difficulty: null
+  - id: 15
+    type: introduction
+    name: Çember İsim Tekrarlama
+    description: Katılımcılardan çember olmaları istenir, herkesin herkesi görmesi önemli bir nokta. Belirlenen yönde sırayla herkes kendinden önceki isimleri sayarak, sonunda da kendi ismini ekleyip söyler. Hak yenmemesi adına ters yönde de yinelenebilir. Zira bu sayede herkes tüm isimleri sayabilir.
+    example: Saat yönünde İdil, Pamir, Roy.\nİdil => İdil\nPamir => İdil, Pamir\nRoy => İdil, Pamir, Roy
+    difficulty: null
+  - id: 16
+    type: introduction
+    name: Burna Dokunma
+    description: Katılımcılara bulundukları alanda homojen yürümeleri istenir. Karşılarına çıkan insanların burnuna dokunup kendileriyle ilgili ilginç bir bilgi vermesi istenir. Eşleşmeler ikili halde olmak zorundadır. İstenirse isim de söylenmesi zorunlu kılınabilir.
+    example: Homojen yürürken İdil ve Pamir karşılaşırlar. İdil, Pamir'in burnuna dokunur ve "Benim adım İdil, 14 senedir keman çalıyorum." der.
+    difficulty: null
+  - id: 17
+    type: introduction
+    name: Tanışma (Mert Şen Varyasyonu)
+    description: Katılımcılardan bulundukları alanda homojen yürümeleri istenir. Katılıncılar birbirleriyle verilen konsepte uygun olacak şekilde selamlaşırlar. Yeni konseptte birlikte selamlaşma şekli de değişir.
+    example: Eski sevgili, uzun zamandır görüşmeyen arkadaşlar, can düşmanı, ağzı kokan insan, iki yaşlı optimist, pesimist, normal olmaya çalışan uzaylı, fiziksel tiki olan, üvey ebeveyn.
+    difficulty: null
+  - id: 18
+    type: icebreaker
+    name: Üçlü Obje
+    description: Katılımcılardan çember olunması istenir. Çıkan ilk kişi bir obje olur. İkinci kişi onunla bağlantılı bir başka obje olur. Üçüncü kişi ise çıkan ilk ikisinin olduğu obje ile alakalı üçüncü bir obje olur. İlk çıkan sonra çıkan iki kişiden birini seçer. Diğer ikisi yerine geçer. Seçilen kişi karmaşık sıfatlarını kaybeder ve yeni kişilerin ona eklenmesini bekler.
+    example: İdil ortaya çıkıp "Ben televizyonum." der ve televizyon olmayı imgeler. Ardından Pamir "Ben televizyonun modemiyim." der ve İdil'in altında modemi imgeler. Sonra Roy "Ben televizyonun modeminin üstündeki dantelim." der ve Pamir'in üstünde danteli imgeler. Son olarak İdil Roy'u seçer ve Roy dantel olarak devam ederken İdil ve Pamir yerine geçer.
+    difficulty: null
+  - id: 19
+    type: icebreaker
+    name: İnsan Düğümü
+    description: Katılımcıların omuz omuza çember olmaları istenir. Kafaları yukarıya baktırılır ve elleri ortaya getirilir. Herkes başka birinin elini tutar ve oluşan insan düğümünü çözmeye çalışırlar. Bu yapılırken eller kesinlikle bırakılmaz.
+    example: null
+    difficulty: null
+  - id: 20
+    type: icebreaker
+    name: Düello
+    description: Katılımcılar çember şeklinde dizilir. Anlatıcı herkese imgesel bir silahı teker teker verir ve dikkatli olmaları için uyarılır. Ardından hazırlan komutuyla bir kişinin adı söylenir. Adı söylenen kişinin bitişiğindeki iki kişi onu vurmaya çalışır. Adı söylenen kişi hızlıca yere çökebilirse, bitişiğindeki kişilerden yavaş olanı elenir. Yoksa kendisi elenir. Eğer adı söylenen elenmezse ortadaki kişiyle yer değiştirir ve sonraki ismi söyler. Elenirse ortadaki kişi devam eder. Son iki kişide sırt sırta düello yapılır.
+    example: null
+    difficulty: null
+  - id: 21
+    type: icebreaker
+    name: Serbest Dans
+    description: Katılımcılar bulundukları alanda eşit boşluklarla dağılırlar. Özellikle çok sesli olan müziklerin tercih edildiği bir müzik listesi çalar. Katılımcılar gözlerini kapatır. Serbest şekilde dans ederler. Katılımcıların vücutlarının tamamını serbestçe kullanmaları beklenir. Etkinlik ilerledikçe mimik yapmaları da istenir.
+    example: null
+    difficulty: null
+  - id: 22
+    type: icebreaker
+    name: El Çevirme
+    description: Katılımcılardan çember olmaları istenir. Stance duruşunda herkes belirli bir yönde o yöndeki arkadaşının önüne doğru ellerini vurur. Ekip bunu hızlı bir şekilde yapabildiğinde yön değiştirebilirler. Yani sağdan gelen enerjiyi solunuza iletmek yerine yine sağa iletip yönü değiştirebilirsiniz.
+    example: null
+    difficulty: null
+  - id: 23
+    type: improv
+    name: İkili Kaçma (Engel Parkuru)
+    description: Katılımcılardan bir tanesi kaçan ikincisi ise kovalayan olarak seçilir. Kaçan katılımcı önünde kendi yarattığı (imgesel olarak) engelleri aşarak kaçar. Kovalayan ise bu engelleri aşarak onu yakalamaya çalışır. Kaçan katılımcıya 3 ila 5 saniye arasında bir süre verilir.
+    example: Çukur, deniz, tünel, denge tahtası, yarda yürümek, kırık bloklar, halatla ilerleme, elma toplama hareketi ile uzun bir yeri geçme.
+    difficulty: null
+  - id: 24
+    type: improv
+    name: Yürüyüş (Mert Şen Varyasyonu)
+    description: Katılımcılar bir duvardan diğer duvara verilen durum içerisinde yürümeye çalışırlar.
+    example: Kızgın kum, rüzgar, diz boyu kar, ayakları zincirli, ellerinde valizle, iki dağ arasında iple yürüme, fazla yerçekimi.
+    difficulty: null
+  - id: 25
+    type: icebreaker
+    name: Kör Dizilim
+    description: Katılımcılar gözlerini kapatır. Bir dizilim komutu verilir. İnsanlar herhangi bir ses çıkarmadan ve gözlerini açmadan bu dizilimi oluşturmaya çalışırlar.
+    example: Boy, kilo, omuz genişliği, kafa ağırlığı.
+    difficulty: null
+  - id: 26
+    type: icebreaker
+    name: Vücut Saklama
+    description: 5/8 kişi gönüllü olur, içlerinden birisi saklanan seçilir. 4/7 5./8. kişiyi sadece vücutlarını kullanarak seçilen ebeden saklamaya çalışır. Ebe saklanan kişinin tüm detaylarını temaz kullanmaksızın görmeye çalışır. Eğer 8 kişilik ekip olursa saklanan kişinin kim olduğunu bulmaya çalışır.
+    example: İdil, Roy ve 3 kişi gönüllü olur, İdil saklanan kişi olur, Roy ebe olur. 3 kişi İdil'i olabildiğince az gözükecek şekilde vücutlarıyla saklamaya çalışır. Roy ise İdil'in kıyafetlerindeki detayları görmeye çalışır.
+    difficulty: null
+  - id: 27
+    type: icebreaker
+    name: Bıçak, Bebek, Kedi
+    description: Katılımcılar alanda yürümeye başlar. Komutla birlikte bir oyuncuya bıçak verilir. Bıçağın sahibi, bıçağı imgeleyerek başka birine fırlatır. Daha sonra sürece bebek ve kedi de eklenir.
+    example: null
+  - id: 28
+    type: icebreaker
+    name: Daire Adım Atma
+    description: Katılımcılar çember şeklinde dizilirler. Basit komutları aynı anda yapmaları istenir. Daha sonra katılımcılara bir sekans verilir ve aynı anda yapmaları beklenir.
+    example: Alkış, zıplama, dönme, adım.
+    difficulty: null
+  - id: 29
+    type: icebreaker
+    name: Fotoğraf Karesi
+    description: Katılımcılar tek sıra halinde dizilirler. Katılımcılara bir yer verilir ve katılımcılar o yer ile ilgili herhangi bir şey olurlar. Katılımcılar tek tek çıkarlar ve her biri çıktığında sahnedeki insanların fotoğrafı çekilir.
+    example: Park, uzay gemisi, güverte, hastane, hapishane
+    difficulty: null
+    

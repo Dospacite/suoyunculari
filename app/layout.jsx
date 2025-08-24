@@ -40,7 +40,7 @@ export default function RootLayout({ children }) {
             <head>
                 <link rel="icon" href="images/minimal.svg" sizes="any" />
             </head>
-            <body className="antialiased text-[#F5EFED] bg-[url('/images/bg.webp')] bg-black/50 bg-blend-multiply bg-contain bg-no-repeat">
+            <body className="antialiased text-[#F5EFED]">
                 <div className="flex flex-col min-h-screen">
                     <div className="flex flex-col w-full mx-auto grow">
                         <Header />

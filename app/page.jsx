@@ -10,7 +10,7 @@ export default function HomePage() {
 
   return (
     <main className="grow">
-      <div className="flex flex-col items-center grow p-8 justify-center h-[85vh]">
+      <div className="flex flex-col items-center grow p-8 justify-center h-screen bg-[url('/images/bg.webp')] bg-black/50 bg-blend-multiply bg-center bg-cover">
         <Image src={logo} alt="SUO logo" className="w-64" />
         <h2 className="text-6xl font-normal font-gotham-narrow text-center tracking-wide">Tiyatro</h2>
         <h2 className="text-6xl font-normal font-gotham-narrow text-center">Kulübü</h2>

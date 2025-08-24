@@ -9,7 +9,7 @@ import instagram from 'public/images/instagram.svg';
 
 export function Header() {
     return (
-        <nav className="flex flex-wrap w-full justify-between items-center h-[15vh] px-6">
+        <nav className="absolute flex flex-wrap w-full justify-between items-center p-6">
             <Image src={logo} alt="SUO logo"/>
             <div className='flex-1'></div>
             <div className='flex space-x-8 items-center'>

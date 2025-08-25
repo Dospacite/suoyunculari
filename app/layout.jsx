@@ -1,7 +1,6 @@
 import '../styles/globals.css';
 import { Footer } from '../components/footer';
 import { Header } from '../components/header';
-import { BottomHeader } from '@/components/bottom_header';
 
 import localFont from 'next/font/local'
 

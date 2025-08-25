@@ -5,9 +5,11 @@ import logo from 'public/images/logo.svg';
 import { Plays } from '@/components/plays';
 import { ArrowDownIcon } from '@heroicons/react/24/outline';
 import { Tools } from '@/components/tools';
+import { LatestBlogs } from '@/components/latest-blogs';
 
 export default function HomePage() {
-  const latestPosts = getPostsByCategories("play");
+  const latestPlays = getPostsByCategories("play");
+  const latestBlogs = getPostsByCategories("blog");
 
   return (
     <>
@@ -20,8 +22,9 @@ export default function HomePage() {
           <ArrowDownIcon className="w-6 h-6 mx-auto mt-4 text-white stroke-2 animate-bounce" />
         </div>
       </div>
-      <Plays plays={latestPosts} />
+      <Plays plays={latestPlays} />
       <Tools />
+      <LatestBlogs blogs={latestBlogs} />
     </>
   );
 }

@@ -1,5 +1,6 @@
 import Markdown from "markdown-to-jsx";
 import { CalendarDaysIcon, MapPinIcon } from "@heroicons/react/24/outline";
+import Image from "next/image";
 
 export function Play({ play }) {
     let image;

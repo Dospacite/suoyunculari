@@ -17,6 +17,8 @@
 
     --color-white: #fafafa;
     --color-black: #121212;
+    --color-niceRed: #B71C1C;
+    --color-niceBlue: #0D47A1;
 }
 
 @keyframes bounce {

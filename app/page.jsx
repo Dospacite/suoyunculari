@@ -4,13 +4,14 @@ import Image from 'next/image';
 import logo from 'public/images/logo.svg';
 import { Plays } from '@/components/plays';
 import { ArrowDownIcon } from '@heroicons/react/24/outline';
+import { Tools } from '@/components/tools';
 
 export default function HomePage() {
-  const latestPosts = getPostsByCategories(["blog", "play"]);
+  const latestPosts = getPostsByCategories("play");
 
   return (
-    <main className="grow">
-      <div className="flex flex-col items-center grow p-8 justify-center h-screen bg-[url('/images/bg.webp')] bg-black/50 bg-blend-multiply bg-center bg-cover">
+    <>
+    <div className="flex flex-col items-center p-8 justify-center min-h-screen bg-[url('/images/bg.webp')] bg-black/50 bg-blend-multiply bg-center bg-cover">
         <Image src={logo} alt="SUO logo" className="w-64" />
         <h2 className="text-6xl font-normal font-gotham-narrow text-center tracking-wide">Tiyatro</h2>
         <h2 className="text-6xl font-normal font-gotham-narrow text-center">Kulübü</h2>
@@ -19,7 +20,8 @@ export default function HomePage() {
           <ArrowDownIcon className="w-6 h-6 mx-auto mt-4 text-white stroke-2 animate-bounce" />
         </div>
       </div>
-      <Plays />
-    </main>
+      <Plays plays={latestPosts} />
+      <Tools />
+    </>
   );
 }

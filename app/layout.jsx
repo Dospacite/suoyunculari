@@ -22,6 +22,11 @@ const Gotham = localFont({
             path: '../public/fonts/GothamSSm/gothamssm_light.otf',
             weight: '300',
             style: 'normal'
+        },
+        {
+            path: '../public/fonts/GothamSSm/gothamssm_medium.otf',
+            weight: '500',
+            style: 'normal'
         }
     ],
     variable: '--font-gotham'
@@ -40,14 +45,16 @@ export default function RootLayout({ children }) {
             <head>
                 <link rel="icon" href="images/minimal.svg" sizes="any" />
             </head>
-            <body className="antialiased text-[#F5EFED]">
-                <div className="flex flex-col min-h-screen">
-                    <div className="flex flex-col w-full mx-auto grow">
+            <body className="min-h-screen flex flex-col antialiased text-[#F5EFED]">
+                <div className="flex flex-col">
+                    <div className="flex flex-col w-full">
                         <Header />
-                        {children}
-                        <Footer />
+                        <main>
+                            {children}
+                        </main>
                     </div>
                 </div>
+                <Footer />
             </body>
         </html>
     );

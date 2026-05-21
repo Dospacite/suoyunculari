@@ -1,0 +1,108 @@
+---
+import type { Play } from '@/lib/directus';
+
+type Props = {
+  plays: Play[];
+};
+
+const { plays } = Astro.props;
+---
+
+<section class="play-browser" aria-label="Play browser">
+  <div class="browser-tools">
+    <label>
+      <span>Search</span>
+      <input id="play-search" type="search" placeholder="Title, author, genre" />
+    </label>
+    <label>
+      <span>Difficulty</span>
+      <select id="difficulty-filter">
+        <option value="">All</option>
+        <option value="easy">Easy</option>
+        <option value="medium">Medium</option>
+        <option value="hard">Hard</option>
+        <option value="unknown">Unknown</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="play-list" id="play-list">
+    {
+      plays.map((play) => {
+        const genres = play.genres?.map((genre) => genre.name).join(', ') || 'Theatre';
+        const searchable = [
+          play.title,
+          play.original_title,
+          play.author?.name,
+          genres,
+          play.tags?.map((tag) => tag.name).join(' '),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return (
+          <article
+            class="play-row"
+            data-search={searchable}
+            data-difficulty={play.difficulty || ''}
+          >
+            <a href={`/plays/${play.slug}`}>
+              <div>
+                <p class="kicker">{genres}</p>
+                <h2>{play.title}</h2>
+                <p>{play.summary}</p>
+              </div>
+              <dl>
+                <div>
+                  <dt>Cast</dt>
+                  <dd>
+                    {play.min_cast_size && play.max_cast_size
+                      ? `${play.min_cast_size}-${play.max_cast_size}`
+                      : 'Flexible'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Length</dt>
+                  <dd>{play.duration_minutes ? `${play.duration_minutes} min` : 'TBD'}</dd>
+                </div>
+                <div>
+                  <dt>Rights</dt>
+                  <dd>{(play.rights_status || 'unknown').replaceAll('_', ' ')}</dd>
+                </div>
+              </dl>
+            </a>
+          </article>
+        );
+      })
+    }
+  </div>
+  <p class="empty-state" id="play-empty" hidden>No matching plays.</p>
+</section>
+
+<script>
+  const search = document.querySelector<HTMLInputElement>('#play-search');
+  const difficulty = document.querySelector<HTMLSelectElement>('#difficulty-filter');
+  const rows = Array.from(document.querySelectorAll<HTMLElement>('.play-row'));
+  const empty = document.querySelector<HTMLElement>('#play-empty');
+
+  function updateRows() {
+    const query = search?.value.trim().toLowerCase() || '';
+    const selectedDifficulty = difficulty?.value || '';
+    let visibleCount = 0;
+
+    for (const row of rows) {
+      const matchesSearch = row.dataset.search?.includes(query) ?? true;
+      const matchesDifficulty =
+        selectedDifficulty === '' || row.dataset.difficulty === selectedDifficulty;
+      const isVisible = matchesSearch && matchesDifficulty;
+      row.hidden = !isVisible;
+      if (isVisible) visibleCount += 1;
+    }
+
+    if (empty) empty.hidden = visibleCount > 0;
+  }
+
+  search?.addEventListener('input', updateRows);
+  difficulty?.addEventListener('change', updateRows);
+</script>

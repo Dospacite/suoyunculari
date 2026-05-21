@@ -1,0 +1,56 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getAuthors, getPlays } from '@/lib/directus';
+
+export async function getStaticPaths() {
+  const authors = await getAuthors();
+  const plays = await getPlays();
+
+  return authors.map((author) => ({
+    params: { slug: author.slug },
+    props: {
+      author,
+      plays: plays.filter((play) => play.author?.slug === author.slug),
+    },
+  }));
+}
+
+const { author, plays } = Astro.props;
+---
+
+<BaseLayout title={author.name} description={author.bio}>
+  <main class="section compact">
+    <article class="section-inner">
+      <div class="section-heading">
+        <p class="kicker">{author.country || 'Author'}</p>
+        <h1>{author.name}</h1>
+        <p>
+          {[author.birth_year, author.death_year].filter(Boolean).join(' - ') ||
+            'Author record'}
+        </p>
+      </div>
+      <p class="prose">{author.bio}</p>
+
+      <section class="section-heading" style="margin-top: 56px;">
+        <p class="kicker">Plays</p>
+        <h2>In the archive</h2>
+      </section>
+      <div class="article-list">
+        {
+          plays.length > 0 ? (
+            plays.map((play) => (
+              <a href={`/plays/${play.slug}`}>
+                <h2>{play.title}</h2>
+                <p>{play.summary}</p>
+              </a>
+            ))
+          ) : (
+            <article>
+              <p class="muted">No published play records are linked to this author yet.</p>
+            </article>
+          )
+        }
+      </div>
+    </article>
+  </main>
+</BaseLayout>

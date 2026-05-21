@@ -1,0 +1,29 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getAuthors } from '@/lib/directus';
+
+const authors = await getAuthors();
+---
+
+<BaseLayout title="Authors" description="Authors represented in the SU Oyunculari play archive.">
+  <main class="section compact">
+    <div class="section-inner">
+      <div class="section-heading">
+        <p class="kicker">Archive</p>
+        <h1>Authors</h1>
+        <p>Playwrights and writers connected to published play records.</p>
+      </div>
+      <div class="article-list">
+        {
+          authors.map((author) => (
+            <a href={`/authors/${author.slug}`}>
+              <p class="kicker">{author.country || 'Playwright'}</p>
+              <h2>{author.name}</h2>
+              <p>{author.bio}</p>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </main>
+</BaseLayout>

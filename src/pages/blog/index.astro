@@ -1,0 +1,29 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getBlogPosts } from '@/lib/directus';
+
+const posts = await getBlogPosts();
+---
+
+<BaseLayout title="Blog" description="Published announcements and notes from SU Oyunculari.">
+  <main class="section compact">
+    <div class="section-inner">
+      <div class="section-heading">
+        <p class="kicker">News</p>
+        <h1>Blog</h1>
+        <p>Announcements, rehearsal notes, and club updates.</p>
+      </div>
+      <div class="article-list">
+        {
+          posts.map((post) => (
+            <a href={`/blog/${post.slug}`}>
+              <p class="kicker">{post.author_name || 'SU Oyunculari'}</p>
+              <h2>{post.title}</h2>
+              <p>{post.excerpt}</p>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </main>
+</BaseLayout>

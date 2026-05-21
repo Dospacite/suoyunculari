@@ -1,0 +1,89 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getBlogPosts, getHomepageSections, getPlays } from '@/lib/directus';
+
+const [sections, plays, posts] = await Promise.all([
+  getHomepageSections(),
+  getPlays(),
+  getBlogPosts(),
+]);
+
+const hero = sections.find((section) => section.section_key === 'hero') ?? sections[0];
+const featuredPlays = plays.slice(0, 3);
+const latestPosts = posts.slice(0, 2);
+---
+
+<BaseLayout>
+  <main>
+    <section class="hero">
+      <div class="hero-inner">
+        <p class="eyebrow">Sabanci University Theatre Club</p>
+        <h1>SU Oyunculari</h1>
+        <p>{hero?.body || hero?.subheading}</p>
+        <div class="hero-actions">
+          <a class="button" href={hero?.button_url || '/plays'}>{hero?.button_text || 'Explore plays'}</a>
+          <a class="button secondary" href="/blog">Read updates</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-inner split">
+        <div class="section-heading">
+          <p class="kicker">Archive</p>
+          <h2>Plays for reading, rehearsal, and production.</h2>
+        </div>
+        <div class="prose">
+          <p>
+            Browse stage plays by author, cast size, duration, difficulty, and rights status. The
+            archive is built to support club programming decisions without hiding unpublished work in
+            public pages.
+          </p>
+          <div class="actions">
+            <a class="button" href="/plays">Open archive</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section feature-band">
+      <div class="section-inner feature-grid">
+        <div>
+          <p class="kicker">Featured</p>
+          <h2>Current reading list</h2>
+          <p>Published Directus records appear here automatically after each static rebuild.</p>
+        </div>
+        <div class="feature-list">
+          {
+            featuredPlays.map((play) => (
+              <a href={`/plays/${play.slug}`}>
+                <strong>{play.title}</strong>
+                <span>{play.author?.name || 'Unknown author'}</span>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-inner">
+        <div class="section-heading">
+          <p class="kicker">News</p>
+          <h2>Club notes and announcements.</h2>
+        </div>
+        <div class="article-list">
+          {
+            latestPosts.map((post) => (
+              <a href={`/blog/${post.slug}`}>
+                <p class="kicker">{post.author_name || 'SU Oyunculari'}</p>
+                <h2>{post.title}</h2>
+                <p>{post.excerpt}</p>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+  </main>
+</BaseLayout>

@@ -1,0 +1,50 @@
+---
+import '@/styles/global.css';
+
+type Props = {
+  title?: string;
+  description?: string;
+};
+
+const {
+  title = 'SU Oyunculari',
+  description = 'Sabanci University theatre club archive, plays, notes, and announcements.',
+} = Astro.props;
+
+const pageTitle = title === 'SU Oyunculari' ? title : `${title} | SU Oyunculari`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{pageTitle}</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="SU Oyunculari home">
+        <span class="brand-mark">SO</span>
+        <span>SU Oyunculari</span>
+      </a>
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a href="/plays">Plays</a>
+        <a href="/blog">Blog</a>
+        <a href="/authors">Authors</a>
+        <a href="/about">About</a>
+        <a href="/contact">Contact</a>
+      </nav>
+    </header>
+    <slot />
+    <footer class="site-footer">
+      <div>
+        <strong>SU Oyunculari</strong>
+        <span>Theatre club archive and publishing home.</span>
+      </div>
+      <a href="/contact">Contact</a>
+    </footer>
+  </body>
+</html>

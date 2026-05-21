@@ -1,0 +1,23 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getPageByKey, getPages, textContent } from '@/lib/directus';
+
+const page = getPageByKey(await getPages(), 'contact');
+---
+
+<BaseLayout title="Contact" description="Contact SU Oyunculari.">
+  <main class="section compact">
+    <div class="section-inner split">
+      <div class="section-heading">
+        <p class="kicker">Contact</p>
+        <h1>{page?.title || 'Contact'}</h1>
+      </div>
+      <div class="prose">
+        <p>{textContent(page?.content)}</p>
+        <div class="actions">
+          <a class="button" href="mailto:info@suoyunculari.com">Email the club</a>
+        </div>
+      </div>
+    </div>
+  </main>
+</BaseLayout>

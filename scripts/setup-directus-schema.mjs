@@ -1,0 +1,396 @@
+#!/usr/bin/env node
+
+const DIRECTUS_URL = process.env.DIRECTUS_URL?.replace(/\/$/, '');
+const DIRECTUS_TOKEN = process.env.DIRECTUS_TOKEN;
+
+if (!DIRECTUS_URL || !DIRECTUS_TOKEN) {
+  console.error('Set DIRECTUS_URL and DIRECTUS_TOKEN before running this script.');
+  process.exit(1);
+}
+
+const collectionDefinitions = [
+  { collection: 'authors', icon: 'person', display: '{{name}}' },
+  { collection: 'genres', icon: 'category', display: '{{name}}' },
+  { collection: 'tags', icon: 'sell', display: '{{name}}' },
+  { collection: 'languages', icon: 'translate', display: '{{name}}' },
+  { collection: 'periods', icon: 'history_edu', display: '{{name}}' },
+  { collection: 'plays', icon: 'theater_comedy', display: '{{title}}' },
+  { collection: 'blog_posts', icon: 'article', display: '{{title}}' },
+  { collection: 'pages', icon: 'web', display: '{{key}}' },
+  { collection: 'homepage_sections', icon: 'view_agenda', display: '{{section_key}}' },
+  { collection: 'plays_genres', icon: 'link', hidden: true },
+  { collection: 'plays_tags', icon: 'link', hidden: true },
+];
+
+const fields = {
+  authors: [
+    stringField('name', { required: true, width: 'full' }),
+    stringField('slug', { required: true, unique: true }),
+    integerField('birth_year'),
+    integerField('death_year'),
+    stringField('country'),
+    textField('bio'),
+  ],
+  genres: [
+    stringField('name', { required: true }),
+    stringField('slug', { required: true, unique: true }),
+    textField('description'),
+  ],
+  tags: [
+    stringField('name', { required: true }),
+    stringField('slug', { required: true, unique: true }),
+  ],
+  languages: [
+    stringField('name', { required: true }),
+    stringField('code', { required: true, unique: true, maxLength: 16 }),
+  ],
+  periods: [
+    stringField('name', { required: true }),
+    stringField('slug', { required: true, unique: true }),
+    textField('description'),
+  ],
+  plays: [
+    stringField('title', { required: true, width: 'full' }),
+    stringField('slug', { required: true, unique: true }),
+    stringField('original_title'),
+    textField('summary', { interfaceName: 'input-rich-text-md' }),
+    fileField('cover_image'),
+    m2oField('author'),
+    integerField('year_written'),
+    m2oField('language'),
+    integerField('duration_minutes'),
+    integerField('min_cast_size'),
+    integerField('max_cast_size'),
+    integerField('female_roles'),
+    integerField('male_roles'),
+    integerField('neutral_roles'),
+    aliasM2mField('genres'),
+    aliasM2mField('tags'),
+    m2oField('period'),
+    textField('setting'),
+    textField('themes'),
+    selectField('difficulty', ['easy', 'medium', 'hard', 'unknown'], 'unknown'),
+    selectField(
+      'rights_status',
+      ['unknown', 'public_domain', 'licensed', 'permission_required', 'original_club_work'],
+      'unknown',
+    ),
+    textField('rights_notes'),
+    fileField('script_file'),
+    stringField('script_url', { maxLength: 1024 }),
+    booleanField('is_published', false),
+  ],
+  blog_posts: [
+    stringField('title', { required: true, width: 'full' }),
+    stringField('slug', { required: true, unique: true }),
+    textField('excerpt'),
+    textField('body', { interfaceName: 'input-rich-text-md' }),
+    fileField('cover_image'),
+    stringField('author_name'),
+    dateTimeField('published_at'),
+    booleanField('is_published', false),
+  ],
+  pages: [
+    stringField('key', { required: true, unique: true }),
+    stringField('title'),
+    textField('content', { interfaceName: 'input-rich-text-md' }),
+  ],
+  homepage_sections: [
+    stringField('section_key', { required: true }),
+    stringField('heading'),
+    stringField('subheading'),
+    textField('body'),
+    fileField('image'),
+    stringField('button_text'),
+    stringField('button_url', { maxLength: 1024 }),
+    integerField('sort_order'),
+    booleanField('is_visible', true),
+  ],
+  plays_genres: [m2oField('plays_id'), m2oField('genres_id')],
+  plays_tags: [m2oField('plays_id'), m2oField('tags_id')],
+};
+
+const relations = [
+  relation('plays', 'author', 'authors'),
+  relation('plays', 'language', 'languages'),
+  relation('plays', 'period', 'periods'),
+  relation('plays', 'cover_image', 'directus_files'),
+  relation('plays', 'script_file', 'directus_files'),
+  relation('blog_posts', 'cover_image', 'directus_files'),
+  relation('homepage_sections', 'image', 'directus_files'),
+  relation('plays_genres', 'plays_id', 'plays', {
+    one_field: 'genres',
+    junction_field: 'genres_id',
+    one_deselect_action: 'delete',
+  }),
+  relation('plays_genres', 'genres_id', 'genres'),
+  relation('plays_tags', 'plays_id', 'plays', {
+    one_field: 'tags',
+    junction_field: 'tags_id',
+    one_deselect_action: 'delete',
+  }),
+  relation('plays_tags', 'tags_id', 'tags'),
+];
+
+for (const definition of collectionDefinitions) {
+  await ensureCollection(definition);
+}
+
+for (const [collection, collectionFields] of Object.entries(fields)) {
+  for (const field of collectionFields) {
+    await ensureField(collection, field);
+  }
+}
+
+for (const item of relations) {
+  await ensureRelation(item);
+}
+
+console.log('Directus schema setup complete.');
+
+async function request(method, path, body) {
+  const response = await fetch(`${DIRECTUS_URL}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${DIRECTUS_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (response.status === 204) return null;
+
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const message = payload?.errors?.map((error) => error.message).join('; ') || response.statusText;
+    const error = new Error(`${method} ${path}: ${message}`);
+    error.status = response.status;
+    throw error;
+  }
+
+  return payload;
+}
+
+async function exists(path) {
+  try {
+    await request('GET', path);
+    return true;
+  } catch (error) {
+    if (error.status === 404 || error.status === 403) return false;
+    throw error;
+  }
+}
+
+async function ensureCollection({ collection, icon, display, hidden = false }) {
+  if (await exists(`/collections/${collection}`)) {
+    console.log(`collection exists: ${collection}`);
+    return;
+  }
+
+  await request('POST', '/collections', {
+    collection,
+    meta: {
+      icon,
+      display_template: display,
+      hidden,
+    },
+    schema: {},
+    fields: [primaryKeyField()],
+  });
+
+  console.log(`collection created: ${collection}`);
+}
+
+async function ensureField(collection, field) {
+  if (await exists(`/fields/${collection}/${field.field}`)) {
+    console.log(`field exists: ${collection}.${field.field}`);
+    return;
+  }
+
+  await request('POST', `/fields/${collection}`, field);
+  console.log(`field created: ${collection}.${field.field}`);
+}
+
+async function ensureRelation(item) {
+  const all = await request('GET', '/relations');
+  const found = all.data?.some(
+    (relationItem) =>
+      relationItem.collection === item.collection && relationItem.field === item.field,
+  );
+
+  if (found) {
+    console.log(`relation exists: ${item.collection}.${item.field}`);
+    return;
+  }
+
+  await request('POST', '/relations', item);
+  console.log(`relation created: ${item.collection}.${item.field}`);
+}
+
+function primaryKeyField() {
+  return {
+    field: 'id',
+    type: 'integer',
+    meta: {
+      hidden: true,
+      interface: 'input',
+      readonly: true,
+    },
+    schema: {
+      is_primary_key: true,
+      has_auto_increment: true,
+    },
+  };
+}
+
+function stringField(
+  field,
+  { required = false, unique = false, maxLength = 255, width = 'half' } = {},
+) {
+  return {
+    field,
+    type: 'string',
+    meta: {
+      interface: 'input',
+      required,
+      width,
+    },
+    schema: {
+      is_nullable: !required,
+      is_unique: unique,
+      max_length: maxLength,
+    },
+  };
+}
+
+function textField(field, { interfaceName = 'input-multiline' } = {}) {
+  return {
+    field,
+    type: 'text',
+    meta: {
+      interface: interfaceName,
+      width: 'full',
+    },
+    schema: {
+      is_nullable: true,
+    },
+  };
+}
+
+function integerField(field) {
+  return {
+    field,
+    type: 'integer',
+    meta: {
+      interface: 'input',
+      width: 'half',
+    },
+    schema: {
+      is_nullable: true,
+    },
+  };
+}
+
+function booleanField(field, defaultValue) {
+  return {
+    field,
+    type: 'boolean',
+    meta: {
+      interface: 'boolean',
+      width: 'half',
+    },
+    schema: {
+      default_value: defaultValue,
+      is_nullable: false,
+    },
+  };
+}
+
+function selectField(field, choices, defaultValue) {
+  return {
+    field,
+    type: 'string',
+    meta: {
+      interface: 'select-dropdown',
+      options: {
+        choices: choices.map((choice) => ({ text: choice.replaceAll('_', ' '), value: choice })),
+      },
+      width: 'half',
+    },
+    schema: {
+      default_value: defaultValue,
+      is_nullable: false,
+      max_length: 255,
+    },
+  };
+}
+
+function dateTimeField(field) {
+  return {
+    field,
+    type: 'dateTime',
+    meta: {
+      interface: 'datetime',
+      width: 'half',
+    },
+    schema: {
+      is_nullable: true,
+    },
+  };
+}
+
+function fileField(field) {
+  return {
+    field,
+    type: 'uuid',
+    meta: {
+      interface: 'file-image',
+      special: ['file'],
+      width: 'half',
+    },
+    schema: {
+      is_nullable: true,
+    },
+  };
+}
+
+function m2oField(field) {
+  return {
+    field,
+    type: 'integer',
+    meta: {
+      interface: 'select-dropdown-m2o',
+      special: ['m2o'],
+      width: 'half',
+    },
+    schema: {
+      is_nullable: true,
+    },
+  };
+}
+
+function aliasM2mField(field) {
+  return {
+    field,
+    type: 'alias',
+    meta: {
+      interface: 'list-m2m',
+      special: ['m2m'],
+      width: 'full',
+    },
+  };
+}
+
+function relation(collection, field, related_collection, meta = {}) {
+  return {
+    collection,
+    field,
+    related_collection,
+    meta,
+    schema: {
+      on_delete: meta.one_deselect_action === 'delete' ? 'CASCADE' : 'SET NULL',
+    },
+  };
+}

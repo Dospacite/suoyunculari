@@ -1,10 +1,11 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { assetUrl, getHomePlays, getHomepageSections } from '@/lib/directus';
+import { assetUrl, getBlogPosts, getHomePlays, getHomepageSections } from '@/lib/directus';
 
 export const prerender = false;
 
 const homePlays = await getHomePlays();
+const latestPosts = (await getBlogPosts()).slice(0, 3);
 const homepageSections = await getHomepageSections();
 const heroSection = homepageSections.find((section) => section.section_key === 'hero');
 const heroImage = assetUrl(heroSection?.image);
@@ -17,6 +18,12 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
   month: 'long',
   hour: '2-digit',
   minute: '2-digit',
+});
+
+const postDateFormatter = new Intl.DateTimeFormat('tr-TR', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
 });
 ---
 
@@ -80,6 +87,49 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
       </div>
     </section>
 
+    <section class="section home-section" id="son-yazilar">
+      <div class="section-inner">
+        <div class="section-heading center">
+          <p class="kicker">Blog</p>
+          <h2>Son Yazılar</h2>
+        </div>
+        {latestPosts.length > 0 ? (
+          <div
+            class:list={['home-play-grid', latestPosts.length > 0 && latestPosts.length < 3 && 'centered']}
+            style={`--home-play-count: ${Math.max(1, Math.min(latestPosts.length, 3))}`}
+          >
+            {latestPosts.map((post) => {
+              const image = assetUrl(post.cover_image);
+              const date = post.published_at
+                ? postDateFormatter.format(new Date(post.published_at))
+                : 'Yayın tarihi yok';
+
+              return (
+                <article class="home-play-card home-blog-card">
+                  {image ? (
+                    <img src={image} alt="" loading="lazy" />
+                  ) : (
+                    <div class="home-card-fallback blog-fallback" aria-hidden="true" />
+                  )}
+                  <div>
+                    <p class="kicker">{date}</p>
+                    <h3>{post.title}</h3>
+                    <p>{post.excerpt}</p>
+                    <div class="home-card-meta">
+                      <span>{post.author_name || 'SUOyuncuları'}</span>
+                      <a class="button compact-button" href={`/blog/${post.slug}`}>OKU</a>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p class="empty-state center-empty">Yayınlanmış blog yazısı henüz yok.</p>
+        )}
+      </div>
+    </section>
+
     <section class="section tool-section">
       <div class="section-inner">
         <div class="section-heading center">
@@ -94,6 +144,10 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
           <a class="tool-tile red" href="/metin-bankasi">
             <span>Metin Bankası</span>
             <strong>Concord metinlerini ara</strong>
+          </a>
+          <a class="tool-tile white" href="/kutuphane">
+            <span>Kütüphane</span>
+            <strong>Fiziksel kitaplığı tara</strong>
           </a>
           <a class="tool-tile black" href="/prova-defteri">
             <span>Prova Defteri</span>

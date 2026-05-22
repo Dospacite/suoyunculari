@@ -1,0 +1,143 @@
+---
+import type { Book } from '@/lib/directus';
+
+type Props = {
+  books: Book[];
+};
+
+const { books } = Astro.props;
+
+const categories = Array.from(
+  new Set(books.map((book) => book.category).filter((item): item is string => Boolean(item))),
+).sort((a, b) => a.localeCompare(b, 'tr'));
+
+const languages = Array.from(
+  new Set(books.map((book) => book.language).filter((item): item is string => Boolean(item))),
+).sort((a, b) => a.localeCompare(b, 'tr'));
+---
+
+<section class="play-browser" aria-label="Kütüphane arama">
+  <div class="browser-tools">
+    <label>
+      <span>Arama</span>
+      <input id="book-search" type="search" placeholder="Başlık, yazar, yayınevi, etiket" />
+    </label>
+    <label>
+      <span>Kategori</span>
+      <select id="book-category-filter">
+        <option value="">Tümü</option>
+        {categories.map((category) => <option value={category.toLowerCase()}>{category}</option>)}
+      </select>
+    </label>
+    <label>
+      <span>Dil</span>
+      <select id="book-language-filter">
+        <option value="">Tümü</option>
+        {languages.map((language) => <option value={language.toLowerCase()}>{language}</option>)}
+      </select>
+    </label>
+    <label>
+      <span>Durum</span>
+      <select id="book-availability-filter">
+        <option value="">Tümü</option>
+        <option value="available">Rafta</option>
+        <option value="borrowed">Ödünçte</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="idea-list" id="book-list">
+    {
+      books.map((book) => {
+        const tags = Array.isArray(book.tags) ? book.tags : [];
+        const status = book.is_available === false ? 'borrowed' : 'available';
+        const searchable = [
+          book.title,
+          book.author,
+          book.translator,
+          book.publisher,
+          book.category,
+          book.language,
+          book.location,
+          book.notes,
+          tags.join(' '),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return (
+          <article
+            class="idea-row"
+            data-search={searchable}
+            data-category={book.category?.toLowerCase() || ''}
+            data-language={book.language?.toLowerCase() || ''}
+            data-availability={status}
+          >
+            <div>
+              <p class="kicker row-kicker">
+                {book.category || 'Kitap'}
+                <span class="played-badge">{status === 'available' ? 'Rafta' : 'Ödünçte'}</span>
+              </p>
+              <h2>{book.title}</h2>
+              <p>{[book.author, book.translator && `Çev. ${book.translator}`].filter(Boolean).join(' / ')}</p>
+              <div class="taxonomy">
+                {tags.map((tag) => <span>{tag}</span>)}
+              </div>
+            </div>
+            <dl>
+              <div>
+                <dt>Yayınevi</dt>
+                <dd>{book.publisher || 'Belirsiz'}</dd>
+              </div>
+              <div>
+                <dt>Yıl</dt>
+                <dd>{book.publication_year || 'Belirsiz'}</dd>
+              </div>
+              <div>
+                <dt>Konum</dt>
+                <dd>{book.location || 'Kulüp Kitaplığı'}</dd>
+              </div>
+            </dl>
+          </article>
+        );
+      })
+    }
+  </div>
+  <p class="empty-state" id="book-empty" hidden>Eşleşen kitap bulunamadı.</p>
+</section>
+
+<script>
+  const bookSearch = document.querySelector<HTMLInputElement>('#book-search');
+  const bookCategory = document.querySelector<HTMLSelectElement>('#book-category-filter');
+  const bookLanguage = document.querySelector<HTMLSelectElement>('#book-language-filter');
+  const bookAvailability = document.querySelector<HTMLSelectElement>('#book-availability-filter');
+  const bookRows = Array.from(document.querySelectorAll<HTMLElement>('#book-list .idea-row'));
+  const bookEmpty = document.querySelector<HTMLElement>('#book-empty');
+
+  function updateBookRows() {
+    const query = bookSearch?.value.trim().toLowerCase() || '';
+    const selectedCategory = bookCategory?.value || '';
+    const selectedLanguage = bookLanguage?.value || '';
+    const selectedAvailability = bookAvailability?.value || '';
+    let visibleCount = 0;
+
+    for (const row of bookRows) {
+      const matchesSearch = row.dataset.search?.includes(query) ?? true;
+      const matchesCategory = selectedCategory === '' || row.dataset.category === selectedCategory;
+      const matchesLanguage = selectedLanguage === '' || row.dataset.language === selectedLanguage;
+      const matchesAvailability =
+        selectedAvailability === '' || row.dataset.availability === selectedAvailability;
+      const isVisible = matchesSearch && matchesCategory && matchesLanguage && matchesAvailability;
+      row.hidden = !isVisible;
+      if (isVisible) visibleCount += 1;
+    }
+
+    if (bookEmpty) bookEmpty.hidden = visibleCount > 0;
+  }
+
+  bookSearch?.addEventListener('input', updateBookRows);
+  bookCategory?.addEventListener('change', updateBookRows);
+  bookLanguage?.addEventListener('change', updateBookRows);
+  bookAvailability?.addEventListener('change', updateBookRows);
+</script>

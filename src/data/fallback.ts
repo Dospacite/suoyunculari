@@ -1,6 +1,7 @@
 import type {
   Author,
   BlogPost,
+  Book,
   HomepageSection,
   Page,
   Play,
@@ -130,6 +131,37 @@ export const fallbackRehearsalIdeas: RehearsalIdea[] = [
     body: 'Ekip bir yürüyüş ritmi kurar, ardından tek tek oyuncular bu ritmi bozmadan yeni aksiyonlar ekler. Yönetmen, odak geçişlerini belirler.',
     tags: ['ensemble', 'ritim', 'kalabalık sahne'],
     difficulty: 'hard',
+    is_published: true,
+  },
+];
+
+export const fallbackBooks: Book[] = [
+  {
+    title: 'Boş Mekan',
+    slug: 'bos-mekan',
+    author: 'Peter Brook',
+    translator: 'Ülker İnce',
+    publisher: 'Afa Yayınları',
+    publication_year: 1990,
+    category: 'Tiyatro Kuramı',
+    language: 'Türkçe',
+    location: 'Kulüp Kitaplığı',
+    notes: 'Sahne, oyunculuk ve seyirci ilişkisi üzerine temel bir tiyatro kitabı.',
+    tags: ['kuram', 'sahneleme', 'okuma listesi'],
+    is_available: true,
+    is_published: true,
+  },
+  {
+    title: 'Bir Aktör Hazırlanıyor',
+    slug: 'bir-aktor-hazirlaniyor',
+    author: 'Konstantin Stanislavski',
+    publisher: 'Mitos-Boyut',
+    category: 'Oyunculuk',
+    language: 'Türkçe',
+    location: 'Kulüp Kitaplığı',
+    notes: 'Oyunculuk çalışmaları ve prova süreçleri için başvuru kitabı.',
+    tags: ['oyunculuk', 'prova', 'metot'],
+    is_available: true,
     is_published: true,
   },
 ];

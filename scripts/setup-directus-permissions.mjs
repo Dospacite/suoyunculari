@@ -11,6 +11,7 @@ if (!DIRECTUS_URL || !DIRECTUS_TOKEN) {
 const contentCollections = [
   'plays',
   'stagings',
+  'books',
   'rehearsal_ideas',
   'blog_posts',
   'authors',
@@ -23,6 +24,7 @@ const contentCollections = [
   'plays_genres',
   'plays_tags',
   'blog_posts_plays',
+  'blog_posts_books',
   'blog_posts_text_bank_references',
   'staging_photos',
 ];
@@ -90,6 +92,23 @@ const publicFields = {
     'alt_text',
     'sort_order',
   ],
+  books: [
+    'id',
+    'title',
+    'slug',
+    'author',
+    'translator',
+    'publisher',
+    'publication_year',
+    'category',
+    'language',
+    'location',
+    'notes',
+    'tags',
+    'cover_image',
+    'is_available',
+    'is_published',
+  ],
   rehearsal_ideas: [
     'id',
     'title',
@@ -112,6 +131,7 @@ const publicFields = {
     'author_name',
     'published_at',
     'related_plays',
+    'related_books',
     'text_bank_references',
     'is_published',
   ],
@@ -133,6 +153,7 @@ const editableFields = {
   plays: publicFields.plays,
   stagings: publicFields.stagings,
   staging_photos: publicFields.staging_photos,
+  books: publicFields.books,
   rehearsal_ideas: publicFields.rehearsal_ideas,
   blog_posts: publicFields.blog_posts,
   homepage_sections: publicFields.homepage_sections,
@@ -163,6 +184,10 @@ await ensurePermission(publicPolicy.id, 'staging_photos', 'read', {
   permissions: { staging: { is_published: { _eq: true } } },
   fields: publicFields.staging_photos,
 });
+await ensurePermission(publicPolicy.id, 'books', 'read', {
+  permissions: { is_published: { _eq: true } },
+  fields: publicFields.books,
+});
 await ensurePermission(publicPolicy.id, 'blog_posts', 'read', {
   permissions: { is_published: { _eq: true } },
   fields: publicFields.blog_posts,
@@ -191,6 +216,10 @@ await ensurePermission(publicPolicy.id, 'blog_posts_plays', 'read', {
   permissions: { blog_posts_id: { is_published: { _eq: true } } },
   fields: ['*'],
 });
+await ensurePermission(publicPolicy.id, 'blog_posts_books', 'read', {
+  permissions: { blog_posts_id: { is_published: { _eq: true } } },
+  fields: ['*'],
+});
 await ensurePermission(publicPolicy.id, 'blog_posts_text_bank_references', 'read', {
   permissions: { blog_posts_id: { is_published: { _eq: true } } },
   fields: ['*'],
@@ -202,7 +231,7 @@ for (const collection of contentCollections) {
   await ensurePermission(contentEditorPolicy.id, collection, 'update', { fields: ['*'] });
 }
 
-for (const collection of ['plays', 'stagings', 'staging_photos', 'blog_posts', 'rehearsal_ideas']) {
+for (const collection of ['plays', 'stagings', 'staging_photos', 'books', 'blog_posts', 'rehearsal_ideas']) {
   const fields = (editableFields[collection] ?? ['*']).filter(
     (field) => field !== 'is_published',
   );

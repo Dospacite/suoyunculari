@@ -62,7 +62,7 @@ The homepage "Yaklaşan Oyunlar" cards still link to the parent play page. That 
 
 ## Blog References
 
-Blog posts can link to staged plays and text-bank records.
+Blog posts can link to staged plays, library books, and text-bank records.
 
 For staged plays:
 
@@ -76,3 +76,21 @@ For text-bank records:
 3. Fill **Source**, **Source ID**, **Title**, and optionally **Source URL**.
 
 Related blog posts appear on the matching play detail page and text-bank detail page.
+
+For library books:
+
+1. Open a **Blog Posts** item.
+2. Use **Related Books** to select one or more records from **Kütüphane**.
+
+Related books appear on the blog detail page.
+
+## Kütüphane
+
+Use **Books** for the physical library.
+
+1. Open **Books**.
+2. Fill **Title**, **Slug**, **Author**, optional **Translator**, **Publisher**, **Publication Year**, **Category**, **Language**, **Location**, **Notes**, and **Tags**.
+3. Use **Is Available** to mark whether the book is currently on the shelf.
+4. Enable **Is Published**.
+
+Published books appear at `/kutuphane` and can be filtered by search, category, language, and availability.

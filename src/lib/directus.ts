@@ -1,6 +1,7 @@
 import {
   fallbackAuthors,
   fallbackBlogPosts,
+  fallbackBooks,
   fallbackHomepageSections,
   fallbackPages,
   fallbackPlays,
@@ -21,7 +22,7 @@ const playFields =
   '*,author.*,language.*,period.*,genres.genres_id.*,tags.tags_id.*,cover_image,home_card_image';
 const stagingFields = '*,play.*,cover_image,photos.*,photos.image';
 const blogPostFields =
-  '*,cover_image,related_plays.plays_id.*,related_plays.plays_id.author.*,related_plays.plays_id.genres.genres_id.*,related_plays.plays_id.tags.tags_id.*,text_bank_references.*';
+  '*,cover_image,related_plays.plays_id.*,related_plays.plays_id.author.*,related_plays.plays_id.genres.genres_id.*,related_plays.plays_id.tags.tags_id.*,related_books.books_id.*,text_bank_references.*';
 
 export type Taxonomy = {
   name: string;
@@ -90,7 +91,25 @@ export type BlogPost = {
   published_at?: string;
   is_published?: boolean;
   related_plays?: Play[];
+  related_books?: Book[];
   text_bank_references?: TextBankReference[];
+};
+
+export type Book = {
+  title: string;
+  slug: string;
+  author?: string;
+  translator?: string;
+  publisher?: string;
+  publication_year?: number;
+  category?: string;
+  language?: string;
+  location?: string;
+  notes?: string;
+  tags?: string | string[];
+  cover_image?: string | { id: string };
+  is_available?: boolean;
+  is_published?: boolean;
 };
 
 export type TextBankReference = {
@@ -271,6 +290,16 @@ export async function getBlogPosts(): Promise<BlogPost[]> {
   return items ? items.map(normalizeBlogPost) : fallbackBlogPosts;
 }
 
+export async function getBooks(): Promise<Book[]> {
+  const items = await fetchItems<Book>('books', {
+    fields: '*',
+    'filter[is_published][_eq]': 'true',
+    sort: 'title',
+  });
+
+  return items ? items.map(normalizeBook) : fallbackBooks;
+}
+
 export async function getBlogPostBySlug(slug: string): Promise<BlogPost | undefined> {
   const items = await fetchItems<BlogPost>('blog_posts', {
     fields: blogPostFields,
@@ -285,6 +314,11 @@ export async function getBlogPostBySlug(slug: string): Promise<BlogPost | undefi
 export async function getRelatedBlogPostsForPlay(playSlug: string): Promise<BlogPost[]> {
   const posts = await getBlogPosts();
   return posts.filter((post) => post.related_plays?.some((play) => play.slug === playSlug));
+}
+
+export async function getRelatedBlogPostsForBook(bookSlug: string): Promise<BlogPost[]> {
+  const posts = await getBlogPosts();
+  return posts.filter((post) => post.related_books?.some((book) => book.slug === bookSlug));
 }
 
 export async function getRelatedBlogPostsForTextBank(
@@ -391,7 +425,15 @@ function normalizeBlogPost(post: BlogPost): BlogPost {
   return {
     ...post,
     related_plays: normalizeManyToMany<Play>(post.related_plays, 'plays_id').map(normalizePlay),
+    related_books: normalizeManyToMany<Book>(post.related_books, 'books_id').map(normalizeBook),
     text_bank_references: normalizeTextBankReferences(post.text_bank_references),
+  };
+}
+
+function normalizeBook(book: Book): Book {
+  return {
+    ...book,
+    tags: normalizeStringTags(book.tags),
   };
 }
 
@@ -412,7 +454,7 @@ function normalizeRehearsalIdea(idea: RehearsalIdea): RehearsalIdea {
 
 function normalizeManyToMany<T extends object>(
   value: unknown,
-  relationKey: 'genres_id' | 'tags_id' | 'plays_id',
+  relationKey: 'genres_id' | 'tags_id' | 'plays_id' | 'books_id',
 ): T[] {
   if (!Array.isArray(value)) return [];
 
@@ -423,6 +465,16 @@ function normalizeManyToMany<T extends object>(
       }
       return item as T;
     })
+    .filter(Boolean);
+}
+
+function normalizeStringTags(value: Book['tags']): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((tag) => String(tag).trim()).filter(Boolean);
+
+  return value
+    .split(',')
+    .map((tag) => tag.trim())
     .filter(Boolean);
 }
 

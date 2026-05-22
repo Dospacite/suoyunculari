@@ -55,6 +55,25 @@ if (!post) Astro.response.status = 404;
               </div>
             </section>
           )}
+
+          {post.related_books && post.related_books.length > 0 && (
+            <section class="related-section" aria-labelledby="related-books-heading">
+              <p class="kicker" id="related-books-heading">Kütüphane</p>
+              <div class="article-list compact-list">
+                {post.related_books.map((book) => (
+                  <article>
+                    <p class="kicker">{book.category || 'Kitap'}</p>
+                    <h2>{book.title}</h2>
+                    <p>
+                      {[book.author, book.publisher, book.location || 'Kulüp Kitaplığı']
+                        .filter(Boolean)
+                        .join(' / ')}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
         </article>
       ) : (
         <article class="section-inner">

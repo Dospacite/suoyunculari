@@ -9,10 +9,43 @@
         <p class="kicker">Metin Bankası</p>
         <h2>Asistan</h2>
       </div>
-      <button type="button" class="ghost-button assistant-clear">Temizle</button>
+      <div class="assistant-actions">
+        <button type="button" class="ghost-button assistant-clear">Temizle</button>
+        <button type="button" class="ghost-button assistant-close" aria-label="Asistanı kapat">Kapat</button>
+      </div>
     </div>
 
-    <div class="assistant-log" role="log" aria-live="polite"></div>
+    <div class="assistant-tabs" role="tablist" aria-label="Asistan bölümleri">
+      <button type="button" role="tab" data-assistant-tab="chat" aria-selected="true" aria-controls="assistant-tab-chat">
+        Sohbet
+      </button>
+      <button type="button" role="tab" data-assistant-tab="results" aria-selected="false" aria-controls="assistant-tab-results">
+        Sonuçlar <span data-result-count>0</span>
+      </button>
+      <button type="button" role="tab" data-assistant-tab="examples" aria-selected="false" aria-controls="assistant-tab-examples">
+        Örnekler
+      </button>
+    </div>
+
+    <div class="assistant-tab-panels">
+      <div class="assistant-tab-panel" id="assistant-tab-chat" role="tabpanel" data-assistant-panel="chat">
+        <div class="assistant-log" role="log" aria-live="polite"></div>
+      </div>
+
+      <div class="assistant-tab-panel" id="assistant-tab-results" role="tabpanel" data-assistant-panel="results" hidden>
+        <div class="assistant-results-panel" data-results-panel></div>
+      </div>
+
+      <div class="assistant-tab-panel" id="assistant-tab-examples" role="tabpanel" data-assistant-panel="examples" hidden>
+        <div class="assistant-examples">
+          <p>Aramayı hızlandırmak için bir örnek seç.</p>
+          <button type="button" data-example-prompt="5-7 kişilik kısa komedi arıyorum">5-7 kişilik kısa komedi</button>
+          <button type="button" data-example-prompt="Lise öğrencileri için kalabalık kadrolu müzikal öner">Lise için kalabalık müzikal</button>
+          <button type="button" data-example-prompt="Az dekor isteyen iki kişilik dramalar neler?">Az dekorlu iki kişilik drama</button>
+          <button type="button" data-example-prompt="Türkçeye çevirmeye uygun çağdaş komedi ara">Çağdaş komedi ara</button>
+        </div>
+      </div>
+    </div>
 
     <form class="assistant-form">
       <label class="sr-only" for="text-bank-assistant-input">Nasıl bir oyun arıyorsun?</label>
@@ -25,6 +58,7 @@
       ></textarea>
       <button type="submit" class="primary-button">Gönder</button>
     </form>
+    <p class="assistant-hint">Enter ile gönder, yeni satır için Shift+Enter.</p>
     <p class="assistant-error" aria-live="polite"></p>
   </section>
 </div>
@@ -60,7 +94,13 @@
   const root = document.querySelector<HTMLElement>('[data-text-bank-assistant]');
   const toggle = root?.querySelector<HTMLButtonElement>('.assistant-toggle');
   const panel = root?.querySelector<HTMLElement>('.assistant-panel');
+  const closeButton = root?.querySelector<HTMLButtonElement>('.assistant-close');
   const log = root?.querySelector<HTMLElement>('.assistant-log');
+  const tabButtons = Array.from(root?.querySelectorAll<HTMLButtonElement>('[data-assistant-tab]') ?? []);
+  const tabPanels = Array.from(root?.querySelectorAll<HTMLElement>('[data-assistant-panel]') ?? []);
+  const resultsPanel = root?.querySelector<HTMLElement>('[data-results-panel]');
+  const resultCount = root?.querySelector<HTMLElement>('[data-result-count]');
+  const exampleButtons = Array.from(root?.querySelectorAll<HTMLButtonElement>('[data-example-prompt]') ?? []);
   const form = root?.querySelector<HTMLFormElement>('.assistant-form');
   const input = root?.querySelector<HTMLTextAreaElement>('textarea[name="message"]');
   const clearButton = root?.querySelector<HTMLButtonElement>('.assistant-clear');
@@ -68,9 +108,10 @@
 
   let messages: ChatMessage[] = loadMessages();
   let isSending = false;
+  let activeTab: 'chat' | 'results' | 'examples' = 'chat';
 
-  if (root && toggle && panel && log && form && input && clearButton && error) {
-    renderMessages();
+  if (root && toggle && panel && log && form && input && clearButton && closeButton && error && resultsPanel) {
+    render();
 
     toggle.addEventListener('click', () => {
       const willOpen = panel.hidden;
@@ -79,12 +120,44 @@
       if (willOpen) input.focus();
     });
 
+    closeButton.addEventListener('click', () => {
+      panel.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.focus();
+    });
+
+    tabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const tab = button.dataset.assistantTab;
+        if (tab === 'chat' || tab === 'results' || tab === 'examples') {
+          setActiveTab(tab);
+        }
+      });
+    });
+
+    exampleButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const prompt = button.dataset.examplePrompt?.trim();
+        if (!prompt) return;
+        input.value = prompt;
+        setActiveTab('chat');
+        input.focus();
+      });
+    });
+
     clearButton.addEventListener('click', () => {
       messages = initialMessages();
       persistMessages();
-      renderMessages();
+      render();
       setError('');
+      setActiveTab('chat');
       input.focus();
+    });
+
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.shiftKey) return;
+      event.preventDefault();
+      form.requestSubmit();
     });
 
     form.addEventListener('submit', async (event) => {
@@ -103,10 +176,11 @@
       input.value = '';
       messages = trimMessages([...messages, { role: 'user', text }]);
       persistMessages();
-      renderMessages();
+      setActiveTab('chat');
 
       isSending = true;
       form.querySelector<HTMLButtonElement>('button[type="submit"]')?.setAttribute('disabled', 'true');
+      render();
 
       try {
         const response = await fetch('/api/metin-bankasi/chat.json', {
@@ -145,6 +219,7 @@
       } finally {
         isSending = false;
         form.querySelector<HTMLButtonElement>('button[type="submit"]')?.removeAttribute('disabled');
+        render();
         input.focus();
       }
     });
@@ -216,11 +291,17 @@
       },
     ]);
     persistMessages();
-    renderMessages();
+    render();
   }
 
   function trimMessages(value: ChatMessage[]): ChatMessage[] {
     return value.slice(-MAX_MESSAGES);
+  }
+
+  function render(): void {
+    renderMessages();
+    renderLatestResults();
+    updateResultCount();
   }
 
   function renderMessages(): void {
@@ -259,7 +340,79 @@
       log.append(item);
     }
 
+    if (isSending) {
+      const typing = document.createElement('article');
+      typing.className = 'assistant-message assistant';
+      const text = document.createElement('p');
+      text.className = 'assistant-typing';
+      text.textContent = 'Aranıyor...';
+      typing.append(text);
+      log.append(typing);
+    }
+
     log.scrollTop = log.scrollHeight;
+  }
+
+  function renderLatestResults(): void {
+    if (!resultsPanel) return;
+    resultsPanel.replaceChildren();
+
+    const results = latestResults();
+    if (!results.length) {
+      const empty = document.createElement('p');
+      empty.className = 'assistant-results-empty';
+      empty.textContent = 'Henüz sonuç yok. Sohbette nasıl bir oyun aradığını yazınca burada bağlantılar birikir.';
+      resultsPanel.append(empty);
+      return;
+    }
+
+    for (const result of results) {
+      const link = document.createElement('a');
+      link.href = result.href;
+
+      const title = document.createElement('strong');
+      title.textContent = result.title;
+
+      const meta = document.createElement('span');
+      meta.textContent = result.meta;
+
+      link.append(title, meta);
+      resultsPanel.append(link);
+    }
+  }
+
+  function latestResults(): NonNullable<ChatMessage['results']> {
+    const seen = new Set<string>();
+    const results: NonNullable<ChatMessage['results']> = [];
+
+    for (const message of [...messages].reverse()) {
+      for (const result of message.results ?? []) {
+        if (seen.has(result.href)) continue;
+        seen.add(result.href);
+        results.push(result);
+        if (results.length >= 8) return results;
+      }
+    }
+
+    return results;
+  }
+
+  function updateResultCount(): void {
+    if (!resultCount) return;
+    resultCount.textContent = String(latestResults().length);
+  }
+
+  function setActiveTab(tab: typeof activeTab): void {
+    activeTab = tab;
+
+    for (const button of tabButtons) {
+      const selected = button.dataset.assistantTab === tab;
+      button.setAttribute('aria-selected', String(selected));
+    }
+
+    for (const item of tabPanels) {
+      item.hidden = item.dataset.assistantPanel !== tab;
+    }
   }
 
   function setError(message: string): void {

@@ -63,7 +63,6 @@ export type Play = {
   period?: Taxonomy;
   setting?: string;
   themes?: string;
-  difficulty?: 'easy' | 'medium' | 'hard' | 'unknown';
   rights_status?:
     | 'unknown'
     | 'public_domain'

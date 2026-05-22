@@ -68,6 +68,7 @@ jobs:
             POSTGRES_DB=suoyunculari
             POSTGRES_USER=suo
             POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
             EOF
             docker compose up -d --build
             docker compose exec -T app npm run db:import:text-bank -- --truncate

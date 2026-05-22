@@ -16,9 +16,14 @@ type SearchOptions = {
   caution?: string;
   duration?: string;
   totalCast?: string;
+  minCast?: string;
+  maxCast?: string;
   femaleRoles?: string;
+  femaleRolesMax?: string;
   maleRoles?: string;
+  maleRolesMax?: string;
   neutralRoles?: string;
+  neutralRolesMax?: string;
   reference?: string;
   page?: number;
   pageSize?: number;
@@ -30,9 +35,20 @@ type SearchOptions = {
   }>;
 };
 
+export type TextBankAssistantSearchOptions = Omit<SearchOptions, 'page' | 'playedReferences'> & {
+  playedReferences?: SearchOptions['playedReferences'];
+};
+
 type ConcordRow = Omit<ConcordPlay, 'authors' | 'scraped_at'> & {
   authors: ConcordAuthor[] | string | null;
   scraped_at: Date | string | null;
+};
+
+type TextBankWhereClause = {
+  whereSql: string;
+  params: unknown[];
+  rankExpression: string;
+  orderSql: string;
 };
 
 const globalForPg = globalThis as typeof globalThis & {
@@ -52,9 +68,14 @@ export async function searchConcordPlays({
   caution = '',
   duration = '',
   totalCast = '',
+  minCast = '',
+  maxCast = '',
   femaleRoles = '',
+  femaleRolesMax = '',
   maleRoles = '',
+  maleRolesMax = '',
   neutralRoles = '',
+  neutralRolesMax = '',
   reference = '',
   page = 1,
   pageSize = 25,
@@ -66,73 +87,30 @@ export async function searchConcordPlays({
   const safePage = clampInteger(page, 1, 10_000);
   const safePageSize = clampInteger(pageSize, 1, 100);
   const offset = (safePage - 1) * safePageSize;
-  const params: unknown[] = [];
-  const where: string[] = [];
-  const cleanedQuery = query.trim();
-  let rankExpression = '0::real AS rank';
-
-  where.push(displayableTextBankSql());
-
-  if (cleanedQuery) {
-    params.push(cleanedQuery);
-    const searchParam = `$${params.length}`;
-    const vector = "to_tsvector('english', search_text)";
-    const tsQuery = `websearch_to_tsquery('english', ${searchParam})`;
-    where.push(`${vector} @@ ${tsQuery}`);
-    rankExpression = `ts_rank_cd(${vector}, ${tsQuery}) AS rank`;
-  }
-
-  if (genre) {
-    addArrayFilter(where, params, 'genres', genre);
-  }
-
-  if (source) {
-    params.push(source);
-    where.push(`source = $${params.length}`);
-  }
-
-  if (playType) addScalarFilter(where, params, 'play_type', playType);
-  if (subgenre) addArrayFilter(where, params, 'subgenres', subgenre);
-  if (theme) addArrayFilter(where, params, 'themes', theme);
-  if (targetAudience) addTextListFilter(where, params, 'target_audience', targetAudience);
-  if (performanceGroup) addArrayFilter(where, params, 'performance_groups', performanceGroup);
-  if (feature) addArrayFilter(where, params, 'features', feature);
-  if (caution) addArrayFilter(where, params, 'cautions', caution);
-
-  if (duration === 'short') {
-    where.push('duration_minutes IS NOT NULL AND duration_minutes <= 90');
-  } else if (duration === 'medium') {
-    where.push('duration_minutes BETWEEN 91 AND 120');
-  } else if (duration === 'long') {
-    where.push('duration_minutes > 120');
-  }
-
-  addRangeFilter(where, 'min_cast_size', 'max_cast_size', totalCast);
-  addMinimumFilter(where, 'female_roles', femaleRoles);
-  addMinimumFilter(where, 'male_roles', maleRoles);
-  addMinimumFilter(where, 'neutral_roles', neutralRoles);
-
-  const playedKeys = new Set(
-    playedReferences
-      .filter((item) => item.source && item.source_id)
-      .map((item) => referenceKey(item.source, item.source_id)),
-  );
-
-  if (reference === 'played' || reference === 'unplayed') {
-    const referencesForSql = [...playedKeys].map(splitReferenceKey);
-    if (referencesForSql.length === 0) {
-      where.push(reference === 'played' ? 'false' : 'true');
-    } else {
-      const conditions = referencesForSql.map((item) => {
-        params.push(item.source, item.sourceId);
-        return `(source = $${params.length - 1} AND source_id = $${params.length})`;
-      });
-      where.push(reference === 'played' ? `(${conditions.join(' OR ')})` : `NOT (${conditions.join(' OR ')})`);
-    }
-  }
-
-  const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
-  const orderSql = cleanedQuery ? 'rank DESC, title ASC' : 'title ASC';
+  const { whereSql, params, rankExpression, orderSql } = buildTextBankWhereClause({
+    query,
+    source,
+    playType,
+    genre,
+    subgenre,
+    theme,
+    targetAudience,
+    performanceGroup,
+    feature,
+    caution,
+    duration,
+    totalCast,
+    femaleRoles,
+    femaleRolesMax,
+    maleRoles,
+    maleRolesMax,
+    neutralRoles,
+    neutralRolesMax,
+    minCast,
+    maxCast,
+    reference,
+    playedReferences,
+  });
 
   try {
     const count = await pool.query<{ count: string }>(
@@ -235,6 +213,74 @@ export async function searchConcordPlays({
     return result;
   } catch (error) {
     if (isUnavailableDatabaseError(error)) return emptySearchResult(safePage, safePageSize, false);
+    throw error;
+  }
+}
+
+export async function searchTextBankForAssistant({
+  pageSize = 6,
+  playedReferences = [],
+  ...options
+}: TextBankAssistantSearchOptions): Promise<ConcordPlay[]> {
+  const pool = getPool();
+  if (!pool) return [];
+
+  const safePageSize = clampInteger(pageSize, 1, 6);
+  const { whereSql, params, rankExpression, orderSql } = buildTextBankWhereClause({
+    ...options,
+    playedReferences,
+  });
+
+  try {
+    params.push(safePageSize);
+    const limitParam = `$${params.length}`;
+    const items = await pool.query<ConcordRow>(
+      `SELECT
+        source,
+        source_id,
+        source_url,
+        scraped_at,
+        title,
+        slug,
+        summary_text,
+        summary_html,
+        full_description_html,
+        authors,
+        play_type,
+        genres,
+        subgenres,
+        duration_text,
+        duration_minutes,
+        casting_text,
+        min_cast_size,
+        max_cast_size,
+        female_roles,
+        male_roles,
+        neutral_roles,
+        setting_html,
+        themes,
+        target_audience,
+        performance_groups,
+        features,
+        cautions,
+        tags,
+        rights_status,
+        licensing_fee_text,
+        imprint,
+        isbn,
+        sample_pdf_urls,
+        image_urls,
+        ${rankExpression}
+      FROM concord_plays
+      ${whereSql}
+      ORDER BY ${orderSql}
+      LIMIT ${limitParam}`,
+      params,
+    );
+
+    return items.rows.map(normalizeConcordRow).map((item) => markPlayed(item, playedReferences));
+  } catch (error) {
+    if (isUnavailableDatabaseError(error)) return [];
     throw error;
   }
 }
@@ -433,6 +479,99 @@ function splitReferenceKey(key: string): { source: string; sourceId: string } {
   return { source, sourceId };
 }
 
+function buildTextBankWhereClause({
+  query = '',
+  source = '',
+  playType = '',
+  genre = '',
+  subgenre = '',
+  theme = '',
+  targetAudience = '',
+  performanceGroup = '',
+  feature = '',
+  caution = '',
+  duration = '',
+  totalCast = '',
+  femaleRoles = '',
+  femaleRolesMax = '',
+  maleRoles = '',
+  maleRolesMax = '',
+  neutralRoles = '',
+  neutralRolesMax = '',
+  minCast = '',
+  maxCast = '',
+  reference = '',
+  playedReferences = [],
+}: SearchOptions): TextBankWhereClause {
+  const params: unknown[] = [];
+  const where: string[] = [displayableTextBankSql()];
+  const cleanedQuery = query.trim();
+  let rankExpression = '0::real AS rank';
+
+  if (cleanedQuery) {
+    params.push(cleanedQuery);
+    const searchParam = `$${params.length}`;
+    const vector = "to_tsvector('english', search_text)";
+    const tsQuery = `websearch_to_tsquery('english', ${searchParam})`;
+    where.push(`${vector} @@ ${tsQuery}`);
+    rankExpression = `ts_rank_cd(${vector}, ${tsQuery}) AS rank`;
+  }
+
+  if (genre) addArrayFilter(where, params, 'genres', genre);
+  if (source) {
+    params.push(source);
+    where.push(`source = $${params.length}`);
+  }
+
+  if (playType) addScalarFilter(where, params, 'play_type', playType);
+  if (subgenre) addArrayFilter(where, params, 'subgenres', subgenre);
+  if (theme) addArrayFilter(where, params, 'themes', theme);
+  if (targetAudience) addTextListFilter(where, params, 'target_audience', targetAudience);
+  if (performanceGroup) addArrayFilter(where, params, 'performance_groups', performanceGroup);
+  if (feature) addArrayFilter(where, params, 'features', feature);
+  if (caution) addArrayFilter(where, params, 'cautions', caution);
+
+  if (duration === 'short') {
+    where.push('duration_minutes IS NOT NULL AND duration_minutes <= 90');
+  } else if (duration === 'medium') {
+    where.push('duration_minutes BETWEEN 91 AND 120');
+  } else if (duration === 'long') {
+    where.push('duration_minutes > 120');
+  }
+
+  addRangeFilter(where, 'min_cast_size', 'max_cast_size', totalCast);
+  addCastWindowFilter(where, 'min_cast_size', 'max_cast_size', minCast, maxCast);
+  addNumberWindowFilter(where, 'female_roles', femaleRoles, femaleRolesMax);
+  addNumberWindowFilter(where, 'male_roles', maleRoles, maleRolesMax);
+  addNumberWindowFilter(where, 'neutral_roles', neutralRoles, neutralRolesMax);
+
+  const playedKeys = new Set(
+    playedReferences
+      .filter((item) => item.source && item.source_id)
+      .map((item) => referenceKey(item.source, item.source_id)),
+  );
+
+  if (reference === 'played' || reference === 'unplayed') {
+    const referencesForSql = [...playedKeys].map(splitReferenceKey);
+    if (referencesForSql.length === 0) {
+      where.push(reference === 'played' ? 'false' : 'true');
+    } else {
+      const conditions = referencesForSql.map((item) => {
+        params.push(item.source, item.sourceId);
+        return `(source = $${params.length - 1} AND source_id = $${params.length})`;
+      });
+      where.push(reference === 'played' ? `(${conditions.join(' OR ')})` : `NOT (${conditions.join(' OR ')})`);
+    }
+  }
+
+  return {
+    whereSql: where.length > 0 ? `WHERE ${where.join(' AND ')}` : '',
+    params,
+    rankExpression,
+    orderSql: cleanedQuery ? 'rank DESC, title ASC' : 'title ASC',
+  };
+}
+
 function emptySearchResult(page: number, pageSize: number, databaseReady: boolean): ConcordSearchResult {
   return {
     items: [],
@@ -482,10 +621,46 @@ function addRangeFilter(where: string[], minColumn: string, maxColumn: string, v
   }
 }
 
-function addMinimumFilter(where: string[], column: string, value: string): void {
-  const minimum = Number(value);
-  if (!Number.isInteger(minimum) || minimum < 1) return;
-  where.push(`${column} IS NOT NULL AND ${column} >= ${minimum}`);
+function addNumberWindowFilter(where: string[], column: string, minimumValue: string, maximumValue: string): void {
+  const minimum = Number(minimumValue);
+  const maximum = Number(maximumValue);
+  const conditions: string[] = [];
+
+  if (Number.isInteger(minimum) && minimum > 0) {
+    conditions.push(`${column} >= ${minimum}`);
+  }
+
+  if (Number.isInteger(maximum) && maximum > 0) {
+    conditions.push(`${column} <= ${maximum}`);
+  }
+
+  if (conditions.length > 0) {
+    where.push(`${column} IS NOT NULL AND ${conditions.join(' AND ')}`);
+  }
+}
+
+function addCastWindowFilter(
+  where: string[],
+  minColumn: string,
+  maxColumn: string,
+  minimumValue: string,
+  maximumValue: string,
+): void {
+  const minimum = Number(minimumValue);
+  const maximum = Number(maximumValue);
+  const conditions: string[] = [];
+
+  if (Number.isInteger(minimum) && minimum > 0) {
+    conditions.push(`${maxColumn} IS NOT NULL AND ${maxColumn} >= ${minimum}`);
+  }
+
+  if (Number.isInteger(maximum) && maximum > 0) {
+    conditions.push(`${minColumn} IS NOT NULL AND ${minColumn} <= ${maximum}`);
+  }
+
+  if (conditions.length > 0) {
+    where.push(`(${conditions.join(' AND ')})`);
+  }
 }
 
 function displayableTextBankSql(): string {

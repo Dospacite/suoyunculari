@@ -1,6 +1,5 @@
 ---
 import type { Play } from '@/lib/directus';
-import { getTextBankReference } from '@/lib/directus';
 
 type Props = {
   plays: Play[];
@@ -8,45 +7,30 @@ type Props = {
 
 const { plays } = Astro.props;
 
-const difficultyLabels = {
-  easy: 'Kolay',
-  medium: 'Orta',
-  hard: 'Zor',
-  unknown: 'Belirsiz',
-};
-
-const rightsLabels = {
-  unknown: 'Belirsiz',
-  public_domain: 'Kamu malı',
-  licensed: 'Lisanslı',
-  permission_required: 'İzin gerekli',
-  original_club_work: 'Kulüp üretimi',
-};
-
 const genres = Array.from(
   new Set(plays.flatMap((play) => play.genres?.map((genre) => genre.name).filter(Boolean) ?? [])),
 ).sort((a, b) => a.localeCompare(b, 'tr'));
+
+const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function formatPlayDate(value?: string): string {
+  if (!value) return 'Yakında';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Yakında' : dateFormatter.format(date);
+}
 ---
 
 <section class="play-browser" aria-label="Play browser">
   <div class="browser-tools">
     <label>
       <span>Arama</span>
-      <input id="play-search" type="search" placeholder="Başlık, yazar, tür" />
-    </label>
-    <label>
-      <span>Zorluk</span>
-      <select id="difficulty-filter">
-        <option value="">Tümü</option>
-        {Object.entries(difficultyLabels).map(([value, label]) => <option value={value}>{label}</option>)}
-      </select>
-    </label>
-    <label>
-      <span>Haklar</span>
-      <select id="rights-filter">
-        <option value="">Tümü</option>
-        {Object.entries(rightsLabels).map(([value, label]) => <option value={value}>{label}</option>)}
-      </select>
+      <input id="play-search" type="search" placeholder="Başlık, orijinal ad, yazar, tür" />
     </label>
     <label>
       <span>Tür</span>
@@ -55,21 +39,13 @@ const genres = Array.from(
         {genres.map((genre) => <option value={genre.toLowerCase()}>{genre}</option>)}
       </select>
     </label>
-    <label>
-      <span>Metin Bankası</span>
-      <select id="text-bank-filter">
-        <option value="">Tümü</option>
-        <option value="referenced">Referanslı</option>
-        <option value="unreferenced">Referanssız</option>
-      </select>
-    </label>
   </div>
 
   <div class="play-list" id="play-list">
     {
       plays.map((play) => {
-        const textBankReference = getTextBankReference(play);
-        const genres = play.genres?.map((genre) => genre.name).join(', ') || 'Theatre';
+        const originalTitle = play.original_title || play.title;
+        const authorName = play.author?.name || 'Yazar belirsiz';
         const genreSearch = play.genres?.map((genre) => genre.name.toLowerCase()).join(' ') ?? '';
         const searchable = [
           play.title,
@@ -88,16 +64,12 @@ const genres = Array.from(
           <article
             class="play-row"
             data-search={searchable}
-            data-difficulty={play.difficulty || ''}
-            data-rights={play.rights_status || 'unknown'}
             data-genre={genreSearch}
-            data-text-bank={textBankReference ? 'referenced' : 'unreferenced'}
           >
             <a href={`/plays/${play.slug}`}>
               <div>
                 <p class="kicker row-kicker">
-                  {genres}
-                  {textBankReference && <span class="played-badge">★ Metin Bankası</span>}
+                  {originalTitle} · {authorName}
                 </p>
                 <h2>{play.title}</h2>
                 <p>{play.summary}</p>
@@ -116,8 +88,8 @@ const genres = Array.from(
                   <dd>{play.duration_minutes ? `${play.duration_minutes} dk` : 'Belirsiz'}</dd>
                 </div>
                 <div>
-                  <dt>Haklar</dt>
-                  <dd>{rightsLabels[play.rights_status || 'unknown']}</dd>
+                  <dt>Tarih / Saat</dt>
+                  <dd>{formatPlayDate(play.event_date)}</dd>
                 </div>
               </dl>
             </a>
@@ -131,30 +103,19 @@ const genres = Array.from(
 
 <script>
   const search = document.querySelector<HTMLInputElement>('#play-search');
-  const difficulty = document.querySelector<HTMLSelectElement>('#difficulty-filter');
-  const rights = document.querySelector<HTMLSelectElement>('#rights-filter');
   const genre = document.querySelector<HTMLSelectElement>('#genre-filter');
-  const textBank = document.querySelector<HTMLSelectElement>('#text-bank-filter');
   const rows = Array.from(document.querySelectorAll<HTMLElement>('.play-row'));
   const empty = document.querySelector<HTMLElement>('#play-empty');
 
   function updateRows() {
     const query = search?.value.trim().toLowerCase() || '';
-    const selectedDifficulty = difficulty?.value || '';
-    const selectedRights = rights?.value || '';
     const selectedGenre = genre?.value || '';
-    const selectedTextBank = textBank?.value || '';
     let visibleCount = 0;
 
     for (const row of rows) {
       const matchesSearch = row.dataset.search?.includes(query) ?? true;
-      const matchesDifficulty =
-        selectedDifficulty === '' || row.dataset.difficulty === selectedDifficulty;
-      const matchesRights = selectedRights === '' || row.dataset.rights === selectedRights;
       const matchesGenre = selectedGenre === '' || row.dataset.genre?.includes(selectedGenre);
-      const matchesTextBank = selectedTextBank === '' || row.dataset.textBank === selectedTextBank;
-      const isVisible =
-        matchesSearch && matchesDifficulty && matchesRights && matchesGenre && matchesTextBank;
+      const isVisible = matchesSearch && matchesGenre;
       row.hidden = !isVisible;
       if (isVisible) visibleCount += 1;
     }
@@ -163,8 +124,5 @@ const genres = Array.from(
   }
 
   search?.addEventListener('input', updateRows);
-  difficulty?.addEventListener('change', updateRows);
-  rights?.addEventListener('change', updateRows);
   genre?.addEventListener('change', updateRows);
-  textBank?.addEventListener('change', updateRows);
 </script>

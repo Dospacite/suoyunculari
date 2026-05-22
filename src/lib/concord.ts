@@ -62,3 +62,10 @@ export type ConcordSearchResult = {
   sources: string[];
   databaseReady: boolean;
 };
+
+export type TextBankAssistantResult = {
+  title: string;
+  href: string;
+  meta: string;
+  summary?: string;
+};

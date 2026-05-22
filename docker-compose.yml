@@ -29,6 +29,7 @@ services:
       PORT: 4321
       DATABASE_URL: postgres://${POSTGRES_USER:-suo}:${POSTGRES_PASSWORD:-suo_password}@postgres:5432/${POSTGRES_DB:-suoyunculari}
       PUBLIC_DIRECTUS_URL: ${PUBLIC_DIRECTUS_URL:-https://cms.suoyunculari.com}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "4321:4321"
     networks:

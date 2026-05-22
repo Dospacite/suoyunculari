@@ -79,7 +79,6 @@ const fields = {
     m2oField('period'),
     textField('setting'),
     textField('themes'),
-    selectField('difficulty', ['easy', 'medium', 'hard', 'unknown'], 'unknown'),
     selectField(
       'rights_status',
       ['unknown', 'public_domain', 'licensed', 'permission_required', 'original_club_work'],
@@ -333,13 +332,14 @@ async function ensureField(collection, field) {
 
 async function ensureRelation(item) {
   const all = await request('GET', '/relations');
-  const found = all.data?.some(
+  const found = all.data?.find(
     (relationItem) =>
       relationItem.collection === item.collection && relationItem.field === item.field,
   );
 
   if (found) {
-    console.log(`relation exists: ${item.collection}.${item.field}`);
+    await request('PATCH', `/relations/${found.id}`, item);
+    console.log(`relation updated: ${item.collection}.${item.field}`);
     return;
   }
 

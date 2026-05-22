@@ -14,7 +14,6 @@ export async function GET() {
         summary: play.summary,
         genres: play.genres?.map((genre) => genre.name) ?? [],
         tags: play.tags?.map((tag) => tag.name) ?? [],
-        difficulty: play.difficulty,
       })),
     ),
     {

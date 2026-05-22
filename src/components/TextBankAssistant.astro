@@ -1,0 +1,269 @@
+<div class="text-bank-assistant" data-text-bank-assistant>
+  <button class="assistant-toggle" type="button" aria-expanded="false" aria-controls="text-bank-assistant-panel">
+    Asistan
+  </button>
+
+  <section class="assistant-panel" id="text-bank-assistant-panel" aria-label="Metin Bankası asistanı" hidden>
+    <div class="assistant-header">
+      <div>
+        <p class="kicker">Metin Bankası</p>
+        <h2>Asistan</h2>
+      </div>
+      <button type="button" class="ghost-button assistant-clear">Temizle</button>
+    </div>
+
+    <div class="assistant-log" role="log" aria-live="polite"></div>
+
+    <form class="assistant-form">
+      <label class="sr-only" for="text-bank-assistant-input">Nasıl bir oyun arıyorsun?</label>
+      <textarea
+        id="text-bank-assistant-input"
+        name="message"
+        rows="2"
+        maxlength="1000"
+        placeholder="Nasıl bir oyun arıyorsun?"
+      ></textarea>
+      <button type="submit" class="primary-button">Gönder</button>
+    </form>
+    <p class="assistant-error" aria-live="polite"></p>
+  </section>
+</div>
+
+<script>
+  type ChatMessage = {
+    role: 'user' | 'assistant';
+    text: string;
+    results?: Array<{
+      title: string;
+      href: string;
+      meta: string;
+    }>;
+  };
+
+  type ChatResponse = {
+    reply: string;
+    results: Array<{
+      title: string;
+      href: string;
+      meta: string;
+      summary?: string;
+    }>;
+  };
+
+  const STORAGE_KEY = 'suo_text_bank_chat_v1';
+  const INITIAL_MESSAGE =
+    "Merhaba. Metin Bankası'nda oyun bulmana yardımcı olabilirim. Tür, kadro, süre, tema ya da hedef kitle söyleyebilirsin.";
+  const MAX_MESSAGES = 12;
+  const MAX_SEND_HISTORY = 8;
+  const MAX_INPUT_LENGTH = 1000;
+
+  const root = document.querySelector<HTMLElement>('[data-text-bank-assistant]');
+  const toggle = root?.querySelector<HTMLButtonElement>('.assistant-toggle');
+  const panel = root?.querySelector<HTMLElement>('.assistant-panel');
+  const log = root?.querySelector<HTMLElement>('.assistant-log');
+  const form = root?.querySelector<HTMLFormElement>('.assistant-form');
+  const input = root?.querySelector<HTMLTextAreaElement>('textarea[name="message"]');
+  const clearButton = root?.querySelector<HTMLButtonElement>('.assistant-clear');
+  const error = root?.querySelector<HTMLElement>('.assistant-error');
+
+  let messages: ChatMessage[] = loadMessages();
+  let isSending = false;
+
+  if (root && toggle && panel && log && form && input && clearButton && error) {
+    renderMessages();
+
+    toggle.addEventListener('click', () => {
+      const willOpen = panel.hidden;
+      panel.hidden = !willOpen;
+      toggle.setAttribute('aria-expanded', String(willOpen));
+      if (willOpen) input.focus();
+    });
+
+    clearButton.addEventListener('click', () => {
+      messages = initialMessages();
+      persistMessages();
+      renderMessages();
+      setError('');
+      input.focus();
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (isSending) return;
+
+      const text = input.value.trim();
+      if (!text) return;
+
+      if (text.length > MAX_INPUT_LENGTH) {
+        setError('Mesaj 1000 karakterden uzun olamaz.');
+        return;
+      }
+
+      setError('');
+      input.value = '';
+      messages = trimMessages([...messages, { role: 'user', text }]);
+      persistMessages();
+      renderMessages();
+
+      isSending = true;
+      form.querySelector<HTMLButtonElement>('button[type="submit"]')?.setAttribute('disabled', 'true');
+
+      try {
+        const response = await fetch('/api/metin-bankasi/chat.json', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: messages.slice(-MAX_SEND_HISTORY).map((message) => ({
+              role: message.role,
+              text: message.text,
+            })),
+          }),
+        });
+
+        if (response.status === 503) {
+          appendAssistantMessage('Asistan şu anda yapılandırılmamış. Lütfen daha sonra tekrar dene.', []);
+          return;
+        }
+
+        const payload = (await response.json().catch(() => null)) as ChatResponse | null;
+
+        if (response.status === 429 && payload?.reply) {
+          appendAssistantMessage(payload.reply, []);
+          return;
+        }
+
+        if (!response.ok || !payload) {
+          appendAssistantMessage('Asistan şu anda yanıt veremiyor. Lütfen biraz sonra tekrar dene.', []);
+          return;
+        }
+
+        appendAssistantMessage(payload.reply, payload.results ?? []);
+      } catch {
+        appendAssistantMessage('Bağlantı kurulamadı. Lütfen tekrar dene.', []);
+      } finally {
+        isSending = false;
+        form.querySelector<HTMLButtonElement>('button[type="submit"]')?.removeAttribute('disabled');
+        input.focus();
+      }
+    });
+  }
+
+  function initialMessages(): ChatMessage[] {
+    return [{ role: 'assistant', text: INITIAL_MESSAGE }];
+  }
+
+  function loadMessages(): ChatMessage[] {
+    try {
+      const stored = window.sessionStorage.getItem(STORAGE_KEY);
+      if (!stored) return initialMessages();
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return initialMessages();
+
+      const valid = parsed
+        .map((message): ChatMessage | null => {
+          if (!message || typeof message !== 'object') return null;
+          if (message.role !== 'user' && message.role !== 'assistant') return null;
+          if (typeof message.text !== 'string' || !message.text.trim()) return null;
+          const results = Array.isArray(message.results)
+            ? message.results
+                .filter(
+                  (result: unknown) =>
+                    result &&
+                    typeof result === 'object' &&
+                    typeof (result as { title?: unknown }).title === 'string' &&
+                    typeof (result as { href?: unknown }).href === 'string' &&
+                    typeof (result as { meta?: unknown }).meta === 'string',
+                )
+                .slice(0, 6)
+                .map((result: { title: string; href: string; meta: string }) => ({
+                  title: result.title,
+                  href: result.href,
+                  meta: result.meta,
+                }))
+            : undefined;
+
+          return {
+            role: message.role,
+            text: message.text.slice(0, MAX_INPUT_LENGTH),
+            results,
+          };
+        })
+        .filter((message): message is ChatMessage => Boolean(message));
+
+      return valid.length > 0 ? trimMessages(valid) : initialMessages();
+    } catch {
+      return initialMessages();
+    }
+  }
+
+  function persistMessages(): void {
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-MAX_MESSAGES)));
+  }
+
+  function appendAssistantMessage(text: string, results: ChatResponse['results']): void {
+    messages = trimMessages([
+      ...messages,
+      {
+        role: 'assistant',
+        text,
+        results: results.map((result) => ({
+          title: result.title,
+          href: result.href,
+          meta: result.meta,
+        })),
+      },
+    ]);
+    persistMessages();
+    renderMessages();
+  }
+
+  function trimMessages(value: ChatMessage[]): ChatMessage[] {
+    return value.slice(-MAX_MESSAGES);
+  }
+
+  function renderMessages(): void {
+    if (!log) return;
+    log.replaceChildren();
+
+    for (const message of messages) {
+      const item = document.createElement('article');
+      item.className = `assistant-message ${message.role}`;
+
+      const text = document.createElement('p');
+      text.textContent = message.text;
+      item.append(text);
+
+      if (message.results?.length) {
+        const results = document.createElement('div');
+        results.className = 'assistant-results';
+
+        for (const result of message.results) {
+          const link = document.createElement('a');
+          link.href = result.href;
+
+          const title = document.createElement('strong');
+          title.textContent = result.title;
+
+          const meta = document.createElement('span');
+          meta.textContent = result.meta;
+
+          link.append(title, meta);
+          results.append(link);
+        }
+
+        item.append(results);
+      }
+
+      log.append(item);
+    }
+
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function setError(message: string): void {
+    if (!error) return;
+    error.textContent = message;
+  }
+</script>

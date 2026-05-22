@@ -80,27 +80,38 @@
           <option value="">Tümü</option>
         </select>
       </label>
-      <label>
+      <div class="range-filter" data-range-filter data-min-param="minCast" data-max-param="maxCast" data-default-max="50">
         <span>Toplam Kadro</span>
-        <select id="concord-total-cast-filter">
-          <option value="">Tümü</option>
-          <option value="small">1-6</option>
-          <option value="medium">7-12</option>
-          <option value="large">13+</option>
-        </select>
-      </label>
-      <label>
-        <span>Kadın Rolü En Az</span>
-        <input id="concord-female-roles-filter" type="number" min="1" inputmode="numeric" />
-      </label>
-      <label>
-        <span>Erkek Rolü En Az</span>
-        <input id="concord-male-roles-filter" type="number" min="1" inputmode="numeric" />
-      </label>
-      <label>
-        <span>Esnek Rol En Az</span>
-        <input id="concord-neutral-roles-filter" type="number" min="1" inputmode="numeric" />
-      </label>
+        <output data-range-label>Tümü</output>
+        <div class="dual-range">
+          <input data-range-min type="range" min="0" max="50" value="0" aria-label="En az toplam kadro" />
+          <input data-range-max type="range" min="0" max="50" value="50" aria-label="En çok toplam kadro" />
+        </div>
+      </div>
+      <div class="range-filter" data-range-filter data-min-param="femaleRoles" data-max-param="femaleRolesMax" data-default-max="30">
+        <span>Kadın Rolü</span>
+        <output data-range-label>Tümü</output>
+        <div class="dual-range">
+          <input data-range-min type="range" min="0" max="30" value="0" aria-label="En az kadın rolü" />
+          <input data-range-max type="range" min="0" max="30" value="30" aria-label="En çok kadın rolü" />
+        </div>
+      </div>
+      <div class="range-filter" data-range-filter data-min-param="maleRoles" data-max-param="maleRolesMax" data-default-max="30">
+        <span>Erkek Rolü</span>
+        <output data-range-label>Tümü</output>
+        <div class="dual-range">
+          <input data-range-min type="range" min="0" max="30" value="0" aria-label="En az erkek rolü" />
+          <input data-range-max type="range" min="0" max="30" value="30" aria-label="En çok erkek rolü" />
+        </div>
+      </div>
+      <div class="range-filter" data-range-filter data-min-param="neutralRoles" data-max-param="neutralRolesMax" data-default-max="30">
+        <span>Esnek Rol</span>
+        <output data-range-label>Tümü</output>
+        <div class="dual-range">
+          <input data-range-min type="range" min="0" max="30" value="0" aria-label="En az esnek rol" />
+          <input data-range-max type="range" min="0" max="30" value="30" aria-label="En çok esnek rol" />
+        </div>
+      </div>
     </div>
   </details>
 
@@ -168,10 +179,6 @@
   const featureSelect = document.querySelector<HTMLSelectElement>('#concord-feature-filter');
   const cautionSelect = document.querySelector<HTMLSelectElement>('#concord-caution-filter');
   const durationSelect = document.querySelector<HTMLSelectElement>('#concord-duration-filter');
-  const totalCastSelect = document.querySelector<HTMLSelectElement>('#concord-total-cast-filter');
-  const femaleRolesInput = document.querySelector<HTMLInputElement>('#concord-female-roles-filter');
-  const maleRolesInput = document.querySelector<HTMLInputElement>('#concord-male-roles-filter');
-  const neutralRolesInput = document.querySelector<HTMLInputElement>('#concord-neutral-roles-filter');
   const referenceSelect = document.querySelector<HTMLSelectElement>('#concord-reference-filter');
   const list = document.querySelector<HTMLElement>('#concord-play-list');
   const empty = document.querySelector<HTMLElement>('#concord-empty');
@@ -186,6 +193,15 @@
   let currentPage = 1;
   let totalPages = 1;
   let debounceTimer: number | undefined;
+  const rangeFilters = Array.from(document.querySelectorAll<HTMLElement>('[data-range-filter]')).map((root) => ({
+    root,
+    minInput: root.querySelector<HTMLInputElement>('[data-range-min]'),
+    maxInput: root.querySelector<HTMLInputElement>('[data-range-max]'),
+    label: root.querySelector<HTMLOutputElement>('[data-range-label]'),
+    minParam: root.dataset.minParam || '',
+    maxParam: root.dataset.maxParam || '',
+    defaultMax: Number(root.dataset.defaultMax || '0'),
+  }));
 
   function debounceSearch() {
     window.clearTimeout(debounceTimer);
@@ -213,14 +229,11 @@
       feature: featureSelect?.value || '',
       caution: cautionSelect?.value || '',
       duration: durationSelect?.value || '',
-      totalCast: totalCastSelect?.value || '',
-      femaleRoles: femaleRolesInput?.value || '',
-      maleRoles: maleRolesInput?.value || '',
-      neutralRoles: neutralRolesInput?.value || '',
       reference: referenceSelect?.value || '',
       page: String(currentPage),
       pageSize: String(pageSize),
     });
+    applyRangeParams(params);
 
     try {
       const response = await fetch(`/api/metin-bankasi/search.json?${params.toString()}`);
@@ -294,10 +307,7 @@
       Boolean(featureSelect?.value) ||
       Boolean(cautionSelect?.value) ||
       Boolean(durationSelect?.value) ||
-      Boolean(totalCastSelect?.value) ||
-      Boolean(femaleRolesInput?.value) ||
-      Boolean(maleRolesInput?.value) ||
-      Boolean(neutralRolesInput?.value);
+      rangeFilters.some(isRangeActive);
     const hasReferenceFilter = Boolean(referenceSelect?.value);
     const hasItems = payload.items.length > 0;
 
@@ -395,15 +405,22 @@
     featureSelect,
     cautionSelect,
     durationSelect,
-    totalCastSelect,
   ].forEach((select) => {
     select?.addEventListener('change', () => {
       currentPage = 1;
       void loadResults();
     });
   });
-  [femaleRolesInput, maleRolesInput, neutralRolesInput].forEach((input) => {
-    input?.addEventListener('input', debounceSearch);
+  rangeFilters.forEach((filter) => {
+    updateRangeLabel(filter);
+    filter.minInput?.addEventListener('input', () => {
+      updateRangeLabel(filter);
+      debounceSearch();
+    });
+    filter.maxInput?.addEventListener('input', () => {
+      updateRangeLabel(filter);
+      debounceSearch();
+    });
   });
   referenceSelect?.addEventListener('change', () => {
     currentPage = 1;
@@ -419,4 +436,51 @@
   });
 
   void loadResults();
+
+  function applyRangeParams(params: URLSearchParams) {
+    for (const filter of rangeFilters) {
+      const range = normalizedRange(filter);
+      if (!range) continue;
+
+      if (range.min > 0) params.set(filter.minParam, String(range.min));
+      if (range.max < filter.defaultMax) params.set(filter.maxParam, String(range.max));
+    }
+  }
+
+  function isRangeActive(filter: (typeof rangeFilters)[number]) {
+    const range = normalizedRange(filter);
+    return Boolean(range && (range.min > 0 || range.max < filter.defaultMax));
+  }
+
+  function updateRangeLabel(filter: (typeof rangeFilters)[number]) {
+    const range = normalizedRange(filter);
+    if (!filter.label || !range) return;
+    filter.label.textContent = isRangeActive(filter) ? `${range.min}-${range.max}` : 'Tümü';
+  }
+
+  function normalizedRange(filter: (typeof rangeFilters)[number]) {
+    if (!filter.minInput || !filter.maxInput || !filter.minParam || !filter.maxParam || !filter.defaultMax) {
+      return null;
+    }
+
+    let min = Number(filter.minInput.value);
+    let max = Number(filter.maxInput.value);
+
+    if (!Number.isFinite(min)) min = 0;
+    if (!Number.isFinite(max)) max = filter.defaultMax;
+    min = Math.max(0, Math.min(filter.defaultMax, Math.trunc(min)));
+    max = Math.max(0, Math.min(filter.defaultMax, Math.trunc(max)));
+
+    if (min > max) {
+      if (document.activeElement === filter.minInput) {
+        max = min;
+        filter.maxInput.value = String(max);
+      } else {
+        min = max;
+        filter.minInput.value = String(min);
+      }
+    }
+
+    return { min, max };
+  }
 </script>

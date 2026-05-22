@@ -54,7 +54,6 @@ const publicFields = {
     'period',
     'setting',
     'themes',
-    'difficulty',
     'rights_status',
     'rights_notes',
     'script_url',
@@ -248,6 +247,10 @@ for (const collection of contentCollections) {
   await ensurePermission(contentEditorPolicy.id, collection, 'update', { fields: ['*'] });
 }
 
+for (const collection of ['plays_genres', 'plays_tags', 'blog_posts_plays', 'blog_posts_books', 'blog_posts_text_bank_references', 'staging_photos']) {
+  await ensurePermission(contentEditorPolicy.id, collection, 'delete', { fields: ['*'] });
+}
+
 for (const collection of ['plays', 'stagings', 'staging_photos', 'books', 'blog_posts', 'rehearsal_ideas', 'contact_items']) {
   const fields = (editableFields[collection] ?? ['*']).filter(
     (field) => field !== 'is_published',
@@ -259,6 +262,17 @@ for (const collection of ['plays', 'stagings', 'staging_photos', 'books', 'blog_
     presets: publicFields[collection]?.includes('is_published') ? { is_published: false } : null,
   });
   await ensurePermission(contributorPolicy.id, collection, 'update', { fields });
+}
+
+for (const collection of ['genres', 'tags']) {
+  await ensurePermission(contributorPolicy.id, collection, 'read', { fields: ['*'] });
+}
+
+for (const collection of ['plays_genres', 'plays_tags']) {
+  await ensurePermission(contributorPolicy.id, collection, 'read', { fields: ['*'] });
+  await ensurePermission(contributorPolicy.id, collection, 'create', { fields: ['*'] });
+  await ensurePermission(contributorPolicy.id, collection, 'update', { fields: ['*'] });
+  await ensurePermission(contributorPolicy.id, collection, 'delete', { fields: ['*'] });
 }
 
 for (const collection of ['directus_files', 'directus_folders']) {

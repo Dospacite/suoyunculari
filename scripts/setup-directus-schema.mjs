@@ -66,6 +66,8 @@ const fields = {
     integerField('year_written'),
     m2oField('language'),
     integerField('duration_minutes'),
+    stringField('director'),
+    textField('cast', { width: 'full' }),
     integerField('min_cast_size'),
     integerField('max_cast_size'),
     integerField('female_roles'),

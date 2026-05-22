@@ -20,9 +20,12 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
   day: 'numeric',
   month: 'long',
   year: 'numeric',
+});
+const timeFormatter = new Intl.DateTimeFormat('tr-TR', {
   hour: '2-digit',
   minute: '2-digit',
 });
+const castText = play?.cast || staging?.cast_notes;
 ---
 
 <BaseLayout title={staging?.title ?? 'Sahneleme bulunamadı'} description={staging?.summary || play?.summary}>
@@ -54,12 +57,12 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
               <dd>{staging.date ? dateFormatter.format(new Date(staging.date)) : 'Yakında'}</dd>
             </div>
             <div>
-              <dt>Mekan</dt>
-              <dd>{staging.venue || 'Belirsiz'}</dd>
+              <dt>Saat</dt>
+              <dd>{staging.date ? timeFormatter.format(new Date(staging.date)) : 'Yakında'}</dd>
             </div>
             <div>
-              <dt>Yönetmen</dt>
-              <dd>{staging.director || 'Belirsiz'}</dd>
+              <dt>Mekan</dt>
+              <dd>{staging.venue || 'Belirsiz'}</dd>
             </div>
             <div>
               <dt>Oyun</dt>
@@ -74,7 +77,7 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
             </div>
             <div>
               <p class="kicker">Kadro / Ekip</p>
-              <p class="prose">{staging.cast_notes || 'Kadro ve ekip bilgileri Directus sahneleme kaydından eklenebilir.'}</p>
+              <p class="prose">{castText || 'Kadro bilgisi Directus oyun kaydından eklenebilir.'}</p>
             </div>
           </div>
 

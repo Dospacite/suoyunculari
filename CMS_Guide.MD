@@ -37,16 +37,18 @@ Referenced text-bank records are filterable in **Metin BankasÄ±** and display `â
 
 ## Sahnelemeler
 
-Use **Stagings** for performance-specific information under a play.
+Use **Plays** for information shared by every staging of the same production, including **Director** and **Cast**.
+
+Use **Stagings** only for performance-specific information under a play.
 
 1. Open **Stagings**.
 2. Create a staging record.
 3. Set **Play** to the parent item from **Plays**.
-4. Fill **Title**, **Slug**, **Date**, **Venue**, **Summary**, **Director**, **Cast Notes**, and **Production Notes**.
+4. Fill **Title**, **Slug**, **Date**, **Venue**, **Summary**, and **Production Notes**.
 5. Optional: set **Ticket URL** and **Cover Image**.
 6. Enable **Is Published**.
 
-Each published staging appears on the parent play detail page. The staging detail page is available at:
+Each published staging appears on the parent play detail page with date, time, and venue. The staging detail page is available at:
 
 ```text
 /plays/<play-slug>/stagings/<staging-slug>

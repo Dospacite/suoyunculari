@@ -61,15 +61,39 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
           script: |
+            set -euo pipefail
             cd /opt/suoyunculari
-            cat > .env <<'EOF'
-            PUBLIC_DIRECTUS_URL=${{ secrets.PUBLIC_DIRECTUS_URL }}
+
+            existing_value() {
+              if [ -f .env ]; then
+                sed -n "s/^$1=//p" .env | tail -n 1
+              fi
+            }
+
+            PUBLIC_DIRECTUS_URL_VALUE='${{ secrets.PUBLIC_DIRECTUS_URL }}'
+            POSTGRES_PASSWORD_VALUE='${{ secrets.POSTGRES_PASSWORD }}'
+            GEMINI_API_KEY_VALUE='${{ secrets.GEMINI_API_KEY }}'
+            DIRECTUS_TOKEN_VALUE='${{ secrets.DIRECTUS_TOKEN }}'
+
+            PUBLIC_DIRECTUS_URL_VALUE="${PUBLIC_DIRECTUS_URL_VALUE:-$(existing_value PUBLIC_DIRECTUS_URL)}"
+            POSTGRES_PASSWORD_VALUE="${POSTGRES_PASSWORD_VALUE:-$(existing_value POSTGRES_PASSWORD)}"
+            GEMINI_API_KEY_VALUE="${GEMINI_API_KEY_VALUE:-$(existing_value GEMINI_API_KEY)}"
+            DIRECTUS_TOKEN_VALUE="${DIRECTUS_TOKEN_VALUE:-$(existing_value DIRECTUS_TOKEN)}"
+
+            tmp_env="$(mktemp)"
+            cat > "$tmp_env" <<EOF
+            PUBLIC_DIRECTUS_URL=${PUBLIC_DIRECTUS_URL_VALUE:-https://cms.suoyunculari.com}
             POSTGRES_DB=suoyunculari
             POSTGRES_USER=suo
-            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            POSTGRES_PASSWORD=${POSTGRES_PASSWORD_VALUE:-suo_password}
+            GEMINI_API_KEY=${GEMINI_API_KEY_VALUE:-}
+            DIRECTUS_TOKEN=${DIRECTUS_TOKEN_VALUE:-}
             EOF
-            docker compose up -d --build
+            sudo install -m 600 -o "$(id -un)" -g "$(id -gn)" "$tmp_env" .env
+            rm -f "$tmp_env"
+
+            docker compose up -d --build --force-recreate app
             docker compose exec -T app npm run db:import:text-bank -- --truncate
             docker image prune -f

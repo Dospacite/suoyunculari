@@ -5,6 +5,7 @@ import {
   fallbackPages,
   fallbackPlays,
   fallbackRehearsalIdeas,
+  fallbackStagings,
 } from '@/data/fallback';
 
 const directusUrl = (import.meta.env.PUBLIC_DIRECTUS_URL || 'https://cms.suoyunculari.com').replace(
@@ -18,6 +19,7 @@ type DirectusList<T> = {
 
 const playFields =
   '*,author.*,language.*,period.*,genres.genres_id.*,tags.tags_id.*,cover_image,home_card_image';
+const stagingFields = '*,play.*,cover_image,photos.*,photos.image';
 const blogPostFields =
   '*,cover_image,related_plays.plays_id.*,related_plays.plays_id.author.*,related_plays.plays_id.genres.genres_id.*,related_plays.plays_id.tags.tags_id.*,text_bank_references.*';
 
@@ -95,6 +97,31 @@ export type TextBankReference = {
   source_id?: string;
   title?: string;
   source_url?: string;
+};
+
+export type StagingPhoto = {
+  image?: string | { id: string };
+  caption?: string;
+  alt_text?: string;
+  sort_order?: number;
+};
+
+export type Staging = {
+  title: string;
+  slug: string;
+  play?: Play;
+  date?: string;
+  venue?: string;
+  summary?: string;
+  body?: string;
+  director?: string;
+  cast_notes?: string;
+  production_notes?: string;
+  ticket_url?: string;
+  cover_image?: string | { id: string };
+  photos?: StagingPhoto[];
+  sort_order?: number;
+  is_published?: boolean;
 };
 
 export type Page = {
@@ -182,6 +209,36 @@ export async function getHomePlays(): Promise<Play[]> {
   return items
     ? items.map(normalizePlay)
     : fallbackPlays.filter((play) => play.display_on_home);
+}
+
+export async function getStagingsForPlay(playSlug: string, play?: Play): Promise<Staging[]> {
+  const items = await fetchItems<Staging>('stagings', {
+    fields: stagingFields,
+    'filter[play][slug][_eq]': playSlug,
+    'filter[is_published][_eq]': 'true',
+    sort: 'date,sort_order,title',
+  });
+
+  const stagings = items ? items.map(normalizeStaging) : fallbackStagings.filter((item) => item.play?.slug === playSlug);
+  if (stagings.length > 0) return stagings;
+
+  return play ? legacyStagingFromPlay(play) : [];
+}
+
+export async function getStagingBySlug(
+  playSlug: string,
+  stagingSlug: string,
+): Promise<Staging | undefined> {
+  const items = await fetchItems<Staging>('stagings', {
+    fields: stagingFields,
+    'filter[play][slug][_eq]': playSlug,
+    'filter[slug][_eq]': stagingSlug,
+    'filter[is_published][_eq]': 'true',
+    limit: '1',
+  });
+
+  if (items) return items.map(normalizeStaging)[0];
+  return fallbackStagings.find((item) => item.play?.slug === playSlug && item.slug === stagingSlug);
 }
 
 export async function getAuthors(): Promise<Author[]> {
@@ -314,6 +371,14 @@ function normalizeBlogPost(post: BlogPost): BlogPost {
   };
 }
 
+function normalizeStaging(staging: Staging): Staging {
+  return {
+    ...staging,
+    play: staging.play ? normalizePlay(staging.play) : undefined,
+    photos: normalizeStagingPhotos(staging.photos),
+  };
+}
+
 function normalizeRehearsalIdea(idea: RehearsalIdea): RehearsalIdea {
   return {
     ...idea,
@@ -347,6 +412,36 @@ function normalizeTextBankReferences(value: unknown): TextBankReference[] {
       return reference.source && reference.source_id ? reference : null;
     })
     .filter(Boolean) as TextBankReference[];
+}
+
+function normalizeStagingPhotos(value: unknown): StagingPhoto[] {
+  if (!Array.isArray(value)) return [];
+
+  const photos = value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      return item as StagingPhoto;
+    })
+    .filter((item): item is StagingPhoto => Boolean(item));
+
+  return photos.sort((first, second) => (first.sort_order ?? 0) - (second.sort_order ?? 0));
+}
+
+function legacyStagingFromPlay(play: Play): Staging[] {
+  if (!play.event_date && !play.event_venue) return [];
+
+  return [
+    {
+      title: play.title,
+      slug: 'ana-sahneleme',
+      play,
+      date: play.event_date,
+      venue: play.event_venue,
+      summary: play.summary,
+      cover_image: play.home_card_image || play.cover_image,
+      is_published: true,
+    },
+  ];
 }
 
 function normalizeTags(value: RehearsalIdea['tags']): string[] {

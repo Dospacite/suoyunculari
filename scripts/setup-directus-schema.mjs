@@ -15,6 +15,7 @@ const collectionDefinitions = [
   { collection: 'languages', icon: 'translate', display: '{{name}}' },
   { collection: 'periods', icon: 'history_edu', display: '{{name}}' },
   { collection: 'plays', icon: 'theater_comedy', display: '{{title}}' },
+  { collection: 'stagings', icon: 'event_seat', display: '{{title}}' },
   { collection: 'rehearsal_ideas', icon: 'edit_note', display: '{{title}}' },
   { collection: 'blog_posts', icon: 'article', display: '{{title}}' },
   { collection: 'pages', icon: 'web', display: '{{key}}' },
@@ -23,6 +24,7 @@ const collectionDefinitions = [
   { collection: 'plays_tags', icon: 'link', hidden: true },
   { collection: 'blog_posts_plays', icon: 'link', hidden: true },
   { collection: 'blog_posts_text_bank_references', icon: 'link', display: '{{title}}' },
+  { collection: 'staging_photos', icon: 'photo_library', display: '{{caption}}' },
 ];
 
 const fields = {
@@ -90,6 +92,24 @@ const fields = {
     stringField('text_bank_source'),
     stringField('text_bank_source_id'),
     stringField('text_bank_source_url', { maxLength: 1024, width: 'full' }),
+    aliasO2mField('stagings'),
+  ],
+  stagings: [
+    stringField('title', { required: true, width: 'full' }),
+    stringField('slug', { required: true }),
+    m2oField('play'),
+    dateTimeField('date'),
+    stringField('venue'),
+    textField('summary', { interfaceName: 'input-rich-text-md' }),
+    textField('body', { interfaceName: 'input-rich-text-md' }),
+    stringField('director'),
+    textField('cast_notes'),
+    textField('production_notes', { interfaceName: 'input-rich-text-md' }),
+    stringField('ticket_url', { maxLength: 1024, width: 'full' }),
+    fileField('cover_image'),
+    aliasO2mField('photos'),
+    integerField('sort_order'),
+    booleanField('is_published', false),
   ],
   rehearsal_ideas: [
     stringField('title', { required: true, width: 'full' }),
@@ -140,6 +160,13 @@ const fields = {
     stringField('title', { required: true, width: 'full' }),
     stringField('source_url', { maxLength: 1024, width: 'full' }),
   ],
+  staging_photos: [
+    m2oField('staging'),
+    fileField('image'),
+    stringField('caption', { width: 'full' }),
+    stringField('alt_text', { width: 'full' }),
+    integerField('sort_order'),
+  ],
 };
 
 const relations = [
@@ -149,6 +176,11 @@ const relations = [
   relation('plays', 'cover_image', 'directus_files'),
   relation('plays', 'script_file', 'directus_files'),
   relation('plays', 'home_card_image', 'directus_files'),
+  relation('stagings', 'play', 'plays', {
+    one_field: 'stagings',
+    one_deselect_action: 'nullify',
+  }),
+  relation('stagings', 'cover_image', 'directus_files'),
   relation('blog_posts', 'cover_image', 'directus_files'),
   relation('homepage_sections', 'image', 'directus_files'),
   relation('plays_genres', 'plays_id', 'plays', {
@@ -173,6 +205,11 @@ const relations = [
     one_field: 'text_bank_references',
     one_deselect_action: 'delete',
   }),
+  relation('staging_photos', 'staging', 'stagings', {
+    one_field: 'photos',
+    one_deselect_action: 'delete',
+  }),
+  relation('staging_photos', 'image', 'directus_files'),
 ];
 
 for (const definition of collectionDefinitions) {

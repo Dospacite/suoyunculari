@@ -1,4 +1,12 @@
-import type { Author, BlogPost, HomepageSection, Page, Play, RehearsalIdea } from '@/lib/directus';
+import type {
+  Author,
+  BlogPost,
+  HomepageSection,
+  Page,
+  Play,
+  RehearsalIdea,
+  Staging,
+} from '@/lib/directus';
 
 export const fallbackAuthors: Author[] = [
   {
@@ -123,6 +131,33 @@ export const fallbackRehearsalIdeas: RehearsalIdea[] = [
     tags: ['ensemble', 'ritim', 'kalabalık sahne'],
     difficulty: 'hard',
     is_published: true,
+  },
+];
+
+export const fallbackStagings: Staging[] = [
+  {
+    title: 'Sabancı Gösteri Merkezi',
+    slug: 'sabanci-gosteri-merkezi',
+    play: fallbackPlays[0],
+    date: '2026-06-04T19:30:00.000Z',
+    venue: 'Sabancı Gösteri Merkezi',
+    summary: 'Kampüs sezonu için ana sahne gösterimi.',
+    director: 'SU Oyuncuları',
+    production_notes: 'Prova, afiş, fotoğraf ve bilet bilgileri Directus sahneleme kaydından yönetilir.',
+    is_published: true,
+    sort_order: 1,
+  },
+  {
+    title: 'SU Oyuncuları Sahnesi',
+    slug: 'su-oyunculari-sahnesi',
+    play: fallbackPlays[1],
+    date: '2026-06-12T20:00:00.000Z',
+    venue: 'SU Oyuncuları Sahnesi',
+    summary: 'Atölye odaklı sezon gösterimi.',
+    director: 'SU Oyuncuları',
+    production_notes: 'Fotoğraflar ve ayrıntılı sahneleme notları Directus üzerinden eklenebilir.',
+    is_published: true,
+    sort_order: 1,
   },
 ];
 

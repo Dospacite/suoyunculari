@@ -1,78 +1,147 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { getPlayBySlug, getRelatedBlogPostsForPlay } from '@/lib/directus';
+import {
+  assetUrl,
+  getPlayBySlug,
+  getRelatedBlogPostsForPlay,
+  getStagingsForPlay,
+} from '@/lib/directus';
 
 export const prerender = false;
 
 const play = Astro.params.slug ? await getPlayBySlug(Astro.params.slug) : undefined;
+const stagings = play ? await getStagingsForPlay(play.slug, play) : [];
 const relatedPosts = play ? await getRelatedBlogPostsForPlay(play.slug) : [];
 if (!play) Astro.response.status = 404;
+
 const genres = play?.genres?.map((genre) => genre.name) ?? [];
 const tags = play?.tags?.map((tag) => tag.name) ?? [];
+const nextStaging = stagings.find((staging) => staging.date && new Date(staging.date) >= new Date()) ?? stagings[0];
+const scriptHref =
+  play?.text_bank_source && play.text_bank_source_id
+    ? `/metin-bankasi/${encodeURIComponent(play.text_bank_source)}/${encodeURIComponent(play.text_bank_source_id)}`
+    : play?.text_bank_source_url || play?.script_url;
+
+const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 ---
 
-<BaseLayout title={play?.title ?? 'Play not found'} description={play?.summary}>
+<BaseLayout title={play?.title ?? 'Oyun bulunamadı'} description={play?.summary}>
   <main class="section compact">
     {
       play ? (
         <article class="section-inner">
           <div class="section-heading">
-            <p class="kicker">{genres.join(', ') || 'Play'}</p>
+            <p class="kicker">{genres.join(', ') || 'Oyun'}</p>
             <h1>{play.title}</h1>
             <p>{play.summary}</p>
-            {play.text_bank_source && play.text_bank_source_id && (
-              <a
-                class="button detail-source-button"
-                href={`/metin-bankasi/${encodeURIComponent(play.text_bank_source)}/${encodeURIComponent(
-                  play.text_bank_source_id,
-                )}`}
-              >
-                Metin Bankası Detayı
-              </a>
-            )}
+            <div class="button-row">
+              {scriptHref && (
+                <a class="button detail-source-button" href={scriptHref}>
+                  Metin Detayı
+                </a>
+              )}
+              {nextStaging && (
+                <a
+                  class="button secondary-button detail-source-button"
+                  href={`/plays/${play.slug}/stagings/${nextStaging.slug}`}
+                >
+                  Sahneleme Detayı
+                </a>
+              )}
+            </div>
           </div>
 
           <div class="detail-meta">
             <div>
-              <dt>Author</dt>
-              <dd>{play.author?.name || 'Unknown'}</dd>
+              <dt>Yazar</dt>
+              <dd>{play.author?.name || 'Belirsiz'}</dd>
             </div>
             <div>
-              <dt>Year</dt>
-              <dd>{play.year_written || 'TBD'}</dd>
+              <dt>Sahneleme</dt>
+              <dd>{stagings.length || 'Yakında'}</dd>
             </div>
             <div>
-              <dt>Duration</dt>
-              <dd>{play.duration_minutes ? `${play.duration_minutes} min` : 'TBD'}</dd>
+              <dt>Sıradaki Tarih</dt>
+              <dd>{nextStaging?.date ? dateFormatter.format(new Date(nextStaging.date)) : 'Yakında'}</dd>
             </div>
             <div>
-              <dt>Cast</dt>
-              <dd>
-                {play.min_cast_size && play.max_cast_size
-                  ? `${play.min_cast_size}-${play.max_cast_size}`
-                  : 'Flexible'}
-              </dd>
+              <dt>Mekan</dt>
+              <dd>{nextStaging?.venue || play.event_venue || 'Yakında'}</dd>
             </div>
           </div>
 
-          <div class="split">
-            <div>
-              <p class="kicker">Rights</p>
-              <p class="prose">{(play.rights_status || 'unknown').replaceAll('_', ' ')}</p>
-              {play.rights_notes && <p class="prose">{play.rights_notes}</p>}
+          <section class="related-section" aria-labelledby="stagings-heading">
+            <div class="section-heading small-heading">
+              <p class="kicker" id="stagings-heading">Sahnelemeler</p>
+              <h2>Gösterim ve Üretim Notları</h2>
+              <p>Her sahneleme kendi tarih, mekan, ekip notu, fotoğraf ve bilet bilgileriyle ayrı tutulur.</p>
             </div>
-            <div>
-              <p class="kicker">Notes</p>
-              <p class="prose">
-                {play.setting ||
-                  play.themes ||
-                  'Add rehearsal, setting, theme, and production notes in Directus.'}
-              </p>
-              <div class="taxonomy">
-                {[...genres, ...tags].map((item) => <span>{item}</span>)}
+
+            {stagings.length > 0 ? (
+              <div class="article-list compact-list">
+                {stagings.map((staging) => {
+                  const image = assetUrl(staging.cover_image || play.cover_image);
+                  return (
+                    <a class="staging-row" href={`/plays/${play.slug}/stagings/${staging.slug}`}>
+                      {image && <img src={image} alt="" loading="lazy" />}
+                      <div>
+                        <p class="kicker">
+                          {staging.date ? dateFormatter.format(new Date(staging.date)) : 'Tarih yakında'}
+                        </p>
+                        <h2>{staging.title}</h2>
+                        <p>{staging.summary || staging.production_notes || 'Sahneleme ayrıntıları yakında.'}</p>
+                      </div>
+                      <dl>
+                        <div>
+                          <dt>Mekan</dt>
+                          <dd>{staging.venue || 'Belirsiz'}</dd>
+                        </div>
+                        <div>
+                          <dt>Yönetmen</dt>
+                          <dd>{staging.director || 'Belirsiz'}</dd>
+                        </div>
+                      </dl>
+                    </a>
+                  );
+                })}
+              </div>
+            ) : (
+              <p class="empty-state">Bu oyun için yayınlanmış sahneleme kaydı henüz yok.</p>
+            )}
+          </section>
+
+          <section class="related-section" aria-labelledby="production-notes-heading">
+            <div class="split">
+              <div>
+                <p class="kicker" id="production-notes-heading">Üretim</p>
+                <p class="prose">
+                  {play.setting ||
+                    play.themes ||
+                    'Bu alanda oyunun sahneleme yaklaşımı, prova notları ve üretim bağlamı gösterilir.'}
+                </p>
+                <div class="taxonomy">
+                  {[...genres, ...tags].map((item) => <span>{item}</span>)}
+                </div>
+              </div>
+              <div>
+                <p class="kicker">Metin</p>
+                <p class="prose">
+                  Metin bilgileri, hak notları ve kaynak bağlantıları ayrı metin detayında tutulur.
+                </p>
+                {scriptHref && (
+                  <a class="button compact-button detail-source-button" href={scriptHref}>
+                    Metin Detayına Git
+                  </a>
+                )}
               </div>
             </div>
-          </div>
+          </section>
 
           {relatedPosts.length > 0 && (
             <section class="related-section" aria-labelledby="related-blog-heading">
@@ -93,8 +162,8 @@ const tags = play?.tags?.map((tag) => tag.name) ?? [];
         <article class="section-inner">
           <div class="section-heading">
             <p class="kicker">404</p>
-            <h1>Play not found</h1>
-            <p>This play is not published or does not exist.</p>
+            <h1>Oyun bulunamadı</h1>
+            <p>Bu oyun yayınlanmamış veya mevcut değil.</p>
           </div>
         </article>
       )

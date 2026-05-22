@@ -14,6 +14,8 @@ If the `hero` item has no image, the site falls back to `public/images/theatre-h
 
 ## Metin Bankası References From Oyunlarımız
 
+The **Plays** collection is the public production page in **Oyunlarımız**. It can point to one script record in **Metin Bankası**.
+
 To mark a text-bank play as already performed, edit the matching item in **Plays**:
 
 1. Set **Text Bank Source** to `concord_theatricals` or `drama_online_library`.
@@ -21,6 +23,31 @@ To mark a text-bank play as already performed, edit the matching item in **Plays
 3. Optional: set **Text Bank Source URL** to the original Concord or Drama Online page.
 
 Referenced text-bank records are filterable in **Metin Bankası** and display `★ Oynandı`.
+
+## Sahnelemeler
+
+Use **Stagings** for performance-specific information under a play.
+
+1. Open **Stagings**.
+2. Create a staging record.
+3. Set **Play** to the parent item from **Plays**.
+4. Fill **Title**, **Slug**, **Date**, **Venue**, **Summary**, **Director**, **Cast Notes**, and **Production Notes**.
+5. Optional: set **Ticket URL** and **Cover Image**.
+6. Enable **Is Published**.
+
+Each published staging appears on the parent play detail page. The staging detail page is available at:
+
+```text
+/plays/<play-slug>/stagings/<staging-slug>
+```
+
+To add photos:
+
+1. Open the staging record.
+2. Add items under **Photos**.
+3. Set **Image**, optional **Caption**, **Alt Text**, and **Sort Order**.
+
+The homepage "Yaklaşan Oyunlar" cards still link to the parent play page. That page now shows staging information first, then links to the script detail.
 
 ## Blog References
 

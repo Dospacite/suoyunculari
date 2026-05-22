@@ -10,6 +10,7 @@ if (!DIRECTUS_URL || !DIRECTUS_TOKEN) {
 
 const contentCollections = [
   'plays',
+  'stagings',
   'rehearsal_ideas',
   'blog_posts',
   'authors',
@@ -23,6 +24,7 @@ const contentCollections = [
   'plays_tags',
   'blog_posts_plays',
   'blog_posts_text_bank_references',
+  'staging_photos',
 ];
 
 const publicFields = {
@@ -60,6 +62,33 @@ const publicFields = {
     'text_bank_source',
     'text_bank_source_id',
     'text_bank_source_url',
+    'stagings',
+  ],
+  stagings: [
+    'id',
+    'title',
+    'slug',
+    'play',
+    'date',
+    'venue',
+    'summary',
+    'body',
+    'director',
+    'cast_notes',
+    'production_notes',
+    'ticket_url',
+    'cover_image',
+    'photos',
+    'sort_order',
+    'is_published',
+  ],
+  staging_photos: [
+    'id',
+    'staging',
+    'image',
+    'caption',
+    'alt_text',
+    'sort_order',
   ],
   rehearsal_ideas: [
     'id',
@@ -102,6 +131,8 @@ const publicFields = {
 
 const editableFields = {
   plays: publicFields.plays,
+  stagings: publicFields.stagings,
+  staging_photos: publicFields.staging_photos,
   rehearsal_ideas: publicFields.rehearsal_ideas,
   blog_posts: publicFields.blog_posts,
   homepage_sections: publicFields.homepage_sections,
@@ -123,6 +154,14 @@ await ensureAccess(contributorRole.id, contributorPolicy.id);
 await ensurePermission(publicPolicy.id, 'plays', 'read', {
   permissions: { is_published: { _eq: true } },
   fields: publicFields.plays,
+});
+await ensurePermission(publicPolicy.id, 'stagings', 'read', {
+  permissions: { is_published: { _eq: true } },
+  fields: publicFields.stagings,
+});
+await ensurePermission(publicPolicy.id, 'staging_photos', 'read', {
+  permissions: { staging: { is_published: { _eq: true } } },
+  fields: publicFields.staging_photos,
 });
 await ensurePermission(publicPolicy.id, 'blog_posts', 'read', {
   permissions: { is_published: { _eq: true } },
@@ -163,7 +202,7 @@ for (const collection of contentCollections) {
   await ensurePermission(contentEditorPolicy.id, collection, 'update', { fields: ['*'] });
 }
 
-for (const collection of ['plays', 'blog_posts', 'rehearsal_ideas']) {
+for (const collection of ['plays', 'stagings', 'staging_photos', 'blog_posts', 'rehearsal_ideas']) {
   const fields = (editableFields[collection] ?? ['*']).filter(
     (field) => field !== 'is_published',
   );

@@ -1,0 +1,112 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { assetUrl, getPlayBySlug, getStagingBySlug, getStagingsForPlay } from '@/lib/directus';
+
+export const prerender = false;
+
+const playSlug = Astro.params.slug ?? '';
+const stagingSlug = Astro.params.stagingSlug ?? '';
+let staging = playSlug && stagingSlug ? await getStagingBySlug(playSlug, stagingSlug) : undefined;
+if (!staging && playSlug && stagingSlug) {
+  const fallbackPlay = await getPlayBySlug(playSlug);
+  const stagings = fallbackPlay ? await getStagingsForPlay(playSlug, fallbackPlay) : [];
+  staging = stagings.find((item) => item.slug === stagingSlug);
+}
+const play = staging?.play;
+if (!staging || !play) Astro.response.status = 404;
+
+const coverImage = assetUrl(staging?.cover_image || play?.cover_image);
+const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+---
+
+<BaseLayout title={staging?.title ?? 'Sahneleme bulunamadı'} description={staging?.summary || play?.summary}>
+  <main class="section compact">
+    {
+      staging && play ? (
+        <article class="section-inner">
+          <div class="section-heading">
+            <p class="kicker">{play.title}</p>
+            <h1>{staging.title}</h1>
+            <p>{staging.summary || play.summary}</p>
+            <div class="button-row">
+              <a class="button detail-source-button" href={`/plays/${play.slug}`}>
+                Oyun Detayı
+              </a>
+              {staging.ticket_url && (
+                <a class="button secondary-button detail-source-button" href={staging.ticket_url} target="_blank" rel="noreferrer">
+                  Bilet / Duyuru
+                </a>
+              )}
+            </div>
+          </div>
+
+          {coverImage && <img class="staging-cover" src={coverImage} alt="" />}
+
+          <div class="detail-meta">
+            <div>
+              <dt>Tarih</dt>
+              <dd>{staging.date ? dateFormatter.format(new Date(staging.date)) : 'Yakında'}</dd>
+            </div>
+            <div>
+              <dt>Mekan</dt>
+              <dd>{staging.venue || 'Belirsiz'}</dd>
+            </div>
+            <div>
+              <dt>Yönetmen</dt>
+              <dd>{staging.director || 'Belirsiz'}</dd>
+            </div>
+            <div>
+              <dt>Oyun</dt>
+              <dd>{play.title}</dd>
+            </div>
+          </div>
+
+          <div class="split">
+            <div>
+              <p class="kicker">Sahneleme Notu</p>
+              <p class="prose">{staging.body || staging.production_notes || 'Sahneleme notları yakında.'}</p>
+            </div>
+            <div>
+              <p class="kicker">Kadro / Ekip</p>
+              <p class="prose">{staging.cast_notes || 'Kadro ve ekip bilgileri Directus sahneleme kaydından eklenebilir.'}</p>
+            </div>
+          </div>
+
+          {staging.photos && staging.photos.length > 0 && (
+            <section class="related-section" aria-labelledby="photos-heading">
+              <div class="section-heading small-heading">
+                <p class="kicker" id="photos-heading">Fotoğraflar</p>
+                <h2>Sahneleme Arşivi</h2>
+              </div>
+              <div class="photo-grid">
+                {staging.photos.map((photo) => {
+                  const image = assetUrl(photo.image);
+                  return image ? (
+                    <figure>
+                      <img src={image} alt={photo.alt_text || photo.caption || ''} loading="lazy" />
+                      {photo.caption && <figcaption>{photo.caption}</figcaption>}
+                    </figure>
+                  ) : null;
+                })}
+              </div>
+            </section>
+          )}
+        </article>
+      ) : (
+        <article class="section-inner">
+          <div class="section-heading">
+            <p class="kicker">404</p>
+            <h1>Sahneleme bulunamadı</h1>
+            <p>Bu sahneleme yayınlanmamış veya mevcut değil.</p>
+          </div>
+        </article>
+      )
+    }
+  </main>
+</BaseLayout>

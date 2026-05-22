@@ -32,6 +32,18 @@ jobs:
       - name: Check
         run: npm run check
 
+      - name: Update Directus schema
+        run: |
+          if [ -z "$DIRECTUS_TOKEN" ]; then
+            echo "::warning title=Directus schema skipped::Add the DIRECTUS_TOKEN repository secret, then rerun this workflow to update the CMS schema."
+            exit 0
+          fi
+          node scripts/setup-directus-schema.mjs
+          node scripts/setup-directus-permissions.mjs
+        env:
+          DIRECTUS_URL: ${{ secrets.PUBLIC_DIRECTUS_URL }}
+          DIRECTUS_TOKEN: ${{ secrets.DIRECTUS_TOKEN }}
+
       - name: Sync app to VPS
         uses: easingthemes/ssh-deploy@v5.1.0
         with:

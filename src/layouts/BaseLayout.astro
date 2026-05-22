@@ -8,12 +8,12 @@ type Props = {
 };
 
 const {
-  title = 'SU Oyuncuları',
+  title = 'SUOyuncuları',
   description = 'Sabancı University theatre club archive, plays, notes, and announcements.',
   image = '/images/theatre-hero.png',
 } = Astro.props;
 
-const siteName = 'SU Oyuncuları';
+const siteName = 'SUOyuncuları';
 const pageTitle = title === siteName ? title : `${title} | ${siteName}`;
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? 'https://suoyunculari.com');
 const imageUrl = new URL(image, canonicalUrl);
@@ -54,9 +54,8 @@ const imageUrl = new URL(image, canonicalUrl);
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="/" aria-label="SU Oyuncuları ana sayfa">
+      <a class="brand" href="/" aria-label="SUOyuncuları ana sayfa">
         <img class="brand-logo" src="/Logo.svg" alt="" />
-        <span>SUO Tiyatro Kulübü</span>
       </a>
       <nav class="site-nav" aria-label="Primary navigation">
         <a href="/oyunlarimiz">Oyunlarımız</a>
@@ -78,7 +77,7 @@ const imageUrl = new URL(image, canonicalUrl);
     <slot />
     <footer class="site-footer">
       <div class="footer-brand">
-        <strong>SU Oyuncuları</strong>
+        <strong>SUOyuncuları</strong>
         <span>Tiyatro kulübü arşivi, prova notları ve duyuruları.</span>
         <span>Made by Ege with {'<3'}</span>
       </div>

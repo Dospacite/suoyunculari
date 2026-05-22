@@ -7,7 +7,7 @@ export const prerender = false;
 const posts = await getBlogPosts();
 ---
 
-<BaseLayout title="Blog" description="SU Oyuncuları duyuruları, prova notları ve kulüp yazıları.">
+<BaseLayout title="Blog" description="SUOyuncuları duyuruları, prova notları ve kulüp yazıları.">
   <main class="section compact">
     <div class="section-inner">
       <div class="section-heading">
@@ -19,7 +19,7 @@ const posts = await getBlogPosts();
         {
           posts.map((post) => (
             <a href={`/blog/${post.slug}`}>
-              <p class="kicker">{post.author_name || 'SU Oyuncuları'}</p>
+              <p class="kicker">{post.author_name || 'SUOyuncuları'}</p>
               <h2>{post.title}</h2>
               <p>{post.excerpt}</p>
             </a>

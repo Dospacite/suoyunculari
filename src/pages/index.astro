@@ -8,6 +8,9 @@ const homePlays = await getHomePlays();
 const homepageSections = await getHomepageSections();
 const heroSection = homepageSections.find((section) => section.section_key === 'hero');
 const heroImage = assetUrl(heroSection?.image);
+const heroHeading = heroSection?.heading || 'SUO Tiyatro Kulübü';
+const heroHeadingRemainder = heroHeading.replace(/^SUO\s*/i, '').trim();
+const shouldUseLogoHeading = /^SUO(\s|$)/i.test(heroHeading);
 
 const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
   day: 'numeric',
@@ -17,7 +20,7 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
 });
 ---
 
-<BaseLayout title="SU Oyuncuları" description="SUO Tiyatro Kulübü oyunları, metin bankası ve prova defteri.">
+<BaseLayout title="SUOyuncuları" description="SUO Tiyatro Kulübü oyunları, metin bankası ve prova defteri.">
   <main>
     <section
       class="home-hero"
@@ -26,7 +29,16 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
     >
       <div class="hero-title">
         <p>{heroSection?.subheading || 'Sabancı Üniversitesi'}</p>
-        <h1>{heroSection?.heading || 'SUO Tiyatro Kulübü'}</h1>
+        <h1 class:list={[shouldUseLogoHeading && 'logo-heading']}>
+          {shouldUseLogoHeading ? (
+            <>
+              <img src="/Logo.svg" alt="SUO" />
+              {heroHeadingRemainder && <span>{heroHeadingRemainder}</span>}
+            </>
+          ) : (
+            heroHeading
+          )}
+        </h1>
       </div>
       <a class="scroll-cue" href="#yaklasan-oyunlar">KEŞFET</a>
     </section>

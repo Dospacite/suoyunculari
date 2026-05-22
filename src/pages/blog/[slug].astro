@@ -14,7 +14,7 @@ if (!post) Astro.response.status = 404;
       post ? (
         <article class="section-inner">
           <div class="section-heading">
-            <p class="kicker">{post.author_name || 'SU Oyuncuları'}</p>
+            <p class="kicker">{post.author_name || 'SUOyuncuları'}</p>
             <h1>{post.title}</h1>
             <p>{post.excerpt}</p>
           </div>
@@ -28,7 +28,7 @@ if (!post) Astro.response.status = 404;
               <div class="article-list compact-list">
                 {post.related_plays.map((play) => (
                   <a href={`/plays/${play.slug}`}>
-                    <p class="kicker">{play.author?.name || 'SU Oyuncuları'}</p>
+                    <p class="kicker">{play.author?.name || 'SUOyuncuları'}</p>
                     <h2>{play.title}</h2>
                     <p>{play.summary}</p>
                   </a>

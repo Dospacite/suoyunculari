@@ -65,11 +65,7 @@ img {
 .brand {
   align-items: center;
   display: inline-flex;
-  font-size: 0.92rem;
-  font-weight: 850;
-  gap: 12px;
   min-width: 0;
-  text-transform: uppercase;
 }
 
 .brand-logo {
@@ -197,6 +193,26 @@ img {
   line-height: 0.88;
   margin: 0;
   text-transform: uppercase;
+}
+
+.hero-title h1.logo-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(14px, 2.4vw, 28px);
+  justify-content: center;
+}
+
+.hero-title h1.logo-heading img {
+  filter: drop-shadow(0 3px 22px rgba(0, 0, 0, 0.45));
+  height: clamp(5.4rem, 15vw, 12rem);
+  max-width: min(42vw, 260px);
+  object-fit: contain;
+  width: auto;
+}
+
+.hero-title h1.logo-heading span {
+  display: inline-block;
 }
 
 .scroll-cue {
@@ -868,10 +884,6 @@ dd {
 
   .site-header {
     padding: 0 12px;
-  }
-
-  .brand span {
-    display: none;
   }
 
   .brand-logo {

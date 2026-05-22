@@ -338,7 +338,7 @@ async function ensureRelation(item) {
   );
 
   if (found) {
-    await request('PATCH', `/relations/${found.id}`, item);
+    await request('PATCH', `/relations/${item.collection}/${item.field}`, item);
     console.log(`relation updated: ${item.collection}.${item.field}`);
     return;
   }

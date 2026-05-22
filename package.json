@@ -1,24 +1,29 @@
 {
   "name": "suoyunculari",
   "version": "1.0.0",
-  "description": "Static Astro website for suoyunculari.com.",
+  "description": "Astro website for suoyunculari.com.",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "astro check"
+    "check": "astro check",
+    "db:import:concord": "node scripts/import-concord-plays.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "UNLICENSED",
   "dependencies": {
+    "@astrojs/node": "^10.1.1",
     "@astrojs/sitemap": "^3.7.2",
-    "astro": "^6.3.7"
+    "astro": "^6.3.7",
+    "pg": "^8.21.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
+    "@types/pg": "^8.20.0",
+    "cheerio": "^1.2.0",
     "typescript": "^6.0.3"
   }
 }

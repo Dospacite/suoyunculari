@@ -1,87 +1,80 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { getBlogPosts, getHomepageSections, getPlays } from '@/lib/directus';
+import { assetUrl, getHomePlays } from '@/lib/directus';
 
-const [sections, plays, posts] = await Promise.all([
-  getHomepageSections(),
-  getPlays(),
-  getBlogPosts(),
-]);
+const homePlays = await getHomePlays();
 
-const hero = sections.find((section) => section.section_key === 'hero') ?? sections[0];
-const featuredPlays = plays.slice(0, 3);
-const latestPosts = posts.slice(0, 2);
+const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
+  day: 'numeric',
+  month: 'long',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 ---
 
-<BaseLayout>
+<BaseLayout title="SU Oyunculari" description="SUO Tiyatro Kulübü oyunları, metin bankası ve prova defteri.">
   <main>
-    <section class="hero">
-      <div class="hero-inner">
-        <p class="eyebrow">Sabanci University Theatre Club</p>
-        <h1>SU Oyunculari</h1>
-        <p>{hero?.body || hero?.subheading}</p>
-        <div class="hero-actions">
-          <a class="button" href={hero?.button_url || '/plays'}>{hero?.button_text || 'Explore plays'}</a>
-          <a class="button secondary" href="/blog">Read updates</a>
-        </div>
+    <section class="home-hero" id="top">
+      <div class="hero-title">
+        <p>Sabancı Üniversitesi</p>
+        <h1>SUO Tiyatro Kulübü</h1>
       </div>
+      <a class="scroll-cue" href="#yaklasan-oyunlar">KEŞFET</a>
     </section>
 
-    <section class="section">
-      <div class="section-inner split">
-        <div class="section-heading">
-          <p class="kicker">Archive</p>
-          <h2>Plays for reading, rehearsal, and production.</h2>
-        </div>
-        <div class="prose">
-          <p>
-            Browse stage plays by author, cast size, duration, difficulty, and rights status. The
-            archive is built to support club programming decisions without hiding unpublished work in
-            public pages.
-          </p>
-          <div class="actions">
-            <a class="button" href="/plays">Open archive</a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section feature-band">
-      <div class="section-inner feature-grid">
-        <div>
-          <p class="kicker">Featured</p>
-          <h2>Current reading list</h2>
-          <p>Published Directus records appear here automatically after each static rebuild.</p>
-        </div>
-        <div class="feature-list">
-          {
-            featuredPlays.map((play) => (
-              <a href={`/plays/${play.slug}`}>
-                <strong>{play.title}</strong>
-                <span>{play.author?.name || 'Unknown author'}</span>
-              </a>
-            ))
-          }
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
+    <section class="section home-section" id="yaklasan-oyunlar">
       <div class="section-inner">
-        <div class="section-heading">
-          <p class="kicker">News</p>
-          <h2>Club notes and announcements.</h2>
+        <div class="section-heading center">
+          <p class="kicker">Program</p>
+          <h2>Yaklaşan Oyunlar</h2>
         </div>
-        <div class="article-list">
-          {
-            latestPosts.map((post) => (
-              <a href={`/blog/${post.slug}`}>
-                <p class="kicker">{post.author_name || 'SU Oyunculari'}</p>
-                <h2>{post.title}</h2>
-                <p>{post.excerpt}</p>
-              </a>
-            ))
-          }
+        <div class="home-play-grid">
+          {homePlays.map((play) => {
+            const image = assetUrl(play.home_card_image || play.cover_image);
+            const date = play.event_date ? dateFormatter.format(new Date(play.event_date)) : 'Tarih yakında';
+
+            return (
+              <article class="home-play-card">
+                {image ? (
+                  <img src={image} alt="" loading="lazy" />
+                ) : (
+                  <div class="home-card-fallback" aria-hidden="true" />
+                )}
+                <div>
+                  <p class="kicker">{date}</p>
+                  <h3>{play.title}</h3>
+                  <p>{play.summary}</p>
+                  <div class="home-card-meta">
+                    <span>{play.event_venue || 'Mekan yakında'}</span>
+                    <a class="button compact-button" href={`/plays/${play.slug}`}>DETAY</a>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+
+    <section class="section tool-section">
+      <div class="section-inner">
+        <div class="section-heading center">
+          <p class="kicker">Arşiv</p>
+          <h2>Araçlar</h2>
+        </div>
+        <div class="tool-grid">
+          <a class="tool-tile blue" href="/oyunlarimiz">
+            <span>Oyunlarımız</span>
+            <strong>Kulüp arşivini gör</strong>
+          </a>
+          <a class="tool-tile red" href="/metin-bankasi">
+            <span>Metin Bankası</span>
+            <strong>Concord metinlerini ara</strong>
+          </a>
+          <a class="tool-tile black" href="/prova-defteri">
+            <span>Prova Defteri</span>
+            <strong>Egzersiz ve fikir bul</strong>
+          </a>
         </div>
       </div>
     </section>

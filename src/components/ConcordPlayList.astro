@@ -1,0 +1,222 @@
+<section class="play-browser" aria-label="Concord play browser" data-concord-browser>
+  <div class="browser-tools three">
+    <label>
+      <span>Arama</span>
+      <input id="concord-search" type="search" placeholder="Başlık, yazar, tür, tema" autocomplete="off" />
+    </label>
+    <label>
+      <span>Tür</span>
+      <select id="concord-genre-filter">
+        <option value="">Tümü</option>
+      </select>
+    </label>
+    <label>
+      <span>Süre</span>
+      <select id="concord-duration-filter">
+        <option value="">Tümü</option>
+        <option value="short">90 dk ve altı</option>
+        <option value="medium">91-120 dk</option>
+        <option value="long">120 dk üstü</option>
+      </select>
+    </label>
+  </div>
+
+  <p class="browser-status" id="concord-status">Kayıtlar yükleniyor...</p>
+
+  <div class="play-list" id="concord-play-list"></div>
+  <p class="empty-state" id="concord-empty" hidden>Eşleşen Concord oyunu bulunamadı.</p>
+
+  <div class="pager" id="concord-pager" hidden>
+    <button type="button" id="concord-prev">Önceki</button>
+    <span id="concord-page-label">1 / 1</span>
+    <button type="button" id="concord-next">Sonraki</button>
+  </div>
+</section>
+
+<script>
+  type ConcordAuthor = {
+    name: string;
+  };
+
+  type ConcordPlay = {
+    source_url?: string;
+    title: string;
+    summary_text?: string;
+    authors?: ConcordAuthor[];
+    play_type?: string;
+    genres?: string[];
+    duration_text?: string;
+    duration_minutes?: number;
+    casting_text?: string;
+  };
+
+  type ConcordSearchResponse = {
+    items: ConcordPlay[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+    genres: string[];
+    databaseReady: boolean;
+  };
+
+  const searchInput = document.querySelector<HTMLInputElement>('#concord-search');
+  const genreSelect = document.querySelector<HTMLSelectElement>('#concord-genre-filter');
+  const durationSelect = document.querySelector<HTMLSelectElement>('#concord-duration-filter');
+  const list = document.querySelector<HTMLElement>('#concord-play-list');
+  const empty = document.querySelector<HTMLElement>('#concord-empty');
+  const importEmpty = document.querySelector<HTMLElement>('#concord-import-empty');
+  const status = document.querySelector<HTMLElement>('#concord-status');
+  const pager = document.querySelector<HTMLElement>('#concord-pager');
+  const prevButton = document.querySelector<HTMLButtonElement>('#concord-prev');
+  const nextButton = document.querySelector<HTMLButtonElement>('#concord-next');
+  const pageLabel = document.querySelector<HTMLElement>('#concord-page-label');
+
+  const pageSize = 25;
+  let currentPage = 1;
+  let totalPages = 1;
+  let debounceTimer: number | undefined;
+
+  function debounceSearch() {
+    window.clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(() => {
+      currentPage = 1;
+      void loadResults();
+    }, 250);
+  }
+
+  async function loadResults() {
+    if (!list || !empty || !importEmpty || !status || !pager) return;
+
+    status.textContent = 'Kayıtlar yükleniyor...';
+    status.hidden = false;
+
+    const params = new URLSearchParams({
+      q: searchInput?.value.trim() || '',
+      genre: genreSelect?.value || '',
+      duration: durationSelect?.value || '',
+      page: String(currentPage),
+      pageSize: String(pageSize),
+    });
+
+    try {
+      const response = await fetch(`/api/metin-bankasi/search.json?${params.toString()}`);
+      const payload = (await response.json()) as ConcordSearchResponse;
+      totalPages = payload.totalPages;
+      currentPage = payload.page;
+
+      updateGenres(payload.genres);
+      renderResults(payload);
+    } catch {
+      list.innerHTML = '';
+      empty.hidden = true;
+      importEmpty.hidden = false;
+      pager.hidden = true;
+      status.textContent = 'Veritabanı bağlantısı kurulamadı.';
+    }
+  }
+
+  function updateGenres(genres: string[]) {
+    if (!genreSelect) return;
+    const selected = genreSelect.value;
+    const options = ['<option value="">Tümü</option>'];
+
+    for (const genre of genres) {
+      options.push(`<option value="${escapeAttribute(genre)}">${escapeHtml(genre)}</option>`);
+    }
+
+    genreSelect.innerHTML = options.join('');
+    genreSelect.value = genres.includes(selected) ? selected : '';
+  }
+
+  function renderResults(payload: ConcordSearchResponse) {
+    if (!list || !empty || !importEmpty || !status || !pager || !pageLabel || !prevButton || !nextButton) {
+      return;
+    }
+
+    const hasActiveSearch =
+      Boolean(searchInput?.value.trim()) || Boolean(genreSelect?.value) || Boolean(durationSelect?.value);
+    const hasItems = payload.items.length > 0;
+
+    list.innerHTML = hasItems ? payload.items.map(renderPlay).join('') : '';
+    importEmpty.hidden = payload.databaseReady && (hasItems || hasActiveSearch || payload.total > 0);
+    empty.hidden = hasItems || !payload.databaseReady || (!hasActiveSearch && payload.total === 0);
+    pager.hidden = !hasItems || payload.totalPages <= 1;
+    pageLabel.textContent = `${payload.page} / ${payload.totalPages}`;
+    prevButton.disabled = payload.page <= 1;
+    nextButton.disabled = payload.page >= payload.totalPages;
+
+    status.textContent = hasItems ? `${payload.total} kayıt bulundu.` : '';
+    status.hidden = !hasItems;
+  }
+
+  function renderPlay(play: ConcordPlay) {
+    const authorText = play.authors?.map((author) => author.name).filter(Boolean).join(', ') || 'Concord';
+    const genreText = play.genres?.join(', ') || play.play_type || 'Play';
+    const href = play.source_url || '#';
+    const duration = play.duration_text || (play.duration_minutes ? `${play.duration_minutes} dk` : 'Belirsiz');
+
+    return `
+      <article class="play-row">
+        <a href="${escapeAttribute(href)}" target="_blank" rel="noreferrer">
+          <div>
+            <p class="kicker">${escapeHtml(genreText)}</p>
+            <h2>${escapeHtml(play.title)}</h2>
+            <p>${escapeHtml(play.summary_text || 'Özet bilgisi bulunmuyor.')}</p>
+          </div>
+          <dl>
+            <div>
+              <dt>Yazar</dt>
+              <dd>${escapeHtml(authorText)}</dd>
+            </div>
+            <div>
+              <dt>Kadro</dt>
+              <dd>${escapeHtml(play.casting_text || 'Belirsiz')}</dd>
+            </div>
+            <div>
+              <dt>Süre</dt>
+              <dd>${escapeHtml(duration)}</dd>
+            </div>
+          </dl>
+        </a>
+      </article>
+    `;
+  }
+
+  function escapeHtml(value: string) {
+    return value.replace(/[&<>"']/g, (character) => {
+      const entities: Record<string, string> = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      };
+      return entities[character];
+    });
+  }
+
+  function escapeAttribute(value: string) {
+    return escapeHtml(value);
+  }
+
+  searchInput?.addEventListener('input', debounceSearch);
+  genreSelect?.addEventListener('change', () => {
+    currentPage = 1;
+    void loadResults();
+  });
+  durationSelect?.addEventListener('change', () => {
+    currentPage = 1;
+    void loadResults();
+  });
+  prevButton?.addEventListener('click', () => {
+    currentPage = Math.max(1, currentPage - 1);
+    void loadResults();
+  });
+  nextButton?.addEventListener('click', () => {
+    currentPage = Math.min(totalPages, currentPage + 1);
+    void loadResults();
+  });
+
+  void loadResults();
+</script>

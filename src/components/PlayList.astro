@@ -6,22 +6,52 @@ type Props = {
 };
 
 const { plays } = Astro.props;
+
+const difficultyLabels = {
+  easy: 'Kolay',
+  medium: 'Orta',
+  hard: 'Zor',
+  unknown: 'Belirsiz',
+};
+
+const rightsLabels = {
+  unknown: 'Belirsiz',
+  public_domain: 'Kamu malı',
+  licensed: 'Lisanslı',
+  permission_required: 'İzin gerekli',
+  original_club_work: 'Kulüp üretimi',
+};
+
+const genres = Array.from(
+  new Set(plays.flatMap((play) => play.genres?.map((genre) => genre.name).filter(Boolean) ?? [])),
+).sort((a, b) => a.localeCompare(b, 'tr'));
 ---
 
 <section class="play-browser" aria-label="Play browser">
   <div class="browser-tools">
     <label>
-      <span>Search</span>
-      <input id="play-search" type="search" placeholder="Title, author, genre" />
+      <span>Arama</span>
+      <input id="play-search" type="search" placeholder="Başlık, yazar, tür" />
     </label>
     <label>
-      <span>Difficulty</span>
+      <span>Zorluk</span>
       <select id="difficulty-filter">
-        <option value="">All</option>
-        <option value="easy">Easy</option>
-        <option value="medium">Medium</option>
-        <option value="hard">Hard</option>
-        <option value="unknown">Unknown</option>
+        <option value="">Tümü</option>
+        {Object.entries(difficultyLabels).map(([value, label]) => <option value={value}>{label}</option>)}
+      </select>
+    </label>
+    <label>
+      <span>Haklar</span>
+      <select id="rights-filter">
+        <option value="">Tümü</option>
+        {Object.entries(rightsLabels).map(([value, label]) => <option value={value}>{label}</option>)}
+      </select>
+    </label>
+    <label>
+      <span>Tür</span>
+      <select id="genre-filter">
+        <option value="">Tümü</option>
+        {genres.map((genre) => <option value={genre.toLowerCase()}>{genre}</option>)}
       </select>
     </label>
   </div>
@@ -30,6 +60,7 @@ const { plays } = Astro.props;
     {
       plays.map((play) => {
         const genres = play.genres?.map((genre) => genre.name).join(', ') || 'Theatre';
+        const genreSearch = play.genres?.map((genre) => genre.name.toLowerCase()).join(' ') ?? '';
         const searchable = [
           play.title,
           play.original_title,
@@ -46,6 +77,8 @@ const { plays } = Astro.props;
             class="play-row"
             data-search={searchable}
             data-difficulty={play.difficulty || ''}
+            data-rights={play.rights_status || 'unknown'}
+            data-genre={genreSearch}
           >
             <a href={`/plays/${play.slug}`}>
               <div>
@@ -55,20 +88,20 @@ const { plays } = Astro.props;
               </div>
               <dl>
                 <div>
-                  <dt>Cast</dt>
+                  <dt>Kadro</dt>
                   <dd>
                     {play.min_cast_size && play.max_cast_size
                       ? `${play.min_cast_size}-${play.max_cast_size}`
-                      : 'Flexible'}
+                      : 'Esnek'}
                   </dd>
                 </div>
                 <div>
-                  <dt>Length</dt>
-                  <dd>{play.duration_minutes ? `${play.duration_minutes} min` : 'TBD'}</dd>
+                  <dt>Süre</dt>
+                  <dd>{play.duration_minutes ? `${play.duration_minutes} dk` : 'Belirsiz'}</dd>
                 </div>
                 <div>
-                  <dt>Rights</dt>
-                  <dd>{(play.rights_status || 'unknown').replaceAll('_', ' ')}</dd>
+                  <dt>Haklar</dt>
+                  <dd>{rightsLabels[play.rights_status || 'unknown']}</dd>
                 </div>
               </dl>
             </a>
@@ -77,25 +110,31 @@ const { plays } = Astro.props;
       })
     }
   </div>
-  <p class="empty-state" id="play-empty" hidden>No matching plays.</p>
+  <p class="empty-state" id="play-empty" hidden>Eşleşen metin bulunamadı.</p>
 </section>
 
 <script>
   const search = document.querySelector<HTMLInputElement>('#play-search');
   const difficulty = document.querySelector<HTMLSelectElement>('#difficulty-filter');
+  const rights = document.querySelector<HTMLSelectElement>('#rights-filter');
+  const genre = document.querySelector<HTMLSelectElement>('#genre-filter');
   const rows = Array.from(document.querySelectorAll<HTMLElement>('.play-row'));
   const empty = document.querySelector<HTMLElement>('#play-empty');
 
   function updateRows() {
     const query = search?.value.trim().toLowerCase() || '';
     const selectedDifficulty = difficulty?.value || '';
+    const selectedRights = rights?.value || '';
+    const selectedGenre = genre?.value || '';
     let visibleCount = 0;
 
     for (const row of rows) {
       const matchesSearch = row.dataset.search?.includes(query) ?? true;
       const matchesDifficulty =
         selectedDifficulty === '' || row.dataset.difficulty === selectedDifficulty;
-      const isVisible = matchesSearch && matchesDifficulty;
+      const matchesRights = selectedRights === '' || row.dataset.rights === selectedRights;
+      const matchesGenre = selectedGenre === '' || row.dataset.genre?.includes(selectedGenre);
+      const isVisible = matchesSearch && matchesDifficulty && matchesRights && matchesGenre;
       row.hidden = !isVisible;
       if (isVisible) visibleCount += 1;
     }
@@ -105,4 +144,6 @@ const { plays } = Astro.props;
 
   search?.addEventListener('input', updateRows);
   difficulty?.addEventListener('change', updateRows);
+  rights?.addEventListener('change', updateRows);
+  genre?.addEventListener('change', updateRows);
 </script>

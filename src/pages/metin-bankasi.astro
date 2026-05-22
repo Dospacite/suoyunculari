@@ -1,0 +1,17 @@
+---
+import ConcordPlayList from '@/components/ConcordPlayList.astro';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Metin Bankası" description="Concord kaynaklı lisanslı oyun metni arşivi.">
+  <main class="section compact">
+    <div class="section-inner">
+      <div class="section-heading">
+        <p class="kicker">Concord Arşivi</p>
+        <h1>Metin Bankası</h1>
+        <p>Concord Theatricals kataloğundan içe aktarılan lisanslı oyunları başlık, yazar, tür, süre ve temaya göre ara.</p>
+      </div>
+      <ConcordPlayList />
+    </div>
+  </main>
+</BaseLayout>

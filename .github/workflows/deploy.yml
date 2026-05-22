@@ -27,16 +27,35 @@ jobs:
         run: npm run build
         env:
           PUBLIC_DIRECTUS_URL: ${{ secrets.PUBLIC_DIRECTUS_URL }}
+          DATABASE_URL: postgres://suo:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/suoyunculari
 
       - name: Check
         run: npm run check
 
-      - name: Deploy via rsync
+      - name: Sync app to VPS
         uses: easingthemes/ssh-deploy@v5.1.0
         with:
           SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
           REMOTE_HOST: ${{ secrets.VPS_HOST }}
           REMOTE_USER: ${{ secrets.VPS_USER }}
-          SOURCE: "dist/"
-          TARGET: "/var/www/suoyunculari.com/"
+          SOURCE: "./"
+          TARGET: "/opt/suoyunculari/"
           ARGS: "-rlDzvc --delete --chmod=D775,F664"
+          EXCLUDE: "/node_modules/, /dist/, /.astro/, /.git/, /scraped/, /.env, /.env.*"
+
+      - name: Restart compose stack
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/suoyunculari
+            cat > .env <<'EOF'
+            PUBLIC_DIRECTUS_URL=${{ secrets.PUBLIC_DIRECTUS_URL }}
+            POSTGRES_DB=suoyunculari
+            POSTGRES_USER=suo
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            EOF
+            docker compose up -d --build
+            docker image prune -f

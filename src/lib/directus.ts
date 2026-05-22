@@ -4,6 +4,7 @@ import {
   fallbackHomepageSections,
   fallbackPages,
   fallbackPlays,
+  fallbackRehearsalIdeas,
 } from '@/data/fallback';
 
 const directusUrl = (import.meta.env.PUBLIC_DIRECTUS_URL || 'https://cms.suoyunculari.com').replace(
@@ -61,6 +62,11 @@ export type Play = {
   rights_notes?: string;
   script_url?: string;
   is_published?: boolean;
+  display_on_home?: boolean;
+  home_sort_order?: number;
+  event_date?: string;
+  event_venue?: string;
+  home_card_image?: string | { id: string };
 };
 
 export type BlogPost = {
@@ -92,6 +98,18 @@ export type HomepageSection = {
   is_visible?: boolean;
 };
 
+export type RehearsalIdea = {
+  title: string;
+  slug: string;
+  summary?: string;
+  body?: string;
+  tags?: string | string[] | Taxonomy[];
+  difficulty?: 'easy' | 'medium' | 'hard' | 'unknown';
+  is_published?: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
 async function fetchItems<T>(collection: string, query: Record<string, string> = {}): Promise<T[]> {
   const params = new URLSearchParams(query);
   const url = `${directusUrl}/items/${collection}?${params.toString()}`;
@@ -118,12 +136,25 @@ export function assetUrl(file?: string | { id: string }): string | undefined {
 
 export async function getPlays(): Promise<Play[]> {
   const items = await fetchItems<Play>('plays', {
-    fields: '*,author.*,language.*,period.*,genres.genres_id.*,tags.tags_id.*,cover_image',
+    fields:
+      '*,author.*,language.*,period.*,genres.genres_id.*,tags.tags_id.*,cover_image,home_card_image',
     'filter[is_published][_eq]': 'true',
     sort: 'title',
   });
 
   return withFallback(items.map(normalizePlay), fallbackPlays);
+}
+
+export async function getHomePlays(): Promise<Play[]> {
+  const items = await fetchItems<Play>('plays', {
+    fields:
+      '*,author.*,language.*,period.*,genres.genres_id.*,tags.tags_id.*,cover_image,home_card_image',
+    'filter[is_published][_eq]': 'true',
+    'filter[display_on_home][_eq]': 'true',
+    sort: 'home_sort_order,event_date,title',
+  });
+
+  return withFallback(items.map(normalizePlay), fallbackPlays.filter((play) => play.display_on_home));
 }
 
 export async function getAuthors(): Promise<Author[]> {
@@ -163,6 +194,16 @@ export async function getHomepageSections(): Promise<HomepageSection[]> {
   return withFallback(items, fallbackHomepageSections);
 }
 
+export async function getRehearsalIdeas(): Promise<RehearsalIdea[]> {
+  const items = await fetchItems<RehearsalIdea>('rehearsal_ideas', {
+    fields: '*',
+    'filter[is_published][_eq]': 'true',
+    sort: 'title',
+  });
+
+  return withFallback(items.map(normalizeRehearsalIdea), fallbackRehearsalIdeas);
+}
+
 export function getPageByKey(pages: Page[], key: string): Page | undefined {
   return pages.find((page) => page.key === key);
 }
@@ -182,6 +223,13 @@ function normalizePlay(play: Play): Play {
   };
 }
 
+function normalizeRehearsalIdea(idea: RehearsalIdea): RehearsalIdea {
+  return {
+    ...idea,
+    tags: normalizeTags(idea.tags),
+  };
+}
+
 function normalizeManyToMany<T extends Taxonomy>(
   value: unknown,
   relationKey: 'genres_id' | 'tags_id',
@@ -195,5 +243,22 @@ function normalizeManyToMany<T extends Taxonomy>(
       }
       return item as T;
     })
+    .filter(Boolean);
+}
+
+function normalizeTags(value: RehearsalIdea['tags']): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        return item?.name;
+      })
+      .filter(Boolean) as string[];
+  }
+
+  return value
+    .split(',')
+    .map((tag) => tag.trim())
     .filter(Boolean);
 }

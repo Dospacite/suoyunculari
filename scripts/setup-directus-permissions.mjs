@@ -10,6 +10,7 @@ if (!DIRECTUS_URL || !DIRECTUS_TOKEN) {
 
 const contentCollections = [
   'plays',
+  'rehearsal_ideas',
   'blog_posts',
   'authors',
   'genres',
@@ -49,6 +50,23 @@ const publicFields = {
     'rights_notes',
     'script_url',
     'is_published',
+    'display_on_home',
+    'home_sort_order',
+    'event_date',
+    'event_venue',
+    'home_card_image',
+  ],
+  rehearsal_ideas: [
+    'id',
+    'title',
+    'slug',
+    'summary',
+    'body',
+    'tags',
+    'difficulty',
+    'is_published',
+    'created_at',
+    'updated_at',
   ],
   blog_posts: [
     'id',
@@ -77,6 +95,7 @@ const publicFields = {
 
 const editableFields = {
   plays: publicFields.plays,
+  rehearsal_ideas: publicFields.rehearsal_ideas,
   blog_posts: publicFields.blog_posts,
   homepage_sections: publicFields.homepage_sections,
 };
@@ -102,6 +121,10 @@ await ensurePermission(publicPolicy.id, 'blog_posts', 'read', {
   permissions: { is_published: { _eq: true } },
   fields: publicFields.blog_posts,
 });
+await ensurePermission(publicPolicy.id, 'rehearsal_ideas', 'read', {
+  permissions: { is_published: { _eq: true } },
+  fields: publicFields.rehearsal_ideas,
+});
 await ensurePermission(publicPolicy.id, 'homepage_sections', 'read', {
   permissions: { is_visible: { _eq: true } },
   fields: publicFields.homepage_sections,
@@ -111,13 +134,20 @@ for (const collection of ['authors', 'genres', 'tags', 'languages', 'periods', '
   await ensurePermission(publicPolicy.id, collection, 'read', { fields: ['*'] });
 }
 
+for (const collection of ['plays_genres', 'plays_tags']) {
+  await ensurePermission(publicPolicy.id, collection, 'read', {
+    permissions: { plays_id: { is_published: { _eq: true } } },
+    fields: ['*'],
+  });
+}
+
 for (const collection of contentCollections) {
   await ensurePermission(contentEditorPolicy.id, collection, 'read', { fields: ['*'] });
   await ensurePermission(contentEditorPolicy.id, collection, 'create', { fields: ['*'] });
   await ensurePermission(contentEditorPolicy.id, collection, 'update', { fields: ['*'] });
 }
 
-for (const collection of ['plays', 'blog_posts']) {
+for (const collection of ['plays', 'blog_posts', 'rehearsal_ideas']) {
   const fields = (editableFields[collection] ?? ['*']).filter(
     (field) => field !== 'is_published',
   );
@@ -125,7 +155,7 @@ for (const collection of ['plays', 'blog_posts']) {
   await ensurePermission(contributorPolicy.id, collection, 'read', { fields: ['*'] });
   await ensurePermission(contributorPolicy.id, collection, 'create', {
     fields,
-    presets: { is_published: false },
+    presets: publicFields[collection]?.includes('is_published') ? { is_published: false } : null,
   });
   await ensurePermission(contributorPolicy.id, collection, 'update', { fields });
 }

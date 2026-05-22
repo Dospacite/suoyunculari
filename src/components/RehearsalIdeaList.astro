@@ -1,0 +1,114 @@
+---
+import type { RehearsalIdea } from '@/lib/directus';
+
+type Props = {
+  ideas: RehearsalIdea[];
+};
+
+const { ideas } = Astro.props;
+
+const difficultyLabels = {
+  easy: 'Kolay',
+  medium: 'Orta',
+  hard: 'Zor',
+  unknown: 'Belirsiz',
+};
+
+const tags = Array.from(
+  new Set(
+    ideas.flatMap((idea) =>
+      Array.isArray(idea.tags)
+        ? idea.tags.map((tag) => (typeof tag === 'string' ? tag : tag.name)).filter(Boolean)
+        : [],
+    ),
+  ),
+).sort((a, b) => a.localeCompare(b, 'tr'));
+---
+
+<section class="play-browser" aria-label="Prova defteri arama">
+  <div class="browser-tools three">
+    <label>
+      <span>Arama</span>
+      <input id="idea-search" type="search" placeholder="Başlık, etiket, egzersiz" />
+    </label>
+    <label>
+      <span>Zorluk</span>
+      <select id="idea-difficulty-filter">
+        <option value="">Tümü</option>
+        {Object.entries(difficultyLabels).map(([value, label]) => <option value={value}>{label}</option>)}
+      </select>
+    </label>
+    <label>
+      <span>Etiket</span>
+      <select id="idea-tag-filter">
+        <option value="">Tümü</option>
+        {tags.map((tag) => <option value={tag.toLowerCase()}>{tag}</option>)}
+      </select>
+    </label>
+  </div>
+
+  <div class="idea-list" id="idea-list">
+    {
+      ideas.map((idea) => {
+        const ideaTags = Array.isArray(idea.tags)
+          ? idea.tags.map((tag) => (typeof tag === 'string' ? tag : tag.name)).filter(Boolean)
+          : [];
+        const searchable = [idea.title, idea.summary, idea.body, ideaTags.join(' ')]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return (
+          <article
+            class="idea-row"
+            data-search={searchable}
+            data-difficulty={idea.difficulty || 'unknown'}
+            data-tags={ideaTags.join(' ').toLowerCase()}
+          >
+            <div>
+              <p class="kicker">{difficultyLabels[idea.difficulty || 'unknown']}</p>
+              <h2>{idea.title}</h2>
+              <p>{idea.summary}</p>
+              <div class="taxonomy">
+                {ideaTags.map((tag) => <span>{tag}</span>)}
+              </div>
+            </div>
+            <p>{idea.body}</p>
+          </article>
+        );
+      })
+    }
+  </div>
+  <p class="empty-state" id="idea-empty" hidden>Eşleşen prova fikri bulunamadı.</p>
+</section>
+
+<script>
+  const ideaSearch = document.querySelector<HTMLInputElement>('#idea-search');
+  const ideaDifficulty = document.querySelector<HTMLSelectElement>('#idea-difficulty-filter');
+  const ideaTag = document.querySelector<HTMLSelectElement>('#idea-tag-filter');
+  const ideaRows = Array.from(document.querySelectorAll<HTMLElement>('.idea-row'));
+  const ideaEmpty = document.querySelector<HTMLElement>('#idea-empty');
+
+  function updateIdeaRows() {
+    const query = ideaSearch?.value.trim().toLowerCase() || '';
+    const selectedDifficulty = ideaDifficulty?.value || '';
+    const selectedTag = ideaTag?.value || '';
+    let visibleCount = 0;
+
+    for (const row of ideaRows) {
+      const matchesSearch = row.dataset.search?.includes(query) ?? true;
+      const matchesDifficulty =
+        selectedDifficulty === '' || row.dataset.difficulty === selectedDifficulty;
+      const matchesTag = selectedTag === '' || row.dataset.tags?.includes(selectedTag);
+      const isVisible = matchesSearch && matchesDifficulty && matchesTag;
+      row.hidden = !isVisible;
+      if (isVisible) visibleCount += 1;
+    }
+
+    if (ideaEmpty) ideaEmpty.hidden = visibleCount > 0;
+  }
+
+  ideaSearch?.addEventListener('input', updateIdeaRows);
+  ideaDifficulty?.addEventListener('change', updateIdeaRows);
+  ideaTag?.addEventListener('change', updateIdeaRows);
+</script>

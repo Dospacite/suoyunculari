@@ -1,0 +1,20 @@
+---
+import RehearsalIdeaList from '@/components/RehearsalIdeaList.astro';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getRehearsalIdeas } from '@/lib/directus';
+
+const ideas = await getRehearsalIdeas();
+---
+
+<BaseLayout title="Prova Defteri" description="SUO Tiyatro Kulübü prova fikri ve egzersiz arşivi.">
+  <main class="section compact">
+    <div class="section-inner">
+      <div class="section-heading">
+        <p class="kicker">Prova</p>
+        <h1>Prova Defteri</h1>
+        <p>Egzersizleri zorluk, etiket ve prova ihtiyacına göre filtrele.</p>
+      </div>
+      <RehearsalIdeaList ideas={ideas} />
+    </div>
+  </main>
+</BaseLayout>

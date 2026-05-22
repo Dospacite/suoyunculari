@@ -2,6 +2,8 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { getPlays } from '@/lib/directus';
 
+export const prerender = true;
+
 export async function getStaticPaths() {
   const plays = await getPlays();
   return plays.map((play) => ({

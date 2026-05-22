@@ -1,4 +1,4 @@
-import type { Author, BlogPost, HomepageSection, Page, Play } from '@/lib/directus';
+import type { Author, BlogPost, HomepageSection, Page, Play, RehearsalIdea } from '@/lib/directus';
 
 export const fallbackAuthors: Author[] = [
   {
@@ -40,6 +40,10 @@ export const fallbackPlays: Play[] = [
     difficulty: 'medium',
     rights_status: 'public_domain',
     is_published: true,
+    display_on_home: true,
+    home_sort_order: 1,
+    event_date: '2026-06-04T19:30:00.000Z',
+    event_venue: 'Sabanci Gosteri Merkezi',
   },
   {
     title: 'The Seagull',
@@ -61,6 +65,10 @@ export const fallbackPlays: Play[] = [
     difficulty: 'hard',
     rights_status: 'public_domain',
     is_published: true,
+    display_on_home: true,
+    home_sort_order: 2,
+    event_date: '2026-06-12T20:00:00.000Z',
+    event_venue: 'SU Oyunculari Sahnesi',
   },
   {
     title: 'Waiting for Godot',
@@ -77,6 +85,43 @@ export const fallbackPlays: Play[] = [
     language: { name: 'French', code: 'fr' },
     difficulty: 'hard',
     rights_status: 'permission_required',
+    is_published: true,
+    display_on_home: true,
+    home_sort_order: 3,
+    event_date: '2026-06-20T19:00:00.000Z',
+    event_venue: 'Kampüs Açık Sahne',
+  },
+];
+
+export const fallbackRehearsalIdeas: RehearsalIdea[] = [
+  {
+    title: 'Sessiz Sahne Çalışması',
+    slug: 'sessiz-sahne-calismasi',
+    summary:
+      'Oyuncuların yalnızca bakış, mesafe ve ritimle ilişki kurduğu kısa bir odak egzersizi.',
+    body: 'İki oyuncu sahnede konuşmadan bir hedef belirler. Üç dakikalık akıştan sonra ekip, ilişkinin nerede değiştiğini ve hangi fiziksel kararların anlam ürettiğini konuşur.',
+    tags: ['beden', 'odak', 'ikili çalışma'],
+    difficulty: 'easy',
+    is_published: true,
+  },
+  {
+    title: 'Alt Metin Değişimi',
+    slug: 'alt-metin-degisimi',
+    summary:
+      'Aynı replikleri farklı niyetlerle oynayarak sahnenin gerilimini ve yönünü keşfetme çalışması.',
+    body: 'Kısa bir diyalog seçilir. Her turda oyunculara gizli bir niyet verilir. Metin aynı kalır; tempo, vurgu ve fiziksel mesafe değişir.',
+    tags: ['alt metin', 'replik', 'partner'],
+    difficulty: 'medium',
+    is_published: true,
+  },
+  {
+    title: 'Koro Ritmi',
+    slug: 'koro-ritmi',
+    summary:
+      'Kalabalık sahnelerde ortak tempo, nefes ve yön duygusunu kurmak için toplu prova fikri.',
+    body: 'Ekip bir yürüyüş ritmi kurar, ardından tek tek oyuncular bu ritmi bozmadan yeni aksiyonlar ekler. Yönetmen, odak geçişlerini belirler.',
+    tags: ['ensemble', 'ritim', 'kalabalık sahne'],
+    difficulty: 'hard',
     is_published: true,
   },
 ];

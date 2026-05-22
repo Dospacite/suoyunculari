@@ -381,7 +381,7 @@ img {
 }
 
 .tool-tile span {
-  font-size: clamp(1.65rem, 7vw, 2.2rem);
+  font-size: clamp(1.65rem, 6vw, 4rem);
   font-weight: 950;
   line-height: 0.9;
   max-width: 100%;
@@ -672,7 +672,7 @@ dd {
   }
 
   .tool-tile span {
-    font-size: clamp(2.9rem, 6.4vw, 4.6rem);
+    font-size: clamp(2.4rem, 5.2vw, 4rem);
   }
 
   .play-row a,

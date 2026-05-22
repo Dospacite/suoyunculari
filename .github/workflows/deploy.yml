@@ -67,8 +67,8 @@ jobs:
             cd /opt/suoyunculari
 
             existing_value() {
-              if [ -f .env ]; then
-                sed -n "s/^$1=//p" .env | tail -n 1
+              if sudo test -f .env; then
+                sudo sed -n "s/^$1=//p" .env | tail -n 1
               fi
             }
 

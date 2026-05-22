@@ -1,8 +1,14 @@
-<section class="play-browser" aria-label="Concord play browser" data-concord-browser>
-  <div class="browser-tools four">
+<section class="play-browser" aria-label="Metin bankası tarayıcısı" data-concord-browser>
+  <div class="browser-tools">
     <label>
       <span>Arama</span>
       <input id="concord-search" type="search" placeholder="Başlık, yazar, tür, tema" autocomplete="off" />
+    </label>
+    <label>
+      <span>Kaynak</span>
+      <select id="concord-source-filter">
+        <option value="">Tümü</option>
+      </select>
     </label>
     <label>
       <span>Tür</span>
@@ -32,7 +38,7 @@
   <p class="browser-status" id="concord-status">Kayıtlar yükleniyor...</p>
 
   <div class="play-list" id="concord-play-list"></div>
-  <p class="empty-state" id="concord-empty" hidden>Eşleşen Concord oyunu bulunamadı.</p>
+  <p class="empty-state" id="concord-empty" hidden>Eşleşen metin bulunamadı.</p>
   <p class="empty-state" id="concord-import-empty" hidden>Metin bankası kayıtları henüz yüklenemedi.</p>
 
   <div class="pager" id="concord-pager" hidden>
@@ -71,10 +77,12 @@
     pageSize: number;
     totalPages: number;
     genres: string[];
+    sources: string[];
     databaseReady: boolean;
   };
 
   const searchInput = document.querySelector<HTMLInputElement>('#concord-search');
+  const sourceSelect = document.querySelector<HTMLSelectElement>('#concord-source-filter');
   const genreSelect = document.querySelector<HTMLSelectElement>('#concord-genre-filter');
   const durationSelect = document.querySelector<HTMLSelectElement>('#concord-duration-filter');
   const referenceSelect = document.querySelector<HTMLSelectElement>('#concord-reference-filter');
@@ -108,6 +116,7 @@
 
     const params = new URLSearchParams({
       q: searchInput?.value.trim() || '',
+      source: sourceSelect?.value || '',
       genre: genreSelect?.value || '',
       duration: durationSelect?.value || '',
       reference: referenceSelect?.value || '',
@@ -122,6 +131,7 @@
       currentPage = payload.page;
 
       updateGenres(payload.genres);
+      updateSources(payload.sources);
       renderResults(payload);
     } catch {
       list.innerHTML = '';
@@ -130,6 +140,19 @@
       pager.hidden = true;
       status.textContent = 'Veritabanı bağlantısı kurulamadı.';
     }
+  }
+
+  function updateSources(sources: string[]) {
+    if (!sourceSelect) return;
+    const selected = sourceSelect.value;
+    const options = ['<option value="">Tümü</option>'];
+
+    for (const source of sources) {
+      options.push(`<option value="${escapeAttribute(source)}">${escapeHtml(sourceLabel(source))}</option>`);
+    }
+
+    sourceSelect.innerHTML = options.join('');
+    sourceSelect.value = sources.includes(selected) ? selected : '';
   }
 
   function updateGenres(genres: string[]) {
@@ -151,7 +174,10 @@
     }
 
     const hasActiveSearch =
-      Boolean(searchInput?.value.trim()) || Boolean(genreSelect?.value) || Boolean(durationSelect?.value);
+      Boolean(searchInput?.value.trim()) ||
+      Boolean(sourceSelect?.value) ||
+      Boolean(genreSelect?.value) ||
+      Boolean(durationSelect?.value);
     const hasReferenceFilter = Boolean(referenceSelect?.value);
     const hasItems = payload.items.length > 0;
 
@@ -168,7 +194,8 @@
   }
 
   function renderPlay(play: ConcordPlay) {
-    const authorText = play.authors?.map((author) => author.name).filter(Boolean).join(', ') || 'Concord';
+    const sourceText = sourceLabel(play.source || 'concord_theatricals');
+    const authorText = play.authors?.map((author) => author.name).filter(Boolean).join(', ') || sourceText;
     const genreText = play.genres?.join(', ') || play.play_type || 'Play';
     const href = `/metin-bankasi/${encodeURIComponent(play.source || 'concord_theatricals')}/${encodeURIComponent(play.source_id)}`;
     const duration = play.duration_text || (play.duration_minutes ? `${play.duration_minutes} dk` : 'Belirsiz');
@@ -188,6 +215,10 @@
             <div>
               <dt>Yazar</dt>
               <dd>${escapeHtml(authorText)}</dd>
+            </div>
+            <div>
+              <dt>Kaynak</dt>
+              <dd>${escapeHtml(sourceText)}</dd>
             </div>
             <div>
               <dt>Kadro</dt>
@@ -216,11 +247,24 @@
     });
   }
 
+  function sourceLabel(source: string) {
+    const labels: Record<string, string> = {
+      concord_theatricals: 'Concord',
+      drama_online_library: 'Drama Online',
+    };
+
+    return labels[source] || source;
+  }
+
   function escapeAttribute(value: string) {
     return escapeHtml(value);
   }
 
   searchInput?.addEventListener('input', debounceSearch);
+  sourceSelect?.addEventListener('change', () => {
+    currentPage = 1;
+    void loadResults();
+  });
   genreSelect?.addEventListener('change', () => {
     currentPage = 1;
     void loadResults();

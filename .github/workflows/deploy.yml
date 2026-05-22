@@ -70,4 +70,5 @@ jobs:
             POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
             EOF
             docker compose up -d --build
+            docker compose exec -T app npm run db:import:text-bank -- --truncate
             docker image prune -f

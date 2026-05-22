@@ -5,4 +5,12 @@ dist
 .env
 .env.*
 scraped
+!scripts/scraped
+scripts/scraped/*
+!scripts/scraped/concord
+scripts/scraped/concord/*
+!scripts/scraped/concord/concord-plays.json
+!scripts/scraped/drama-online
+scripts/scraped/drama-online/*
+!scripts/scraped/drama-online/drama-online-plays.json
 npm-debug.log*

@@ -9,7 +9,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "db:import:concord": "node scripts/import-concord-plays.mjs"
+    "db:import:concord": "node scripts/import-concord-plays.mjs --only-file scripts/scraped/concord/concord-plays.json",
+    "db:import:text-bank": "node scripts/import-concord-plays.mjs"
   },
   "keywords": [],
   "author": "",

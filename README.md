@@ -1,6 +1,6 @@
 # suoyunculari.com
 
-Astro website for `suoyunculari.com`, built from published Directus content with a PostgreSQL-backed Concord play search.
+Astro website for `suoyunculari.com`, built from published Directus content with a PostgreSQL-backed Metin Bankası search.
 
 ## Development
 
@@ -20,21 +20,23 @@ docker compose up -d --build
 
 The app is available at `http://localhost:4321`.
 
-## Concord Import
+## Metin Bankası Import
 
-Scrape Concord data into JSON, then import the final JSON array into PostgreSQL:
+Scrape Concord and Drama Online data into JSON, then import the final normalized JSON arrays into PostgreSQL:
 
 ```bash
 node scripts/scrape-concord-plays.mjs
-npm run db:import:concord
+node scripts/scrape-drama-online-plays.mjs
+npm run db:import:text-bank
 ```
 
 Useful importer options:
 
 ```bash
-npm run db:import:concord -- --file /tmp/concord-scrape-test/concord-plays.json
-npm run db:import:concord -- --truncate
-npm run db:import:concord -- --dry-run
+npm run db:import:text-bank -- --file /tmp/concord-scrape-test/concord-plays.json
+npm run db:import:text-bank -- --truncate
+npm run db:import:text-bank -- --dry-run
+npm run db:import:concord
 ```
 
 When running the importer from the host, `DATABASE_URL` should point at the exposed local database, for example `postgres://suo:suo_password@localhost:5432/suoyunculari`.
@@ -51,7 +53,7 @@ Required GitHub secrets:
 - `VPS_USER`
 - `VPS_SSH_KEY`
 
-Concord imports are not run automatically during deployment. Run the importer explicitly after scraper output exists.
+Deployments import the committed normalized scrape files in `scripts/scraped/concord/concord-plays.json` and `scripts/scraped/drama-online/drama-online-plays.json` into the VPS PostgreSQL database after the compose stack restarts.
 
 ## Directus Setup
 

@@ -7,12 +7,12 @@ import pg from 'pg';
 const { Pool } = pg;
 
 const options = parseArgs(process.argv.slice(2));
-const inputPath = path.resolve(options.file);
-const records = await readInput(inputPath);
+const inputPaths = options.files.map((file) => path.resolve(file));
+const records = (await Promise.all(inputPaths.map(readInput))).flat();
 
 if (options.dryRun) {
-  const ids = new Set(records.map((record) => String(record.source_id || '')));
-  console.log(`dry run: ${records.length} records, ${ids.size} unique source ids`);
+  const ids = new Set(records.map((record) => `${record.source}:${record.source_id}`));
+  console.log(`dry run: ${records.length} records, ${ids.size} unique text bank ids`);
   process.exit(0);
 }
 
@@ -40,7 +40,7 @@ try {
   }
 
   await pool.query('COMMIT');
-  console.log(`imported ${imported} Concord plays into PostgreSQL`);
+  console.log(`imported ${imported} text bank plays into PostgreSQL`);
 } catch (error) {
   await pool.query('ROLLBACK').catch(() => {});
   throw error;
@@ -50,7 +50,7 @@ try {
 
 function parseArgs(args) {
   const parsed = {
-    file: 'scraped/concord/concord-plays.json',
+    files: ['scripts/scraped/concord/concord-plays.json', 'scripts/scraped/drama-online/drama-online-plays.json'],
     databaseUrl: '',
     truncate: false,
     dryRun: false,
@@ -64,7 +64,8 @@ function parseArgs(args) {
       return args[index];
     };
 
-    if (arg === '--file') parsed.file = next();
+    if (arg === '--file') parsed.files.push(next());
+    else if (arg === '--only-file') parsed.files = [next()];
     else if (arg === '--database-url') parsed.databaseUrl = next();
     else if (arg === '--truncate') parsed.truncate = true;
     else if (arg === '--dry-run') parsed.dryRun = true;
@@ -76,16 +77,21 @@ function parseArgs(args) {
     }
   }
 
+  if (parsed.files.length > 2 && args.includes('--file')) {
+    parsed.files = parsed.files.slice(2);
+  }
+
   return parsed;
 }
 
 function printHelp() {
-  console.log(`Usage: npm run db:import:concord -- [options]
+  console.log(`Usage: npm run db:import:text-bank -- [options]
 
 Options:
-  --file <path>          JSON input file (default: scraped/concord/concord-plays.json)
+  --file <path>          JSON input file. Can be passed multiple times.
+  --only-file <path>     JSON input file, replacing the default Concord and Drama Online files.
   --database-url <url>   PostgreSQL connection URL (default: DATABASE_URL)
-  --truncate            Delete existing Concord rows before import
+  --truncate            Delete existing text bank rows before import
   --dry-run             Validate and count records without connecting to PostgreSQL
 `);
 }
@@ -113,7 +119,7 @@ async function ensureSchema(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS concord_plays (
       source text NOT NULL DEFAULT 'concord_theatricals',
-      source_id text PRIMARY KEY,
+      source_id text NOT NULL,
       source_url text,
       scraped_at timestamptz,
       title text NOT NULL,
@@ -148,11 +154,15 @@ async function ensureSchema(pool) {
       image_urls text[] NOT NULL DEFAULT '{}',
       search_text text NOT NULL DEFAULT '',
       imported_at timestamptz NOT NULL DEFAULT now(),
-      updated_at timestamptz NOT NULL DEFAULT now()
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (source, source_id)
     );
 
     CREATE INDEX IF NOT EXISTS concord_plays_search_idx
       ON concord_plays USING gin (to_tsvector('english', search_text));
+
+    CREATE INDEX IF NOT EXISTS concord_plays_source_idx
+      ON concord_plays (source);
 
     CREATE INDEX IF NOT EXISTS concord_plays_genres_idx
       ON concord_plays USING gin (genres);
@@ -163,6 +173,31 @@ async function ensureSchema(pool) {
     CREATE INDEX IF NOT EXISTS concord_plays_title_idx
       ON concord_plays (title);
   `);
+
+  await ensureCompositePrimaryKey(pool);
+}
+
+async function ensureCompositePrimaryKey(pool) {
+  const primaryKey = await pool.query(`
+    SELECT c.conname, array_agg(a.attname ORDER BY keys.ordinality) AS columns
+    FROM pg_constraint c
+    JOIN unnest(c.conkey) WITH ORDINALITY AS keys(attnum, ordinality) ON true
+    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = keys.attnum
+    WHERE c.conrelid = 'concord_plays'::regclass
+      AND c.contype = 'p'
+    GROUP BY c.conname
+    LIMIT 1
+  `);
+
+  const current = primaryKey.rows[0];
+  const columns = current?.columns ?? [];
+  if (columns.length === 2 && columns[0] === 'source' && columns[1] === 'source_id') return;
+
+  if (current?.conname) {
+    await pool.query(`ALTER TABLE concord_plays DROP CONSTRAINT ${quoteIdentifier(current.conname)}`);
+  }
+
+  await pool.query('ALTER TABLE concord_plays ADD PRIMARY KEY (source, source_id)');
 }
 
 async function upsertRecord(pool, record) {
@@ -207,14 +242,14 @@ async function upsertRecord(pool, record) {
   const values = columns.map((column) => record[column]);
   const placeholders = columns.map((_, index) => `$${index + 1}`);
   const updates = columns
-    .filter((column) => column !== 'source_id')
+    .filter((column) => column !== 'source' && column !== 'source_id')
     .map((column) => `${column} = EXCLUDED.${column}`)
     .join(', ');
 
   await pool.query(
     `INSERT INTO concord_plays (${columns.join(', ')})
      VALUES (${placeholders.join(', ')})
-     ON CONFLICT (source_id) DO UPDATE SET
+     ON CONFLICT (source, source_id) DO UPDATE SET
        ${updates},
        updated_at = now()`,
     values,
@@ -334,4 +369,8 @@ function htmlToText(value) {
     .replace(/&gt;/g, '>')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function quoteIdentifier(value) {
+  return `"${String(value).replace(/"/g, '""')}"`;
 }

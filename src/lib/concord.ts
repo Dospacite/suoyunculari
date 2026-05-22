@@ -52,5 +52,6 @@ export type ConcordSearchResult = {
   pageSize: number;
   totalPages: number;
   genres: string[];
+  sources: string[];
   databaseReady: boolean;
 };

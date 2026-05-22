@@ -615,7 +615,7 @@ select:focus {
 dl {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   margin: 0;
   min-width: 0;
 }

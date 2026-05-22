@@ -12,6 +12,7 @@ export const GET: APIRoute = async ({ url }) => {
     const playedReferences = await getPlayedTextBankReferences();
     const result = await searchConcordPlays({
       query: url.searchParams.get('q') ?? '',
+      source: url.searchParams.get('source') ?? '',
       genre: url.searchParams.get('genre') ?? '',
       duration: url.searchParams.get('duration') ?? '',
       reference: url.searchParams.get('reference') ?? '',
@@ -31,6 +32,7 @@ export const GET: APIRoute = async ({ url }) => {
         pageSize: 25,
         totalPages: 1,
         genres: [],
+        sources: [],
         databaseReady: false,
       },
       500,

@@ -5,6 +5,7 @@ const { Pool } = pg;
 
 type SearchOptions = {
   query?: string;
+  source?: string;
   genre?: string;
   duration?: string;
   reference?: string;
@@ -29,6 +30,7 @@ const globalForPg = globalThis as typeof globalThis & {
 
 export async function searchConcordPlays({
   query = '',
+  source = '',
   genre = '',
   duration = '',
   reference = '',
@@ -61,6 +63,11 @@ export async function searchConcordPlays({
     where.push(
       `EXISTS (SELECT 1 FROM unnest(genres) AS genre_name WHERE lower(genre_name) = lower($${params.length}))`,
     );
+  }
+
+  if (source) {
+    params.push(source);
+    where.push(`source = $${params.length}`);
   }
 
   if (duration === 'short') {
@@ -150,7 +157,7 @@ export async function searchConcordPlays({
       params,
     );
 
-    const genres = await getConcordGenres(pool);
+    const [genres, sources] = await Promise.all([getConcordGenres(pool), getConcordSources(pool)]);
 
     const result: ConcordSearchResult = {
       items: items.rows.map(normalizeConcordRow),
@@ -159,6 +166,7 @@ export async function searchConcordPlays({
       pageSize: safePageSize,
       totalPages: Math.max(1, Math.ceil(total / safePageSize)),
       genres,
+      sources,
       databaseReady: true,
     };
 
@@ -252,6 +260,17 @@ async function getConcordGenres(pool: pg.Pool): Promise<string[]> {
   return payload.rows.map((row) => row.genre);
 }
 
+async function getConcordSources(pool: pg.Pool): Promise<string[]> {
+  const payload = await pool.query<{ source: string }>(
+    `SELECT DISTINCT source
+     FROM concord_plays
+     WHERE source <> ''
+     ORDER BY source`,
+  );
+
+  return payload.rows.map((row) => row.source);
+}
+
 function normalizeConcordRow(row: ConcordRow): ConcordPlay {
   return {
     ...row,
@@ -320,6 +339,7 @@ function emptySearchResult(page: number, pageSize: number, databaseReady: boolea
     pageSize,
     totalPages: 1,
     genres: [],
+    sources: [],
     databaseReady,
   };
 }

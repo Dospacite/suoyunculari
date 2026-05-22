@@ -67,8 +67,8 @@ jobs:
             cd /opt/suoyunculari
 
             existing_value() {
-              if sudo test -f .env; then
-                sudo sed -n "s/^$1=//p" .env | tail -n 1
+              if [ -f .env ]; then
+                sed -n "s/^$1=//p" .env | tail -n 1
               fi
             }
 
@@ -91,7 +91,7 @@ jobs:
             GEMINI_API_KEY=${GEMINI_API_KEY_VALUE:-}
             DIRECTUS_TOKEN=${DIRECTUS_TOKEN_VALUE:-}
             EOF
-            sudo install -m 600 -o "$(id -un)" -g "$(id -gn)" "$tmp_env" .env
+            install -m 600 "$tmp_env" .env
             rm -f "$tmp_env"
 
             docker compose up -d --build --force-recreate app

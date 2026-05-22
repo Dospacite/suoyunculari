@@ -1,0 +1,105 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getConcordPlayBySourceId } from '@/lib/concord-db';
+import { getRelatedBlogPostsForTextBank } from '@/lib/directus';
+
+export const prerender = false;
+
+const source = Astro.params.source ? decodeURIComponent(Astro.params.source) : '';
+const sourceId = Astro.params.sourceId ? decodeURIComponent(Astro.params.sourceId) : '';
+const play = source && sourceId ? await getConcordPlayBySourceId(source, sourceId) : undefined;
+const relatedPosts = play ? await getRelatedBlogPostsForTextBank(play.source, play.source_id) : [];
+
+if (!play) Astro.response.status = 404;
+
+const sourceLabels: Record<string, string> = {
+  concord_theatricals: 'Concord',
+  drama_online_library: 'Drama Online',
+};
+
+const sourceLabel = sourceLabels[play?.source ?? ''] ?? 'Kaynak';
+const authorText = play?.authors?.map((author) => author.name).filter(Boolean).join(', ') || 'Belirsiz';
+const genreText = play?.genres?.join(', ') || play?.play_type || 'Metin';
+const duration = play?.duration_text || (play?.duration_minutes ? `${play.duration_minutes} dk` : 'Belirsiz');
+---
+
+<BaseLayout title={play?.title ?? 'Metin bulunamadı'} description={play?.summary_text}>
+  <main class="section compact">
+    {
+      play ? (
+        <article class="section-inner">
+          <div class="section-heading">
+            <p class="kicker">{genreText}</p>
+            <h1>{play.title}</h1>
+            <p>{play.summary_text || 'Bu metin için özet bilgisi bulunmuyor.'}</p>
+            {play.source_url && (
+              <a class="button detail-source-button" href={play.source_url} target="_blank" rel="noreferrer">
+                {`See in ${sourceLabel}`}
+              </a>
+            )}
+          </div>
+
+          <div class="detail-meta">
+            <div>
+              <dt>Yazar</dt>
+              <dd>{authorText}</dd>
+            </div>
+            <div>
+              <dt>Kadro</dt>
+              <dd>{play.casting_text || 'Belirsiz'}</dd>
+            </div>
+            <div>
+              <dt>Süre</dt>
+              <dd>{duration}</dd>
+            </div>
+            <div>
+              <dt>Kaynak</dt>
+              <dd>{sourceLabel}</dd>
+            </div>
+          </div>
+
+          <div class="split">
+            <div>
+              <p class="kicker">Haklar</p>
+              <p class="prose">{play.rights_status || 'licensed'}</p>
+              {play.licensing_fee_text && <p class="prose">{play.licensing_fee_text}</p>}
+            </div>
+            <div>
+              <p class="kicker">Notlar</p>
+              <p class="prose">
+                {[...(play.themes ?? []), ...(play.features ?? [])].join(', ') ||
+                  'Bu metin için ek tema veya özellik bilgisi bulunmuyor.'}
+              </p>
+              <div class="taxonomy">
+                {[...(play.genres ?? []), ...(play.tags ?? [])].map((item) => <span>{item}</span>)}
+              </div>
+            </div>
+          </div>
+
+          {relatedPosts.length > 0 && (
+            <section class="related-section" aria-labelledby="related-blog-heading">
+              <p class="kicker" id="related-blog-heading">Blog</p>
+              <div class="article-list compact-list">
+                {relatedPosts.map((post) => (
+                  <a href={`/blog/${post.slug}`}>
+                    <p class="kicker">{post.author_name || 'SU Oyuncuları'}</p>
+                    <h2>{post.title}</h2>
+                    <p>{post.excerpt}</p>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+        </article>
+      ) : (
+        <article class="section-inner">
+          <div class="section-heading">
+            <p class="kicker">404</p>
+            <h1>Metin bulunamadı</h1>
+            <p>Bu metin kaydı henüz yüklenmemiş veya kaldırılmış.</p>
+          </div>
+        </article>
+      )
+    }
+  </main>
+</BaseLayout>

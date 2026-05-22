@@ -40,6 +40,9 @@ export type ConcordPlay = {
   isbn?: string;
   sample_pdf_urls?: string[];
   image_urls?: string[];
+  played?: boolean;
+  played_play_slug?: string;
+  played_play_title?: string;
 };
 
 export type ConcordSearchResult = {

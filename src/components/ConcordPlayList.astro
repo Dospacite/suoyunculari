@@ -1,5 +1,5 @@
 <section class="play-browser" aria-label="Concord play browser" data-concord-browser>
-  <div class="browser-tools three">
+  <div class="browser-tools four">
     <label>
       <span>Arama</span>
       <input id="concord-search" type="search" placeholder="Başlık, yazar, tür, tema" autocomplete="off" />
@@ -17,6 +17,14 @@
         <option value="short">90 dk ve altı</option>
         <option value="medium">91-120 dk</option>
         <option value="long">120 dk üstü</option>
+      </select>
+    </label>
+    <label>
+      <span>Durum</span>
+      <select id="concord-reference-filter">
+        <option value="">Tümü</option>
+        <option value="played">Oynandı</option>
+        <option value="unplayed">Oynanmadı</option>
       </select>
     </label>
   </div>
@@ -41,6 +49,8 @@
 
   type ConcordPlay = {
     source_url?: string;
+    source?: string;
+    source_id: string;
     title: string;
     summary_text?: string;
     authors?: ConcordAuthor[];
@@ -49,6 +59,9 @@
     duration_text?: string;
     duration_minutes?: number;
     casting_text?: string;
+    played?: boolean;
+    played_play_slug?: string;
+    played_play_title?: string;
   };
 
   type ConcordSearchResponse = {
@@ -64,6 +77,7 @@
   const searchInput = document.querySelector<HTMLInputElement>('#concord-search');
   const genreSelect = document.querySelector<HTMLSelectElement>('#concord-genre-filter');
   const durationSelect = document.querySelector<HTMLSelectElement>('#concord-duration-filter');
+  const referenceSelect = document.querySelector<HTMLSelectElement>('#concord-reference-filter');
   const list = document.querySelector<HTMLElement>('#concord-play-list');
   const empty = document.querySelector<HTMLElement>('#concord-empty');
   const importEmpty = document.querySelector<HTMLElement>('#concord-import-empty');
@@ -96,6 +110,7 @@
       q: searchInput?.value.trim() || '',
       genre: genreSelect?.value || '',
       duration: durationSelect?.value || '',
+      reference: referenceSelect?.value || '',
       page: String(currentPage),
       pageSize: String(pageSize),
     });
@@ -137,11 +152,12 @@
 
     const hasActiveSearch =
       Boolean(searchInput?.value.trim()) || Boolean(genreSelect?.value) || Boolean(durationSelect?.value);
+    const hasReferenceFilter = Boolean(referenceSelect?.value);
     const hasItems = payload.items.length > 0;
 
     list.innerHTML = hasItems ? payload.items.map(renderPlay).join('') : '';
-    importEmpty.hidden = payload.databaseReady && (hasItems || hasActiveSearch || payload.total > 0);
-    empty.hidden = hasItems || !payload.databaseReady || (!hasActiveSearch && payload.total === 0);
+    importEmpty.hidden = payload.databaseReady && (hasItems || hasActiveSearch || hasReferenceFilter || payload.total > 0);
+    empty.hidden = hasItems || !payload.databaseReady || (!hasActiveSearch && !hasReferenceFilter && payload.total === 0);
     pager.hidden = !hasItems || payload.totalPages <= 1;
     pageLabel.textContent = `${payload.page} / ${payload.totalPages}`;
     prevButton.disabled = payload.page <= 1;
@@ -154,14 +170,17 @@
   function renderPlay(play: ConcordPlay) {
     const authorText = play.authors?.map((author) => author.name).filter(Boolean).join(', ') || 'Concord';
     const genreText = play.genres?.join(', ') || play.play_type || 'Play';
-    const href = play.source_url || '#';
+    const href = `/metin-bankasi/${encodeURIComponent(play.source || 'concord_theatricals')}/${encodeURIComponent(play.source_id)}`;
     const duration = play.duration_text || (play.duration_minutes ? `${play.duration_minutes} dk` : 'Belirsiz');
+    const playedBadge = play.played
+      ? `<span class="played-badge" title="${escapeAttribute(play.played_play_title || 'Oynandı')}">★ Oynandı</span>`
+      : '';
 
     return `
       <article class="play-row">
-        <a href="${escapeAttribute(href)}" target="_blank" rel="noreferrer">
+        <a href="${escapeAttribute(href)}">
           <div>
-            <p class="kicker">${escapeHtml(genreText)}</p>
+            <p class="kicker row-kicker">${escapeHtml(genreText)}${playedBadge}</p>
             <h2>${escapeHtml(play.title)}</h2>
             <p>${escapeHtml(play.summary_text || 'Özet bilgisi bulunmuyor.')}</p>
           </div>
@@ -207,6 +226,10 @@
     void loadResults();
   });
   durationSelect?.addEventListener('change', () => {
+    currentPage = 1;
+    void loadResults();
+  });
+  referenceSelect?.addEventListener('change', () => {
     currentPage = 1;
     void loadResults();
   });

@@ -7,8 +7,15 @@ type SearchOptions = {
   query?: string;
   genre?: string;
   duration?: string;
+  reference?: string;
   page?: number;
   pageSize?: number;
+  playedReferences?: Array<{
+    source?: string;
+    source_id?: string;
+    play_slug?: string;
+    play_title?: string;
+  }>;
 };
 
 type ConcordRow = Omit<ConcordPlay, 'authors' | 'scraped_at'> & {
@@ -24,8 +31,10 @@ export async function searchConcordPlays({
   query = '',
   genre = '',
   duration = '',
+  reference = '',
   page = 1,
   pageSize = 25,
+  playedReferences = [],
 }: SearchOptions): Promise<ConcordSearchResult> {
   const pool = getPool();
   if (!pool) return emptySearchResult(page, pageSize, false);
@@ -60,6 +69,25 @@ export async function searchConcordPlays({
     where.push('duration_minutes BETWEEN 91 AND 120');
   } else if (duration === 'long') {
     where.push('duration_minutes > 120');
+  }
+
+  const playedKeys = new Set(
+    playedReferences
+      .filter((item) => item.source && item.source_id)
+      .map((item) => referenceKey(item.source, item.source_id)),
+  );
+
+  if (reference === 'played' || reference === 'unplayed') {
+    const referencesForSql = [...playedKeys].map(splitReferenceKey);
+    if (referencesForSql.length === 0) {
+      where.push(reference === 'played' ? 'false' : 'true');
+    } else {
+      const conditions = referencesForSql.map((item) => {
+        params.push(item.source, item.sourceId);
+        return `(source = $${params.length - 1} AND source_id = $${params.length})`;
+      });
+      where.push(reference === 'played' ? `(${conditions.join(' OR ')})` : `NOT (${conditions.join(' OR ')})`);
+    }
   }
 
   const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
@@ -124,7 +152,7 @@ export async function searchConcordPlays({
 
     const genres = await getConcordGenres(pool);
 
-    return {
+    const result: ConcordSearchResult = {
       items: items.rows.map(normalizeConcordRow),
       total,
       page: safePage,
@@ -133,8 +161,68 @@ export async function searchConcordPlays({
       genres,
       databaseReady: true,
     };
+
+    result.items = result.items.map((item) => markPlayed(item, playedReferences));
+    return result;
   } catch (error) {
     if (isUnavailableDatabaseError(error)) return emptySearchResult(safePage, safePageSize, false);
+    throw error;
+  }
+}
+
+export async function getConcordPlayBySourceId(
+  source: string,
+  sourceId: string,
+): Promise<ConcordPlay | undefined> {
+  const pool = getPool();
+  if (!pool) return undefined;
+
+  try {
+    const item = await pool.query<ConcordRow>(
+      `SELECT
+        source,
+        source_id,
+        source_url,
+        scraped_at,
+        title,
+        slug,
+        summary_text,
+        summary_html,
+        full_description_html,
+        authors,
+        play_type,
+        genres,
+        subgenres,
+        duration_text,
+        duration_minutes,
+        casting_text,
+        min_cast_size,
+        max_cast_size,
+        female_roles,
+        male_roles,
+        neutral_roles,
+        setting_html,
+        themes,
+        target_audience,
+        performance_groups,
+        features,
+        cautions,
+        tags,
+        rights_status,
+        licensing_fee_text,
+        imprint,
+        isbn,
+        sample_pdf_urls,
+        image_urls
+      FROM concord_plays
+      WHERE source = $1 AND source_id = $2
+      LIMIT 1`,
+      [source, sourceId],
+    );
+
+    return item.rows[0] ? normalizeConcordRow(item.rows[0]) : undefined;
+  } catch (error) {
+    if (isUnavailableDatabaseError(error)) return undefined;
     throw error;
   }
 }
@@ -194,6 +282,34 @@ function normalizeAuthors(value: ConcordRow['authors']): ConcordAuthor[] {
   } catch {
     return [];
   }
+}
+
+function markPlayed(
+  item: ConcordPlay,
+  playedReferences: NonNullable<SearchOptions['playedReferences']>,
+): ConcordPlay {
+  const reference = playedReferences.find(
+    (playedReference) =>
+      playedReference.source === item.source && playedReference.source_id === item.source_id,
+  );
+
+  if (!reference) return item;
+
+  return {
+    ...item,
+    played: true,
+    played_play_slug: reference.play_slug,
+    played_play_title: reference.play_title,
+  };
+}
+
+function referenceKey(source?: string, sourceId?: string): string {
+  return `${source ?? ''}\u0000${sourceId ?? ''}`;
+}
+
+function splitReferenceKey(key: string): { source: string; sourceId: string } {
+  const [source, sourceId] = key.split('\u0000');
+  return { source, sourceId };
 }
 
 function emptySearchResult(page: number, pageSize: number, databaseReady: boolean): ConcordSearchResult {

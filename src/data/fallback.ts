@@ -43,7 +43,7 @@ export const fallbackPlays: Play[] = [
     display_on_home: true,
     home_sort_order: 1,
     event_date: '2026-06-04T19:30:00.000Z',
-    event_venue: 'Sabanci Gosteri Merkezi',
+    event_venue: 'Sabancı Gösteri Merkezi',
   },
   {
     title: 'The Seagull',
@@ -68,7 +68,7 @@ export const fallbackPlays: Play[] = [
     display_on_home: true,
     home_sort_order: 2,
     event_date: '2026-06-12T20:00:00.000Z',
-    event_venue: 'SU Oyunculari Sahnesi',
+    event_venue: 'SU Oyuncuları Sahnesi',
   },
   {
     title: 'Waiting for Godot',
@@ -128,11 +128,11 @@ export const fallbackRehearsalIdeas: RehearsalIdea[] = [
 
 export const fallbackBlogPosts: BlogPost[] = [
   {
-    title: 'Yeni Sezon Hazirliklari',
+    title: 'Yeni Sezon Hazırlıkları',
     slug: 'yeni-sezon-hazirliklari',
-    excerpt: 'Kulup provalari, oyun okumalari ve yeni ekip toplantilari icin sezon notlari.',
-    body: 'Yeni sezon icin okuma listesi, prova takvimi ve ekip dagilimi Directus uzerinden yayina alinacak.',
-    author_name: 'SU Oyunculari',
+    excerpt: 'Kulüp provaları, oyun okumaları ve yeni ekip toplantıları için sezon notları.',
+    body: 'Yeni sezon için okuma listesi, prova takvimi ve ekip dağılımı Directus üzerinden yayına alınacak.',
+    author_name: 'SU Oyuncuları',
     published_at: '2026-05-21T00:00:00.000Z',
     is_published: true,
   },
@@ -143,7 +143,7 @@ export const fallbackPages: Page[] = [
     key: 'about',
     title: 'About',
     content:
-      'SU Oyunculari brings students together around rehearsal, play reading, production work, and performance.',
+      'SU Oyuncuları brings students together around rehearsal, play reading, production work, and performance.',
   },
   {
     key: 'contact',
@@ -157,7 +157,7 @@ export const fallbackHomepageSections: HomepageSection[] = [
   {
     section_key: 'hero',
     heading: 'Sahneye, metne, ekibe.',
-    subheading: 'Sabanci University theatre club archive and publishing home.',
+    subheading: 'Sabancı University theatre club archive and publishing home.',
     body: 'Find plays, notes, announcements, and production material in one maintained public site.',
     button_text: 'Explore plays',
     button_url: '/plays',

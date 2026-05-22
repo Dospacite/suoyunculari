@@ -18,6 +18,8 @@ type DirectusList<T> = {
 
 const playFields =
   '*,author.*,language.*,period.*,genres.genres_id.*,tags.tags_id.*,cover_image,home_card_image';
+const blogPostFields =
+  '*,cover_image,related_plays.plays_id.*,related_plays.plays_id.author.*,related_plays.plays_id.genres.genres_id.*,related_plays.plays_id.tags.tags_id.*,text_bank_references.*';
 
 export type Taxonomy = {
   name: string;
@@ -70,6 +72,9 @@ export type Play = {
   event_date?: string;
   event_venue?: string;
   home_card_image?: string | { id: string };
+  text_bank_source?: string;
+  text_bank_source_id?: string;
+  text_bank_source_url?: string;
 };
 
 export type BlogPost = {
@@ -81,6 +86,15 @@ export type BlogPost = {
   author_name?: string;
   published_at?: string;
   is_published?: boolean;
+  related_plays?: Play[];
+  text_bank_references?: TextBankReference[];
+};
+
+export type TextBankReference = {
+  source?: string;
+  source_id?: string;
+  title?: string;
+  source_url?: string;
 };
 
 export type Page = {
@@ -191,23 +205,58 @@ export async function getAuthorBySlug(slug: string): Promise<Author | undefined>
 
 export async function getBlogPosts(): Promise<BlogPost[]> {
   const items = await fetchItems<BlogPost>('blog_posts', {
-    fields: '*',
+    fields: blogPostFields,
     'filter[is_published][_eq]': 'true',
     sort: '-published_at',
   });
 
-  return items ?? fallbackBlogPosts;
+  return items ? items.map(normalizeBlogPost) : fallbackBlogPosts;
 }
 
 export async function getBlogPostBySlug(slug: string): Promise<BlogPost | undefined> {
   const items = await fetchItems<BlogPost>('blog_posts', {
-    fields: '*',
+    fields: blogPostFields,
     'filter[slug][_eq]': slug,
     'filter[is_published][_eq]': 'true',
     limit: '1',
   });
 
-  return items ? items[0] : fallbackBlogPosts.find((post) => post.slug === slug);
+  return items ? items.map(normalizeBlogPost)[0] : fallbackBlogPosts.find((post) => post.slug === slug);
+}
+
+export async function getRelatedBlogPostsForPlay(playSlug: string): Promise<BlogPost[]> {
+  const posts = await getBlogPosts();
+  return posts.filter((post) => post.related_plays?.some((play) => play.slug === playSlug));
+}
+
+export async function getRelatedBlogPostsForTextBank(
+  source?: string,
+  sourceId?: string,
+): Promise<BlogPost[]> {
+  if (!source || !sourceId) return [];
+
+  const posts = await getBlogPosts();
+  return posts.filter((post) =>
+    post.text_bank_references?.some(
+      (reference) => reference.source === source && reference.source_id === sourceId,
+    ),
+  );
+}
+
+export async function getPlayedTextBankReferences(): Promise<
+  Array<TextBankReference & { play_slug: string; play_title: string }>
+> {
+  const plays = await getPlays();
+  return plays
+    .filter((play) => play.text_bank_source && play.text_bank_source_id)
+    .map((play) => ({
+      source: play.text_bank_source,
+      source_id: play.text_bank_source_id,
+      source_url: play.text_bank_source_url,
+      title: play.title,
+      play_slug: play.slug,
+      play_title: play.title,
+    }));
 }
 
 export async function getPages(): Promise<Page[]> {
@@ -257,6 +306,14 @@ function normalizePlay(play: Play): Play {
   };
 }
 
+function normalizeBlogPost(post: BlogPost): BlogPost {
+  return {
+    ...post,
+    related_plays: normalizeManyToMany<Play>(post.related_plays, 'plays_id').map(normalizePlay),
+    text_bank_references: normalizeTextBankReferences(post.text_bank_references),
+  };
+}
+
 function normalizeRehearsalIdea(idea: RehearsalIdea): RehearsalIdea {
   return {
     ...idea,
@@ -264,9 +321,9 @@ function normalizeRehearsalIdea(idea: RehearsalIdea): RehearsalIdea {
   };
 }
 
-function normalizeManyToMany<T extends Taxonomy>(
+function normalizeManyToMany<T extends object>(
   value: unknown,
-  relationKey: 'genres_id' | 'tags_id',
+  relationKey: 'genres_id' | 'tags_id' | 'plays_id',
 ): T[] {
   if (!Array.isArray(value)) return [];
 
@@ -278,6 +335,18 @@ function normalizeManyToMany<T extends Taxonomy>(
       return item as T;
     })
     .filter(Boolean);
+}
+
+function normalizeTextBankReferences(value: unknown): TextBankReference[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const reference = item as TextBankReference;
+      return reference.source && reference.source_id ? reference : null;
+    })
+    .filter(Boolean) as TextBankReference[];
 }
 
 function normalizeTags(value: RehearsalIdea['tags']): string[] {

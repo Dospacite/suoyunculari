@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { searchConcordPlays } from '@/lib/concord-db';
+import { getPlayedTextBankReferences } from '@/lib/directus';
 
 export const prerender = false;
 
@@ -8,12 +9,15 @@ export const GET: APIRoute = async ({ url }) => {
   const pageSize = Number(url.searchParams.get('pageSize') ?? '25');
 
   try {
+    const playedReferences = await getPlayedTextBankReferences();
     const result = await searchConcordPlays({
       query: url.searchParams.get('q') ?? '',
       genre: url.searchParams.get('genre') ?? '',
       duration: url.searchParams.get('duration') ?? '',
+      reference: url.searchParams.get('reference') ?? '',
       page,
       pageSize,
+      playedReferences,
     });
 
     return json(result);

@@ -1,10 +1,13 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { assetUrl, getHomePlays } from '@/lib/directus';
+import { assetUrl, getHomePlays, getHomepageSections } from '@/lib/directus';
 
 export const prerender = false;
 
 const homePlays = await getHomePlays();
+const homepageSections = await getHomepageSections();
+const heroSection = homepageSections.find((section) => section.section_key === 'hero');
+const heroImage = assetUrl(heroSection?.image);
 
 const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
   day: 'numeric',
@@ -14,12 +17,16 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
 });
 ---
 
-<BaseLayout title="SU Oyunculari" description="SUO Tiyatro Kulübü oyunları, metin bankası ve prova defteri.">
+<BaseLayout title="SU Oyuncuları" description="SUO Tiyatro Kulübü oyunları, metin bankası ve prova defteri.">
   <main>
-    <section class="home-hero" id="top">
+    <section
+      class="home-hero"
+      id="top"
+      style={heroImage ? `--hero-image: url("${heroImage}")` : undefined}
+    >
       <div class="hero-title">
-        <p>Sabancı Üniversitesi</p>
-        <h1>SUO Tiyatro Kulübü</h1>
+        <p>{heroSection?.subheading || 'Sabancı Üniversitesi'}</p>
+        <h1>{heroSection?.heading || 'SUO Tiyatro Kulübü'}</h1>
       </div>
       <a class="scroll-cue" href="#yaklasan-oyunlar">KEŞFET</a>
     </section>
@@ -30,7 +37,10 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
           <p class="kicker">Program</p>
           <h2>Yaklaşan Oyunlar</h2>
         </div>
-        <div class="home-play-grid">
+        <div
+          class:list={['home-play-grid', homePlays.length > 0 && homePlays.length < 3 && 'centered']}
+          style={`--home-play-count: ${Math.max(1, Math.min(homePlays.length, 3))}`}
+        >
           {homePlays.map((play) => {
             const image = assetUrl(play.home_card_image || play.cover_image);
             const date = play.event_date ? dateFormatter.format(new Date(play.event_date)) : 'Tarih yakında';

@@ -54,6 +54,14 @@ const genres = Array.from(
         {genres.map((genre) => <option value={genre.toLowerCase()}>{genre}</option>)}
       </select>
     </label>
+    <label>
+      <span>Metin Bankası</span>
+      <select id="text-bank-filter">
+        <option value="">Tümü</option>
+        <option value="referenced">Referanslı</option>
+        <option value="unreferenced">Referanssız</option>
+      </select>
+    </label>
   </div>
 
   <div class="play-list" id="play-list">
@@ -79,10 +87,14 @@ const genres = Array.from(
             data-difficulty={play.difficulty || ''}
             data-rights={play.rights_status || 'unknown'}
             data-genre={genreSearch}
+            data-text-bank={play.text_bank_source && play.text_bank_source_id ? 'referenced' : 'unreferenced'}
           >
             <a href={`/plays/${play.slug}`}>
               <div>
-                <p class="kicker">{genres}</p>
+                <p class="kicker row-kicker">
+                  {genres}
+                  {play.text_bank_source && play.text_bank_source_id && <span class="played-badge">★ Metin Bankası</span>}
+                </p>
                 <h2>{play.title}</h2>
                 <p>{play.summary}</p>
               </div>
@@ -118,6 +130,7 @@ const genres = Array.from(
   const difficulty = document.querySelector<HTMLSelectElement>('#difficulty-filter');
   const rights = document.querySelector<HTMLSelectElement>('#rights-filter');
   const genre = document.querySelector<HTMLSelectElement>('#genre-filter');
+  const textBank = document.querySelector<HTMLSelectElement>('#text-bank-filter');
   const rows = Array.from(document.querySelectorAll<HTMLElement>('.play-row'));
   const empty = document.querySelector<HTMLElement>('#play-empty');
 
@@ -126,6 +139,7 @@ const genres = Array.from(
     const selectedDifficulty = difficulty?.value || '';
     const selectedRights = rights?.value || '';
     const selectedGenre = genre?.value || '';
+    const selectedTextBank = textBank?.value || '';
     let visibleCount = 0;
 
     for (const row of rows) {
@@ -134,7 +148,9 @@ const genres = Array.from(
         selectedDifficulty === '' || row.dataset.difficulty === selectedDifficulty;
       const matchesRights = selectedRights === '' || row.dataset.rights === selectedRights;
       const matchesGenre = selectedGenre === '' || row.dataset.genre?.includes(selectedGenre);
-      const isVisible = matchesSearch && matchesDifficulty && matchesRights && matchesGenre;
+      const matchesTextBank = selectedTextBank === '' || row.dataset.textBank === selectedTextBank;
+      const isVisible =
+        matchesSearch && matchesDifficulty && matchesRights && matchesGenre && matchesTextBank;
       row.hidden = !isVisible;
       if (isVisible) visibleCount += 1;
     }
@@ -146,4 +162,5 @@ const genres = Array.from(
   difficulty?.addEventListener('change', updateRows);
   rights?.addEventListener('change', updateRows);
   genre?.addEventListener('change', updateRows);
+  textBank?.addEventListener('change', updateRows);
 </script>

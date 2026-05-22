@@ -1,10 +1,11 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { getPlayBySlug } from '@/lib/directus';
+import { getPlayBySlug, getRelatedBlogPostsForPlay } from '@/lib/directus';
 
 export const prerender = false;
 
 const play = Astro.params.slug ? await getPlayBySlug(Astro.params.slug) : undefined;
+const relatedPosts = play ? await getRelatedBlogPostsForPlay(play.slug) : [];
 if (!play) Astro.response.status = 404;
 const genres = play?.genres?.map((genre) => genre.name) ?? [];
 const tags = play?.tags?.map((tag) => tag.name) ?? [];
@@ -19,6 +20,16 @@ const tags = play?.tags?.map((tag) => tag.name) ?? [];
             <p class="kicker">{genres.join(', ') || 'Play'}</p>
             <h1>{play.title}</h1>
             <p>{play.summary}</p>
+            {play.text_bank_source && play.text_bank_source_id && (
+              <a
+                class="button detail-source-button"
+                href={`/metin-bankasi/${encodeURIComponent(play.text_bank_source)}/${encodeURIComponent(
+                  play.text_bank_source_id,
+                )}`}
+              >
+                Metin Bankası Detayı
+              </a>
+            )}
           </div>
 
           <div class="detail-meta">
@@ -62,6 +73,21 @@ const tags = play?.tags?.map((tag) => tag.name) ?? [];
               </div>
             </div>
           </div>
+
+          {relatedPosts.length > 0 && (
+            <section class="related-section" aria-labelledby="related-blog-heading">
+              <p class="kicker" id="related-blog-heading">Blog</p>
+              <div class="article-list compact-list">
+                {relatedPosts.map((post) => (
+                  <a href={`/blog/${post.slug}`}>
+                    <p class="kicker">{post.author_name || 'SU Oyuncuları'}</p>
+                    <h2>{post.title}</h2>
+                    <p>{post.excerpt}</p>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
         </article>
       ) : (
         <article class="section-inner">

@@ -21,6 +21,8 @@ const collectionDefinitions = [
   { collection: 'homepage_sections', icon: 'view_agenda', display: '{{section_key}}' },
   { collection: 'plays_genres', icon: 'link', hidden: true },
   { collection: 'plays_tags', icon: 'link', hidden: true },
+  { collection: 'blog_posts_plays', icon: 'link', hidden: true },
+  { collection: 'blog_posts_text_bank_references', icon: 'link', display: '{{title}}' },
 ];
 
 const fields = {
@@ -85,6 +87,9 @@ const fields = {
     dateTimeField('event_date'),
     stringField('event_venue'),
     fileField('home_card_image'),
+    stringField('text_bank_source'),
+    stringField('text_bank_source_id'),
+    stringField('text_bank_source_url', { maxLength: 1024, width: 'full' }),
   ],
   rehearsal_ideas: [
     stringField('title', { required: true, width: 'full' }),
@@ -105,6 +110,8 @@ const fields = {
     fileField('cover_image'),
     stringField('author_name'),
     dateTimeField('published_at'),
+    aliasM2mField('related_plays'),
+    aliasO2mField('text_bank_references'),
     booleanField('is_published', false),
   ],
   pages: [
@@ -125,6 +132,14 @@ const fields = {
   ],
   plays_genres: [m2oField('plays_id'), m2oField('genres_id')],
   plays_tags: [m2oField('plays_id'), m2oField('tags_id')],
+  blog_posts_plays: [m2oField('blog_posts_id'), m2oField('plays_id')],
+  blog_posts_text_bank_references: [
+    m2oField('blog_posts_id'),
+    stringField('source', { required: true }),
+    stringField('source_id', { required: true }),
+    stringField('title', { required: true, width: 'full' }),
+    stringField('source_url', { maxLength: 1024, width: 'full' }),
+  ],
 };
 
 const relations = [
@@ -148,6 +163,16 @@ const relations = [
     one_deselect_action: 'delete',
   }),
   relation('plays_tags', 'tags_id', 'tags'),
+  relation('blog_posts_plays', 'blog_posts_id', 'blog_posts', {
+    one_field: 'related_plays',
+    junction_field: 'plays_id',
+    one_deselect_action: 'delete',
+  }),
+  relation('blog_posts_plays', 'plays_id', 'plays'),
+  relation('blog_posts_text_bank_references', 'blog_posts_id', 'blog_posts', {
+    one_field: 'text_bank_references',
+    one_deselect_action: 'delete',
+  }),
 ];
 
 for (const definition of collectionDefinitions) {
@@ -396,6 +421,18 @@ function aliasM2mField(field) {
     meta: {
       interface: 'list-m2m',
       special: ['m2m'],
+      width: 'full',
+    },
+  };
+}
+
+function aliasO2mField(field) {
+  return {
+    field,
+    type: 'alias',
+    meta: {
+      interface: 'list-o2m',
+      special: ['o2m'],
       width: 'full',
     },
   };

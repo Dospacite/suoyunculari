@@ -14,13 +14,47 @@ if (!post) Astro.response.status = 404;
       post ? (
         <article class="section-inner">
           <div class="section-heading">
-            <p class="kicker">{post.author_name || 'SU Oyunculari'}</p>
+            <p class="kicker">{post.author_name || 'SU Oyuncuları'}</p>
             <h1>{post.title}</h1>
             <p>{post.excerpt}</p>
           </div>
           <div class="prose">
             <p>{post.body}</p>
           </div>
+
+          {post.related_plays && post.related_plays.length > 0 && (
+            <section class="related-section" aria-labelledby="related-plays-heading">
+              <p class="kicker" id="related-plays-heading">Oyunlarımız</p>
+              <div class="article-list compact-list">
+                {post.related_plays.map((play) => (
+                  <a href={`/plays/${play.slug}`}>
+                    <p class="kicker">{play.author?.name || 'SU Oyuncuları'}</p>
+                    <h2>{play.title}</h2>
+                    <p>{play.summary}</p>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {post.text_bank_references && post.text_bank_references.length > 0 && (
+            <section class="related-section" aria-labelledby="related-text-bank-heading">
+              <p class="kicker" id="related-text-bank-heading">Metin Bankası</p>
+              <div class="article-list compact-list">
+                {post.text_bank_references.map((reference) => (
+                  <a
+                    href={`/metin-bankasi/${encodeURIComponent(reference.source || '')}/${encodeURIComponent(
+                      reference.source_id || '',
+                    )}`}
+                  >
+                    <p class="kicker">{reference.source?.replaceAll('_', ' ') || 'Kaynak'}</p>
+                    <h2>{reference.title || reference.source_id}</h2>
+                    <p>{reference.source_url || 'Kaynak bağlantısı Directus kaydından düzenlenebilir.'}</p>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
         </article>
       ) : (
         <article class="section-inner">

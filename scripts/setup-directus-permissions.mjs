@@ -21,6 +21,8 @@ const contentCollections = [
   'homepage_sections',
   'plays_genres',
   'plays_tags',
+  'blog_posts_plays',
+  'blog_posts_text_bank_references',
 ];
 
 const publicFields = {
@@ -55,6 +57,9 @@ const publicFields = {
     'event_date',
     'event_venue',
     'home_card_image',
+    'text_bank_source',
+    'text_bank_source_id',
+    'text_bank_source_url',
   ],
   rehearsal_ideas: [
     'id',
@@ -77,6 +82,8 @@ const publicFields = {
     'cover_image',
     'author_name',
     'published_at',
+    'related_plays',
+    'text_bank_references',
     'is_published',
   ],
   homepage_sections: [
@@ -140,6 +147,15 @@ for (const collection of ['plays_genres', 'plays_tags']) {
     fields: ['*'],
   });
 }
+
+await ensurePermission(publicPolicy.id, 'blog_posts_plays', 'read', {
+  permissions: { blog_posts_id: { is_published: { _eq: true } } },
+  fields: ['*'],
+});
+await ensurePermission(publicPolicy.id, 'blog_posts_text_bank_references', 'read', {
+  permissions: { blog_posts_id: { is_published: { _eq: true } } },
+  fields: ['*'],
+});
 
 for (const collection of contentCollections) {
   await ensurePermission(contentEditorPolicy.id, collection, 'read', { fields: ['*'] });

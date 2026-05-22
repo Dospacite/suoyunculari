@@ -113,22 +113,21 @@ export type RehearsalIdea = {
   updated_at?: string;
 };
 
-async function fetchItems<T>(collection: string, query: Record<string, string> = {}): Promise<T[]> {
+async function fetchItems<T>(
+  collection: string,
+  query: Record<string, string> = {},
+): Promise<T[] | null> {
   const params = new URLSearchParams(query);
   const url = `${directusUrl}/items/${collection}?${params.toString()}`;
 
   try {
     const response = await fetch(url);
-    if (!response.ok) return [];
+    if (!response.ok) return null;
     const payload = (await response.json()) as DirectusList<T>;
     return payload.data ?? [];
   } catch {
-    return [];
+    return null;
   }
-}
-
-function withFallback<T>(items: T[], fallback: T[]): T[] {
-  return items.length > 0 ? items : fallback;
 }
 
 export function assetUrl(file?: string | { id: string }): string | undefined {
@@ -144,7 +143,7 @@ export async function getPlays(): Promise<Play[]> {
     sort: 'title',
   });
 
-  return withFallback(items.map(normalizePlay), fallbackPlays);
+  return items ? items.map(normalizePlay) : fallbackPlays;
 }
 
 export async function getPlayBySlug(slug: string): Promise<Play | undefined> {
@@ -155,7 +154,7 @@ export async function getPlayBySlug(slug: string): Promise<Play | undefined> {
     limit: '1',
   });
 
-  return items.map(normalizePlay)[0] ?? fallbackPlays.find((play) => play.slug === slug);
+  return items ? items.map(normalizePlay)[0] : fallbackPlays.find((play) => play.slug === slug);
 }
 
 export async function getHomePlays(): Promise<Play[]> {
@@ -166,7 +165,9 @@ export async function getHomePlays(): Promise<Play[]> {
     sort: 'home_sort_order,event_date,title',
   });
 
-  return withFallback(items.map(normalizePlay), fallbackPlays.filter((play) => play.display_on_home));
+  return items
+    ? items.map(normalizePlay)
+    : fallbackPlays.filter((play) => play.display_on_home);
 }
 
 export async function getAuthors(): Promise<Author[]> {
@@ -175,7 +176,7 @@ export async function getAuthors(): Promise<Author[]> {
     sort: 'name',
   });
 
-  return withFallback(items, fallbackAuthors);
+  return items ?? fallbackAuthors;
 }
 
 export async function getAuthorBySlug(slug: string): Promise<Author | undefined> {
@@ -185,7 +186,7 @@ export async function getAuthorBySlug(slug: string): Promise<Author | undefined>
     limit: '1',
   });
 
-  return items[0] ?? fallbackAuthors.find((author) => author.slug === slug);
+  return items ? items[0] : fallbackAuthors.find((author) => author.slug === slug);
 }
 
 export async function getBlogPosts(): Promise<BlogPost[]> {
@@ -195,7 +196,7 @@ export async function getBlogPosts(): Promise<BlogPost[]> {
     sort: '-published_at',
   });
 
-  return withFallback(items, fallbackBlogPosts);
+  return items ?? fallbackBlogPosts;
 }
 
 export async function getBlogPostBySlug(slug: string): Promise<BlogPost | undefined> {
@@ -206,7 +207,7 @@ export async function getBlogPostBySlug(slug: string): Promise<BlogPost | undefi
     limit: '1',
   });
 
-  return items[0] ?? fallbackBlogPosts.find((post) => post.slug === slug);
+  return items ? items[0] : fallbackBlogPosts.find((post) => post.slug === slug);
 }
 
 export async function getPages(): Promise<Page[]> {
@@ -214,7 +215,7 @@ export async function getPages(): Promise<Page[]> {
     fields: '*',
   });
 
-  return withFallback(items, fallbackPages);
+  return items ?? fallbackPages;
 }
 
 export async function getHomepageSections(): Promise<HomepageSection[]> {
@@ -224,7 +225,7 @@ export async function getHomepageSections(): Promise<HomepageSection[]> {
     sort: 'sort_order',
   });
 
-  return withFallback(items, fallbackHomepageSections);
+  return items ?? fallbackHomepageSections;
 }
 
 export async function getRehearsalIdeas(): Promise<RehearsalIdea[]> {
@@ -234,7 +235,7 @@ export async function getRehearsalIdeas(): Promise<RehearsalIdea[]> {
     sort: 'title',
   });
 
-  return withFallback(items.map(normalizeRehearsalIdea), fallbackRehearsalIdeas);
+  return items ? items.map(normalizeRehearsalIdea) : fallbackRehearsalIdeas;
 }
 
 export function getPageByKey(pages: Page[], key: string): Page | undefined {

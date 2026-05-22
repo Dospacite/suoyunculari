@@ -7,6 +7,9 @@ import path from 'node:path';
 const BASE_URL = 'https://www.concordtheatricals.com';
 const SEARCH_URL = `${BASE_URL}/api/v1/search`;
 const PLAY_ATTRIBUTES = '24-2,25-2,26-2,27-2,28-2,29-2';
+const CHECKPOINT_PAGINATION_MODE = 'pageNumberZeroBased-v1';
+const CHECKPOINT_RECORD_SCOPE = 'plays-and-musicals-v1';
+const INCLUDED_TITLE_TYPES = new Set(['Play', 'Musical']);
 
 const options = parseArgs(process.argv.slice(2));
 
@@ -24,9 +27,27 @@ const paths = {
 };
 
 const checkpoint = await readCheckpoint(paths.checkpoint);
-const completedPages = new Set(checkpoint.completedPages ?? []);
+const completedPages = new Set(completedPagesForCurrentPagination(checkpoint));
 const completedIds = new Set((checkpoint.completedIds ?? []).map(String));
-const skippedIds = new Set((checkpoint.skippedIds ?? []).map(String));
+const skippedIds = new Set(skippedIdsForCurrentScope(checkpoint));
+
+if (checkpoint.paginationMode && checkpoint.paginationMode !== CHECKPOINT_PAGINATION_MODE) {
+  console.log('checkpoint pagination mode changed; pages after 1 will be checked again');
+} else if (
+  !checkpoint.paginationMode &&
+  (checkpoint.completedPages ?? []).some((completedPage) => Number(completedPage) > 1)
+) {
+  console.log('checkpoint was created before the pagination fix; pages after 1 will be checked again');
+}
+
+if (checkpoint.recordScope && checkpoint.recordScope !== CHECKPOINT_RECORD_SCOPE) {
+  console.log('checkpoint record scope changed; skipped ids and completed pages will be checked again');
+} else if (
+  !checkpoint.recordScope &&
+  ((checkpoint.skippedIds ?? []).length || (checkpoint.completedPages ?? []).length)
+) {
+  console.log('checkpoint was created before musical support; skipped ids and completed pages will be checked again');
+}
 
 let page = 1;
 let fetchedPages = 0;
@@ -54,14 +75,14 @@ while (fetchedPages < options.maxPages && fetchedDetails < options.maxDetails) {
     fetchedDetails += 1;
     await appendJsonLine(paths.raw, detail);
 
-    if (detail?.PlayOrMusicalType === 'Play') {
+    if (isIncludedTitleType(detail)) {
       const normalized = normalizeProduct(detail);
       await appendJsonLine(paths.normalizedJsonl, normalized);
       completedIds.add(id);
-      console.log(`  saved play ${id}: ${normalized.title}`);
+      console.log(`  saved title ${id}: ${normalized.title}`);
     } else {
       skippedIds.add(id);
-      console.log(`  skipped non-play ${id}: ${detail?.PlayOrMusicalType ?? 'unknown'}`);
+      console.log(`  skipped unsupported title ${id}: ${detail?.PlayOrMusicalType ?? 'unknown'}`);
     }
 
     await writeCheckpoint(paths.checkpoint, { completedPages, completedIds, skippedIds });
@@ -139,7 +160,7 @@ async function fetchSearchPage(pageNumber, pageSize) {
   const url = new URL(SEARCH_URL);
   url.searchParams.set('orderBy', 'DisplayOrder');
   url.searchParams.set('pageSize', String(pageSize));
-  url.searchParams.set('page', String(pageNumber));
+  url.searchParams.set('pageNumber', String(pageNumber - 1));
   url.searchParams.set('attributeIds', PLAY_ATTRIBUTES);
   return fetchJson(url);
 }
@@ -242,6 +263,10 @@ function normalizeProduct(detail) {
     sample_pdf_urls: normalizePdfUrls(detail.ProductPdfModels),
     image_urls: normalizeImageUrls(detail.ProductImages ?? detail.ProductImageModels),
   };
+}
+
+function isIncludedTitleType(detail) {
+  return INCLUDED_TITLE_TYPES.has(detail?.PlayOrMusicalType);
 }
 
 function genreFromTitle(value) {
@@ -386,11 +411,37 @@ async function readCheckpoint(file) {
   }
 }
 
+function completedPagesForCurrentPagination(checkpoint) {
+  const completedPages = (checkpoint.completedPages ?? [])
+    .map(Number)
+    .filter((completedPage) => Number.isInteger(completedPage) && completedPage > 0);
+
+  if (checkpoint.recordScope !== CHECKPOINT_RECORD_SCOPE) {
+    return [];
+  }
+
+  if (checkpoint.paginationMode === CHECKPOINT_PAGINATION_MODE) {
+    return completedPages;
+  }
+
+  return completedPages.filter((completedPage) => completedPage === 1);
+}
+
+function skippedIdsForCurrentScope(checkpoint) {
+  if (checkpoint.recordScope !== CHECKPOINT_RECORD_SCOPE) {
+    return [];
+  }
+
+  return (checkpoint.skippedIds ?? []).map(String);
+}
+
 async function writeCheckpoint(file, state) {
   await writeFile(
     file,
     JSON.stringify(
       {
+        paginationMode: CHECKPOINT_PAGINATION_MODE,
+        recordScope: CHECKPOINT_RECORD_SCOPE,
         completedPages: Array.from(state.completedPages).sort((a, b) => a - b),
         completedIds: Array.from(state.completedIds).sort(),
         skippedIds: Array.from(state.skippedIds).sort(),

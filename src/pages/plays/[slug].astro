@@ -5,6 +5,7 @@ import {
   getPlayBySlug,
   getRelatedBlogPostsForPlay,
   getStagingsForPlay,
+  getTextBankReference,
 } from '@/lib/directus';
 
 export const prerender = false;
@@ -17,10 +18,13 @@ if (!play) Astro.response.status = 404;
 const genres = play?.genres?.map((genre) => genre.name) ?? [];
 const tags = play?.tags?.map((tag) => tag.name) ?? [];
 const nextStaging = stagings.find((staging) => staging.date && new Date(staging.date) >= new Date()) ?? stagings[0];
+const textBankReference = getTextBankReference(play);
 const scriptHref =
-  play?.text_bank_source && play.text_bank_source_id
-    ? `/metin-bankasi/${encodeURIComponent(play.text_bank_source)}/${encodeURIComponent(play.text_bank_source_id)}`
-    : play?.text_bank_source_url || play?.script_url;
+  textBankReference?.source && textBankReference.source_id
+    ? `/metin-bankasi/${encodeURIComponent(textBankReference.source)}/${encodeURIComponent(
+        textBankReference.source_id,
+      )}`
+    : play?.script_url;
 
 const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
   day: 'numeric',

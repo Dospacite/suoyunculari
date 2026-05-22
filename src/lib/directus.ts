@@ -77,6 +77,7 @@ export type Play = {
   text_bank_source?: string;
   text_bank_source_id?: string;
   text_bank_source_url?: string;
+  text_bank_reference?: TextBankReference;
 };
 
 export type BlogPost = {
@@ -304,16 +305,21 @@ export async function getPlayedTextBankReferences(): Promise<
   Array<TextBankReference & { play_slug: string; play_title: string }>
 > {
   const plays = await getPlays();
-  return plays
-    .filter((play) => play.text_bank_source && play.text_bank_source_id)
-    .map((play) => ({
-      source: play.text_bank_source,
-      source_id: play.text_bank_source_id,
-      source_url: play.text_bank_source_url,
+  const references: Array<TextBankReference & { play_slug: string; play_title: string }> = [];
+
+  for (const play of plays) {
+    const reference = getTextBankReference(play);
+    if (!reference) continue;
+
+    references.push({
+      ...reference,
       title: play.title,
       play_slug: play.slug,
       play_title: play.title,
-    }));
+    });
+  }
+
+  return references;
 }
 
 export async function getPages(): Promise<Page[]> {
@@ -355,11 +361,29 @@ export function textContent(content?: string | Record<string, unknown>): string 
   return JSON.stringify(content);
 }
 
+export function getTextBankReference(play?: Pick<Play, 'text_bank_source' | 'text_bank_source_id' | 'text_bank_source_url'>): TextBankReference | undefined {
+  if (!play?.text_bank_source_id && !play?.text_bank_source_url) return undefined;
+
+  const parsed = parseTextBankSourceId(play.text_bank_source_id);
+  const source = normalizeTextBankSource(play.text_bank_source) || parsed?.source;
+  const sourceId = parsed?.source_id || normalizeSourceId(play.text_bank_source_id);
+  const sourceUrl = parsed?.source_url || play.text_bank_source_url || inferTextBankSourceUrl(source, sourceId);
+
+  if (!source || !sourceId) return undefined;
+
+  return {
+    source,
+    source_id: sourceId,
+    source_url: sourceUrl,
+  };
+}
+
 function normalizePlay(play: Play): Play {
   return {
     ...play,
     genres: normalizeManyToMany(play.genres, 'genres_id'),
     tags: normalizeManyToMany(play.tags, 'tags_id'),
+    text_bank_reference: getTextBankReference(play),
   };
 }
 
@@ -412,6 +436,93 @@ function normalizeTextBankReferences(value: unknown): TextBankReference[] {
       return reference.source && reference.source_id ? reference : null;
     })
     .filter(Boolean) as TextBankReference[];
+}
+
+function parseTextBankSourceId(value?: string): TextBankReference | undefined {
+  const cleaned = value?.trim();
+  if (!cleaned) return undefined;
+
+  if (/^https?:\/\//i.test(cleaned)) return parseTextBankUrl(cleaned);
+
+  const prefixed = cleaned.match(/^([a-z_ -]+):(.*)$/i);
+  if (prefixed) {
+    const source = normalizeTextBankSource(prefixed[1]);
+    const sourceId = prefixed[2]?.trim();
+    if (source && sourceId) {
+      return {
+        source,
+        source_id: sourceId,
+        source_url: inferTextBankSourceUrl(source, sourceId),
+      };
+    }
+  }
+
+  if (/^\d+$/.test(cleaned)) {
+    return {
+      source: 'concord_theatricals',
+      source_id: cleaned,
+      source_url: inferTextBankSourceUrl('concord_theatricals', cleaned),
+    };
+  }
+
+  return undefined;
+}
+
+function parseTextBankUrl(value: string): TextBankReference | undefined {
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.replace(/^www\./, '');
+
+    if (hostname === 'concordtheatricals.com') {
+      const sourceId = url.pathname.match(/\/p\/([^/]+)/)?.[1];
+      return sourceId
+        ? {
+            source: 'concord_theatricals',
+            source_id: sourceId,
+            source_url: value,
+          }
+        : undefined;
+    }
+
+    if (hostname === 'dramaonlinelibrary.com') {
+      const sourceId = url.searchParams.get('tocid') || url.searchParams.get('docid') || undefined;
+      return sourceId
+        ? {
+            source: 'drama_online_library',
+            source_id: sourceId,
+            source_url: value,
+          }
+        : undefined;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
+function normalizeTextBankSource(value?: string): string | undefined {
+  const cleaned = value?.trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+  if (!cleaned) return undefined;
+  if (cleaned === 'concord' || cleaned === 'concord_theatricals') return 'concord_theatricals';
+  if (cleaned === 'drama' || cleaned === 'drama_online' || cleaned === 'drama_online_library') {
+    return 'drama_online_library';
+  }
+  return undefined;
+}
+
+function normalizeSourceId(value?: string): string | undefined {
+  const cleaned = value?.trim();
+  if (!cleaned || /^https?:\/\//i.test(cleaned) || /^([a-z_ -]+):(.*)$/i.test(cleaned)) {
+    return undefined;
+  }
+  return cleaned;
+}
+
+function inferTextBankSourceUrl(source?: string, sourceId?: string): string | undefined {
+  if (!source || !sourceId) return undefined;
+  if (source === 'concord_theatricals') return `https://www.concordtheatricals.com/p/${sourceId}`;
+  return undefined;
 }
 
 function normalizeStagingPhotos(value: unknown): StagingPhoto[] {

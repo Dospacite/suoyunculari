@@ -18,9 +18,20 @@ The **Plays** collection is the public production page in **Oyunlarımız**. It 
 
 To mark a text-bank play as already performed, edit the matching item in **Plays**:
 
-1. Set **Text Bank Source** to `concord_theatricals` or `drama_online_library`.
-2. Set **Text Bank Source ID** to the `source_id` from the text-bank record.
-3. Optional: set **Text Bank Source URL** to the original Concord or Drama Online page.
+1. Set **Text Bank Source ID** only.
+2. Use any of these formats:
+
+```text
+2248
+concord:2248
+concord_theatricals:2248
+https://www.concordtheatricals.com/p/2248/master-haroldand-the-boys
+drama:<tocid>
+drama_online_library:<tocid>
+https://www.dramaonlinelibrary.com/...?...tocid=<tocid>
+```
+
+For bare numeric IDs, the site assumes Concord. The site infers the source, source ID, and source URL from this field.
 
 Referenced text-bank records are filterable in **Metin Bankası** and display `★ Oynandı`.
 

@@ -1,5 +1,6 @@
 ---
 import type { Play } from '@/lib/directus';
+import { getTextBankReference } from '@/lib/directus';
 
 type Props = {
   plays: Play[];
@@ -67,6 +68,7 @@ const genres = Array.from(
   <div class="play-list" id="play-list">
     {
       plays.map((play) => {
+        const textBankReference = getTextBankReference(play);
         const genres = play.genres?.map((genre) => genre.name).join(', ') || 'Theatre';
         const genreSearch = play.genres?.map((genre) => genre.name.toLowerCase()).join(' ') ?? '';
         const searchable = [
@@ -87,13 +89,13 @@ const genres = Array.from(
             data-difficulty={play.difficulty || ''}
             data-rights={play.rights_status || 'unknown'}
             data-genre={genreSearch}
-            data-text-bank={play.text_bank_source && play.text_bank_source_id ? 'referenced' : 'unreferenced'}
+            data-text-bank={textBankReference ? 'referenced' : 'unreferenced'}
           >
             <a href={`/plays/${play.slug}`}>
               <div>
                 <p class="kicker row-kicker">
                   {genres}
-                  {play.text_bank_source && play.text_bank_source_id && <span class="played-badge">★ Metin Bankası</span>}
+                  {textBankReference && <span class="played-badge">★ Metin Bankası</span>}
                 </p>
                 <h2>{play.title}</h2>
                 <p>{play.summary}</p>

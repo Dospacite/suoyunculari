@@ -1,5 +1,7 @@
 import { getRehearsalIdeas } from '@/lib/directus';
 
+export const prerender = false;
+
 export async function GET() {
   const ideas = await getRehearsalIdeas();
 
@@ -17,6 +19,7 @@ export async function GET() {
     {
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
       },
     },
   );

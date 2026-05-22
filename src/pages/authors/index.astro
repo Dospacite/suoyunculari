@@ -2,6 +2,8 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { getAuthors } from '@/lib/directus';
 
+export const prerender = false;
+
 const authors = await getAuthors();
 ---
 

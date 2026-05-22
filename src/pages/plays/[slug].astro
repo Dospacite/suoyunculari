@@ -1,70 +1,77 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { getPlays } from '@/lib/directus';
+import { getPlayBySlug } from '@/lib/directus';
 
-export const prerender = true;
+export const prerender = false;
 
-export async function getStaticPaths() {
-  const plays = await getPlays();
-  return plays.map((play) => ({
-    params: { slug: play.slug },
-    props: { play },
-  }));
-}
-
-const { play } = Astro.props;
-const genres = play.genres?.map((genre) => genre.name) ?? [];
-const tags = play.tags?.map((tag) => tag.name) ?? [];
+const play = Astro.params.slug ? await getPlayBySlug(Astro.params.slug) : undefined;
+if (!play) Astro.response.status = 404;
+const genres = play?.genres?.map((genre) => genre.name) ?? [];
+const tags = play?.tags?.map((tag) => tag.name) ?? [];
 ---
 
-<BaseLayout title={play.title} description={play.summary}>
+<BaseLayout title={play?.title ?? 'Play not found'} description={play?.summary}>
   <main class="section compact">
-    <article class="section-inner">
-      <div class="section-heading">
-        <p class="kicker">{genres.join(', ') || 'Play'}</p>
-        <h1>{play.title}</h1>
-        <p>{play.summary}</p>
-      </div>
-
-      <div class="detail-meta">
-        <div>
-          <dt>Author</dt>
-          <dd>{play.author?.name || 'Unknown'}</dd>
-        </div>
-        <div>
-          <dt>Year</dt>
-          <dd>{play.year_written || 'TBD'}</dd>
-        </div>
-        <div>
-          <dt>Duration</dt>
-          <dd>{play.duration_minutes ? `${play.duration_minutes} min` : 'TBD'}</dd>
-        </div>
-        <div>
-          <dt>Cast</dt>
-          <dd>
-            {play.min_cast_size && play.max_cast_size
-              ? `${play.min_cast_size}-${play.max_cast_size}`
-              : 'Flexible'}
-          </dd>
-        </div>
-      </div>
-
-      <div class="split">
-        <div>
-          <p class="kicker">Rights</p>
-          <p class="prose">{(play.rights_status || 'unknown').replaceAll('_', ' ')}</p>
-          {play.rights_notes && <p class="prose">{play.rights_notes}</p>}
-        </div>
-        <div>
-          <p class="kicker">Notes</p>
-          <p class="prose">
-            {play.setting || play.themes || 'Add rehearsal, setting, theme, and production notes in Directus.'}
-          </p>
-          <div class="taxonomy">
-            {[...genres, ...tags].map((item) => <span>{item}</span>)}
+    {
+      play ? (
+        <article class="section-inner">
+          <div class="section-heading">
+            <p class="kicker">{genres.join(', ') || 'Play'}</p>
+            <h1>{play.title}</h1>
+            <p>{play.summary}</p>
           </div>
-        </div>
-      </div>
-    </article>
+
+          <div class="detail-meta">
+            <div>
+              <dt>Author</dt>
+              <dd>{play.author?.name || 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>Year</dt>
+              <dd>{play.year_written || 'TBD'}</dd>
+            </div>
+            <div>
+              <dt>Duration</dt>
+              <dd>{play.duration_minutes ? `${play.duration_minutes} min` : 'TBD'}</dd>
+            </div>
+            <div>
+              <dt>Cast</dt>
+              <dd>
+                {play.min_cast_size && play.max_cast_size
+                  ? `${play.min_cast_size}-${play.max_cast_size}`
+                  : 'Flexible'}
+              </dd>
+            </div>
+          </div>
+
+          <div class="split">
+            <div>
+              <p class="kicker">Rights</p>
+              <p class="prose">{(play.rights_status || 'unknown').replaceAll('_', ' ')}</p>
+              {play.rights_notes && <p class="prose">{play.rights_notes}</p>}
+            </div>
+            <div>
+              <p class="kicker">Notes</p>
+              <p class="prose">
+                {play.setting ||
+                  play.themes ||
+                  'Add rehearsal, setting, theme, and production notes in Directus.'}
+              </p>
+              <div class="taxonomy">
+                {[...genres, ...tags].map((item) => <span>{item}</span>)}
+              </div>
+            </div>
+          </div>
+        </article>
+      ) : (
+        <article class="section-inner">
+          <div class="section-heading">
+            <p class="kicker">404</p>
+            <h1>Play not found</h1>
+            <p>This play is not published or does not exist.</p>
+          </div>
+        </article>
+      )
+    }
   </main>
 </BaseLayout>

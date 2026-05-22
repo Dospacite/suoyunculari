@@ -16,6 +16,9 @@ type DirectusList<T> = {
   data?: T[];
 };
 
+const playFields =
+  '*,author.*,language.*,period.*,genres.genres_id.*,tags.tags_id.*,cover_image,home_card_image';
+
 export type Taxonomy = {
   name: string;
   slug?: string;
@@ -136,8 +139,7 @@ export function assetUrl(file?: string | { id: string }): string | undefined {
 
 export async function getPlays(): Promise<Play[]> {
   const items = await fetchItems<Play>('plays', {
-    fields:
-      '*,author.*,language.*,period.*,genres.genres_id.*,tags.tags_id.*,cover_image,home_card_image',
+    fields: playFields,
     'filter[is_published][_eq]': 'true',
     sort: 'title',
   });
@@ -145,10 +147,20 @@ export async function getPlays(): Promise<Play[]> {
   return withFallback(items.map(normalizePlay), fallbackPlays);
 }
 
+export async function getPlayBySlug(slug: string): Promise<Play | undefined> {
+  const items = await fetchItems<Play>('plays', {
+    fields: playFields,
+    'filter[slug][_eq]': slug,
+    'filter[is_published][_eq]': 'true',
+    limit: '1',
+  });
+
+  return items.map(normalizePlay)[0] ?? fallbackPlays.find((play) => play.slug === slug);
+}
+
 export async function getHomePlays(): Promise<Play[]> {
   const items = await fetchItems<Play>('plays', {
-    fields:
-      '*,author.*,language.*,period.*,genres.genres_id.*,tags.tags_id.*,cover_image,home_card_image',
+    fields: playFields,
     'filter[is_published][_eq]': 'true',
     'filter[display_on_home][_eq]': 'true',
     sort: 'home_sort_order,event_date,title',
@@ -166,6 +178,16 @@ export async function getAuthors(): Promise<Author[]> {
   return withFallback(items, fallbackAuthors);
 }
 
+export async function getAuthorBySlug(slug: string): Promise<Author | undefined> {
+  const items = await fetchItems<Author>('authors', {
+    fields: '*',
+    'filter[slug][_eq]': slug,
+    limit: '1',
+  });
+
+  return items[0] ?? fallbackAuthors.find((author) => author.slug === slug);
+}
+
 export async function getBlogPosts(): Promise<BlogPost[]> {
   const items = await fetchItems<BlogPost>('blog_posts', {
     fields: '*',
@@ -174,6 +196,17 @@ export async function getBlogPosts(): Promise<BlogPost[]> {
   });
 
   return withFallback(items, fallbackBlogPosts);
+}
+
+export async function getBlogPostBySlug(slug: string): Promise<BlogPost | undefined> {
+  const items = await fetchItems<BlogPost>('blog_posts', {
+    fields: '*',
+    'filter[slug][_eq]': slug,
+    'filter[is_published][_eq]': 'true',
+    limit: '1',
+  });
+
+  return items[0] ?? fallbackBlogPosts.find((post) => post.slug === slug);
 }
 
 export async function getPages(): Promise<Page[]> {

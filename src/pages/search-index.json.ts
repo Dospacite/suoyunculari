@@ -1,5 +1,7 @@
 import { getPlays } from '@/lib/directus';
 
+export const prerender = false;
+
 export async function GET() {
   const plays = await getPlays();
 
@@ -18,6 +20,7 @@ export async function GET() {
     {
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
       },
     },
   );

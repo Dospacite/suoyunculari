@@ -2,6 +2,8 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { assetUrl, getHomePlays } from '@/lib/directus';
 
+export const prerender = false;
+
 const homePlays = await getHomePlays();
 
 const dateFormatter = new Intl.DateTimeFormat('tr-TR', {

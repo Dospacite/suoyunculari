@@ -3,6 +3,8 @@ import PlayList from '@/components/PlayList.astro';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { getPlays } from '@/lib/directus';
 
+export const prerender = false;
+
 const plays = await getPlays();
 ---
 

@@ -2,6 +2,8 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { getBlogPosts } from '@/lib/directus';
 
+export const prerender = false;
+
 const posts = await getBlogPosts();
 ---
 

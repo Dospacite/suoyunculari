@@ -1,31 +1,36 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { getBlogPosts } from '@/lib/directus';
+import { getBlogPostBySlug } from '@/lib/directus';
 
-export const prerender = true;
+export const prerender = false;
 
-export async function getStaticPaths() {
-  const posts = await getBlogPosts();
-  return posts.map((post) => ({
-    params: { slug: post.slug },
-    props: { post },
-  }));
-}
-
-const { post } = Astro.props;
+const post = Astro.params.slug ? await getBlogPostBySlug(Astro.params.slug) : undefined;
+if (!post) Astro.response.status = 404;
 ---
 
-<BaseLayout title={post.title} description={post.excerpt}>
+<BaseLayout title={post?.title ?? 'Post not found'} description={post?.excerpt}>
   <main class="section compact">
-    <article class="section-inner">
-      <div class="section-heading">
-        <p class="kicker">{post.author_name || 'SU Oyunculari'}</p>
-        <h1>{post.title}</h1>
-        <p>{post.excerpt}</p>
-      </div>
-      <div class="prose">
-        <p>{post.body}</p>
-      </div>
-    </article>
+    {
+      post ? (
+        <article class="section-inner">
+          <div class="section-heading">
+            <p class="kicker">{post.author_name || 'SU Oyunculari'}</p>
+            <h1>{post.title}</h1>
+            <p>{post.excerpt}</p>
+          </div>
+          <div class="prose">
+            <p>{post.body}</p>
+          </div>
+        </article>
+      ) : (
+        <article class="section-inner">
+          <div class="section-heading">
+            <p class="kicker">404</p>
+            <h1>Post not found</h1>
+            <p>This post is not published or does not exist.</p>
+          </div>
+        </article>
+      )
+    }
   </main>
 </BaseLayout>

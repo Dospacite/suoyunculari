@@ -3,6 +3,8 @@ import RehearsalIdeaList from '@/components/RehearsalIdeaList.astro';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { getRehearsalIdeas } from '@/lib/directus';
 
+export const prerender = false;
+
 const ideas = await getRehearsalIdeas();
 ---
 

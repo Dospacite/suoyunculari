@@ -2,6 +2,7 @@ import type {
   Author,
   BlogPost,
   Book,
+  ContactItem,
   HomepageSection,
   Page,
   Play,
@@ -214,15 +215,49 @@ export const fallbackBlogPosts: BlogPost[] = [
 export const fallbackPages: Page[] = [
   {
     key: 'about',
-    title: 'About',
+    title: 'Hakkımızda',
     content:
-      'SUOyuncuları brings students together around rehearsal, play reading, production work, and performance.',
+      'SUOyuncuları, Sabancı Üniversitesi Tiyatro Kulübü olarak tiyatroya ilgi duyan öğrencileri oyun okuma, sahneleme, atölye, prova ve ekip üretimi etrafında bir araya getirir. Kulüp, üyelerine oyunculuk, yönetmenlik, dramaturji, dekor, ışık, ses, kostüm ve organizasyon alanlarında deneyim kazanabilecekleri üretim ortamı sunar.',
   },
   {
     key: 'contact',
-    title: 'Contact',
-    content:
-      'For rehearsals, auditions, collaborations, and archive updates, reach the club through its official university channels.',
+    title: 'İletişim',
+    content: 'Prova, gösterim, iş birliği ve arşiv soruları için bize ulaşabilirsiniz.',
+  },
+];
+
+export const fallbackContactItems: ContactItem[] = [
+  {
+    label: 'E-posta',
+    value: 'contact@suoyunculari.com',
+    type: 'email',
+    href: 'mailto:contact@suoyunculari.com',
+    sort_order: 1,
+    is_visible: true,
+  },
+  {
+    label: 'Adres',
+    value: 'Sabancı Üniversitesi, Orta Mahalle, Üniversite Caddesi No:27, 34956 Tuzla/İstanbul',
+    type: 'address',
+    href: 'https://www.google.com/maps/search/?api=1&query=Sabanc%C4%B1%20G%C3%B6steri%20Merkezi',
+    sort_order: 2,
+    is_visible: true,
+  },
+  {
+    label: 'Instagram',
+    value: '@suoyunculari',
+    type: 'instagram',
+    href: 'https://www.instagram.com/suoyunculari/',
+    sort_order: 3,
+    is_visible: true,
+  },
+  {
+    label: 'YouTube',
+    value: '@suo-yunculari',
+    type: 'youtube',
+    href: 'https://www.youtube.com/@suo-yunculari',
+    sort_order: 4,
+    is_visible: true,
   },
 ];
 

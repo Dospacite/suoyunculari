@@ -1,22 +1,55 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { getPageByKey, getPages, textContent } from '@/lib/directus';
+import { getContactItems, getPageByKey, getPages, textContent } from '@/lib/directus';
 
 const page = getPageByKey(await getPages(), 'contact');
+const contactItems = await getContactItems();
+const pageText =
+  textContent(page?.content) || 'Prova, gösterim, iş birliği ve arşiv soruları için bize ulaşabilirsiniz.';
+const email = contactItems.find((item) => item.type === 'email');
+const address = contactItems.find((item) => item.type === 'address');
+const mapItem = contactItems.find((item) => item.type === 'map');
+const visibleLinks = contactItems.filter((item) => item.type !== 'map');
+const mapQuery = encodeURIComponent(address?.value || 'Sabancı Gösteri Merkezi');
+const mapSrc =
+  mapItem?.href ||
+  `https://www.google.com/maps?q=${mapQuery}&output=embed`;
 ---
 
 <BaseLayout title="İletişim" description="SUOyuncuları iletişim bilgileri.">
   <main class="section compact">
-    <div class="section-inner split">
-      <div class="section-heading">
-        <p class="kicker">Contact</p>
-        <h1>{page?.title || 'Contact'}</h1>
-      </div>
-      <div class="prose">
-        <p>{textContent(page?.content)}</p>
-        <div class="actions">
-          <a class="button" href="mailto:info@suoyunculari.com">Email the club</a>
+    <div class="section-inner contact-layout">
+      <div>
+        <div class="section-heading contact-heading">
+          <p class="kicker">İletişim</p>
+          <h1>{page?.title || 'İletişim'}</h1>
+          <p>{pageText}</p>
         </div>
+        <div class="contact-list">
+          {
+            visibleLinks.map((item) => (
+              <a href={item.href || undefined} target={item.href?.startsWith('http') ? '_blank' : undefined} rel={item.href?.startsWith('http') ? 'noreferrer' : undefined}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </a>
+            ))
+          }
+        </div>
+        {email && (
+          <div class="actions">
+            <a class="button" href={email.href || `mailto:${email.value}`}>E-posta Gönder</a>
+          </div>
+        )}
+      </div>
+
+      <div class="contact-map">
+        <iframe
+          title="Sabancı Gösteri Merkezi haritası"
+          src={mapSrc}
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+        ></iframe>
+        <p>{address?.value || 'Sabancı Gösteri Merkezi'}</p>
       </div>
     </div>
   </main>

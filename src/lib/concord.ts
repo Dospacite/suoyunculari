@@ -52,6 +52,13 @@ export type ConcordSearchResult = {
   pageSize: number;
   totalPages: number;
   genres: string[];
+  playTypes: string[];
+  subgenres: string[];
+  themes: string[];
+  targetAudiences: string[];
+  performanceGroups: string[];
+  features: string[];
+  cautions: string[];
   sources: string[];
   databaseReady: boolean;
 };

@@ -516,6 +516,25 @@ img {
   min-width: 0;
 }
 
+.advanced-filters {
+  border-top: 1px solid var(--line);
+  min-width: 0;
+  padding-top: 8px;
+}
+
+.advanced-filters summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 900;
+  min-height: 42px;
+  padding: 12px 0;
+  text-transform: uppercase;
+}
+
+.advanced-grid {
+  padding-top: 8px;
+}
+
 label {
   display: grid;
   gap: 8px;
@@ -539,6 +558,10 @@ select {
   min-height: 48px;
   padding: 0 14px;
   width: 100%;
+}
+
+input[type="number"] {
+  appearance: textfield;
 }
 
 input:focus,
@@ -736,6 +759,64 @@ dd {
   padding: 22px 0;
 }
 
+.contact-layout {
+  display: grid;
+  gap: 42px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.contact-heading h1 {
+  font-size: clamp(2.5rem, 7vw, 5.6rem);
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.contact-list {
+  border-top: 2px solid var(--ink);
+  display: grid;
+  margin-bottom: 24px;
+}
+
+.contact-list a {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 18px 0;
+}
+
+.contact-list span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.contact-list strong {
+  font-size: clamp(1.05rem, 3vw, 1.55rem);
+  overflow-wrap: anywhere;
+}
+
+.contact-map {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.contact-map iframe {
+  aspect-ratio: 4 / 3;
+  border: 0;
+  filter: grayscale(1) contrast(1.08);
+  min-height: 360px;
+  width: 100%;
+}
+
+.contact-map p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
 .empty-state {
   color: var(--muted);
   padding: 24px 0;
@@ -841,6 +922,10 @@ dd {
     grid-template-columns: minmax(0, 1fr) repeat(4, minmax(0, 150px));
   }
 
+  .advanced-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .browser-tools.three {
     grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, 210px));
   }
@@ -867,6 +952,10 @@ dd {
 
   .split {
     grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  }
+
+  .contact-layout {
+    grid-template-columns: minmax(0, 0.78fr) minmax(360px, 1fr);
   }
 
   .detail-meta {

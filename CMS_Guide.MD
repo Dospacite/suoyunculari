@@ -96,3 +96,16 @@ Use **Books** for the physical library.
 4. Enable **Is Published**.
 
 Published books appear at `/kutuphane` and can be filtered by search, category, language, and availability.
+
+## Contact Page
+
+Use **Contact Items** for public contact details.
+
+1. Open **Contact Items**.
+2. Add one item per visible contact method, such as email, address, Instagram, YouTube, phone, or website.
+3. Fill **Label**, **Value**, **Type**, optional **Href**, and **Sort Order**.
+4. Enable **Is Visible**.
+
+For email, use `mailto:contact@suoyunculari.com` as **Href**. For future phone numbers, add a new item with type `phone` and a `tel:` href.
+
+The map uses the visible `address` item by default. To override the embedded map URL, add a visible item with type `map` and put the Google Maps embed URL in **Href**.

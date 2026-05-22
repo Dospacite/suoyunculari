@@ -35,6 +35,75 @@
     </label>
   </div>
 
+  <details class="advanced-filters">
+    <summary>Gelişmiş filtreler</summary>
+    <div class="browser-tools advanced-grid">
+      <label>
+        <span>Oyun / Müzikal</span>
+        <select id="concord-play-type-filter">
+          <option value="">Tümü</option>
+        </select>
+      </label>
+      <label>
+        <span>Alt Tür</span>
+        <select id="concord-subgenre-filter">
+          <option value="">Tümü</option>
+        </select>
+      </label>
+      <label>
+        <span>Tema</span>
+        <select id="concord-theme-filter">
+          <option value="">Tümü</option>
+        </select>
+      </label>
+      <label>
+        <span>Hedef Kitle</span>
+        <select id="concord-target-audience-filter">
+          <option value="">Tümü</option>
+        </select>
+      </label>
+      <label>
+        <span>Performans Grubu</span>
+        <select id="concord-performance-group-filter">
+          <option value="">Tümü</option>
+        </select>
+      </label>
+      <label>
+        <span>Özellik</span>
+        <select id="concord-feature-filter">
+          <option value="">Tümü</option>
+        </select>
+      </label>
+      <label>
+        <span>Uyarı</span>
+        <select id="concord-caution-filter">
+          <option value="">Tümü</option>
+        </select>
+      </label>
+      <label>
+        <span>Toplam Kadro</span>
+        <select id="concord-total-cast-filter">
+          <option value="">Tümü</option>
+          <option value="small">1-6</option>
+          <option value="medium">7-12</option>
+          <option value="large">13+</option>
+        </select>
+      </label>
+      <label>
+        <span>Kadın Rolü En Az</span>
+        <input id="concord-female-roles-filter" type="number" min="1" inputmode="numeric" />
+      </label>
+      <label>
+        <span>Erkek Rolü En Az</span>
+        <input id="concord-male-roles-filter" type="number" min="1" inputmode="numeric" />
+      </label>
+      <label>
+        <span>Esnek Rol En Az</span>
+        <input id="concord-neutral-roles-filter" type="number" min="1" inputmode="numeric" />
+      </label>
+    </div>
+  </details>
+
   <p class="browser-status" id="concord-status">Kayıtlar yükleniyor...</p>
 
   <div class="play-list" id="concord-play-list"></div>
@@ -77,6 +146,13 @@
     pageSize: number;
     totalPages: number;
     genres: string[];
+    playTypes: string[];
+    subgenres: string[];
+    themes: string[];
+    targetAudiences: string[];
+    performanceGroups: string[];
+    features: string[];
+    cautions: string[];
     sources: string[];
     databaseReady: boolean;
   };
@@ -84,7 +160,18 @@
   const searchInput = document.querySelector<HTMLInputElement>('#concord-search');
   const sourceSelect = document.querySelector<HTMLSelectElement>('#concord-source-filter');
   const genreSelect = document.querySelector<HTMLSelectElement>('#concord-genre-filter');
+  const playTypeSelect = document.querySelector<HTMLSelectElement>('#concord-play-type-filter');
+  const subgenreSelect = document.querySelector<HTMLSelectElement>('#concord-subgenre-filter');
+  const themeSelect = document.querySelector<HTMLSelectElement>('#concord-theme-filter');
+  const targetAudienceSelect = document.querySelector<HTMLSelectElement>('#concord-target-audience-filter');
+  const performanceGroupSelect = document.querySelector<HTMLSelectElement>('#concord-performance-group-filter');
+  const featureSelect = document.querySelector<HTMLSelectElement>('#concord-feature-filter');
+  const cautionSelect = document.querySelector<HTMLSelectElement>('#concord-caution-filter');
   const durationSelect = document.querySelector<HTMLSelectElement>('#concord-duration-filter');
+  const totalCastSelect = document.querySelector<HTMLSelectElement>('#concord-total-cast-filter');
+  const femaleRolesInput = document.querySelector<HTMLInputElement>('#concord-female-roles-filter');
+  const maleRolesInput = document.querySelector<HTMLInputElement>('#concord-male-roles-filter');
+  const neutralRolesInput = document.querySelector<HTMLInputElement>('#concord-neutral-roles-filter');
   const referenceSelect = document.querySelector<HTMLSelectElement>('#concord-reference-filter');
   const list = document.querySelector<HTMLElement>('#concord-play-list');
   const empty = document.querySelector<HTMLElement>('#concord-empty');
@@ -117,8 +204,19 @@
     const params = new URLSearchParams({
       q: searchInput?.value.trim() || '',
       source: sourceSelect?.value || '',
+      playType: playTypeSelect?.value || '',
       genre: genreSelect?.value || '',
+      subgenre: subgenreSelect?.value || '',
+      theme: themeSelect?.value || '',
+      targetAudience: targetAudienceSelect?.value || '',
+      performanceGroup: performanceGroupSelect?.value || '',
+      feature: featureSelect?.value || '',
+      caution: cautionSelect?.value || '',
       duration: durationSelect?.value || '',
+      totalCast: totalCastSelect?.value || '',
+      femaleRoles: femaleRolesInput?.value || '',
+      maleRoles: maleRolesInput?.value || '',
+      neutralRoles: neutralRolesInput?.value || '',
       reference: referenceSelect?.value || '',
       page: String(currentPage),
       pageSize: String(pageSize),
@@ -132,6 +230,13 @@
 
       updateGenres(payload.genres);
       updateSources(payload.sources);
+      updateSelect(playTypeSelect, payload.playTypes);
+      updateSelect(subgenreSelect, payload.subgenres);
+      updateSelect(themeSelect, payload.themes);
+      updateSelect(targetAudienceSelect, payload.targetAudiences);
+      updateSelect(performanceGroupSelect, payload.performanceGroups);
+      updateSelect(featureSelect, payload.features);
+      updateSelect(cautionSelect, payload.cautions);
       renderResults(payload);
     } catch {
       list.innerHTML = '';
@@ -156,16 +261,20 @@
   }
 
   function updateGenres(genres: string[]) {
-    if (!genreSelect) return;
-    const selected = genreSelect.value;
+    updateSelect(genreSelect, genres);
+  }
+
+  function updateSelect(select: HTMLSelectElement | null, values: string[]) {
+    if (!select) return;
+    const selected = select.value;
     const options = ['<option value="">Tümü</option>'];
 
-    for (const genre of genres) {
-      options.push(`<option value="${escapeAttribute(genre)}">${escapeHtml(genre)}</option>`);
+    for (const value of values) {
+      options.push(`<option value="${escapeAttribute(value)}">${escapeHtml(value)}</option>`);
     }
 
-    genreSelect.innerHTML = options.join('');
-    genreSelect.value = genres.includes(selected) ? selected : '';
+    select.innerHTML = options.join('');
+    select.value = values.includes(selected) ? selected : '';
   }
 
   function renderResults(payload: ConcordSearchResponse) {
@@ -176,8 +285,19 @@
     const hasActiveSearch =
       Boolean(searchInput?.value.trim()) ||
       Boolean(sourceSelect?.value) ||
+      Boolean(playTypeSelect?.value) ||
       Boolean(genreSelect?.value) ||
-      Boolean(durationSelect?.value);
+      Boolean(subgenreSelect?.value) ||
+      Boolean(themeSelect?.value) ||
+      Boolean(targetAudienceSelect?.value) ||
+      Boolean(performanceGroupSelect?.value) ||
+      Boolean(featureSelect?.value) ||
+      Boolean(cautionSelect?.value) ||
+      Boolean(durationSelect?.value) ||
+      Boolean(totalCastSelect?.value) ||
+      Boolean(femaleRolesInput?.value) ||
+      Boolean(maleRolesInput?.value) ||
+      Boolean(neutralRolesInput?.value);
     const hasReferenceFilter = Boolean(referenceSelect?.value);
     const hasItems = payload.items.length > 0;
 
@@ -265,13 +385,25 @@
     currentPage = 1;
     void loadResults();
   });
-  genreSelect?.addEventListener('change', () => {
-    currentPage = 1;
-    void loadResults();
+  [
+    genreSelect,
+    playTypeSelect,
+    subgenreSelect,
+    themeSelect,
+    targetAudienceSelect,
+    performanceGroupSelect,
+    featureSelect,
+    cautionSelect,
+    durationSelect,
+    totalCastSelect,
+  ].forEach((select) => {
+    select?.addEventListener('change', () => {
+      currentPage = 1;
+      void loadResults();
+    });
   });
-  durationSelect?.addEventListener('change', () => {
-    currentPage = 1;
-    void loadResults();
+  [femaleRolesInput, maleRolesInput, neutralRolesInput].forEach((input) => {
+    input?.addEventListener('input', debounceSearch);
   });
   referenceSelect?.addEventListener('change', () => {
     currentPage = 1;

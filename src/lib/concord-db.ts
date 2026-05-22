@@ -6,8 +6,19 @@ const { Pool } = pg;
 type SearchOptions = {
   query?: string;
   source?: string;
+  playType?: string;
   genre?: string;
+  subgenre?: string;
+  theme?: string;
+  targetAudience?: string;
+  performanceGroup?: string;
+  feature?: string;
+  caution?: string;
   duration?: string;
+  totalCast?: string;
+  femaleRoles?: string;
+  maleRoles?: string;
+  neutralRoles?: string;
   reference?: string;
   page?: number;
   pageSize?: number;
@@ -31,8 +42,19 @@ const globalForPg = globalThis as typeof globalThis & {
 export async function searchConcordPlays({
   query = '',
   source = '',
+  playType = '',
   genre = '',
+  subgenre = '',
+  theme = '',
+  targetAudience = '',
+  performanceGroup = '',
+  feature = '',
+  caution = '',
   duration = '',
+  totalCast = '',
+  femaleRoles = '',
+  maleRoles = '',
+  neutralRoles = '',
   reference = '',
   page = 1,
   pageSize = 25,
@@ -49,6 +71,8 @@ export async function searchConcordPlays({
   const cleanedQuery = query.trim();
   let rankExpression = '0::real AS rank';
 
+  where.push(displayableTextBankSql());
+
   if (cleanedQuery) {
     params.push(cleanedQuery);
     const searchParam = `$${params.length}`;
@@ -59,16 +83,21 @@ export async function searchConcordPlays({
   }
 
   if (genre) {
-    params.push(genre);
-    where.push(
-      `EXISTS (SELECT 1 FROM unnest(genres) AS genre_name WHERE lower(genre_name) = lower($${params.length}))`,
-    );
+    addArrayFilter(where, params, 'genres', genre);
   }
 
   if (source) {
     params.push(source);
     where.push(`source = $${params.length}`);
   }
+
+  if (playType) addScalarFilter(where, params, 'play_type', playType);
+  if (subgenre) addArrayFilter(where, params, 'subgenres', subgenre);
+  if (theme) addArrayFilter(where, params, 'themes', theme);
+  if (targetAudience) addTextListFilter(where, params, 'target_audience', targetAudience);
+  if (performanceGroup) addArrayFilter(where, params, 'performance_groups', performanceGroup);
+  if (feature) addArrayFilter(where, params, 'features', feature);
+  if (caution) addArrayFilter(where, params, 'cautions', caution);
 
   if (duration === 'short') {
     where.push('duration_minutes IS NOT NULL AND duration_minutes <= 90');
@@ -77,6 +106,11 @@ export async function searchConcordPlays({
   } else if (duration === 'long') {
     where.push('duration_minutes > 120');
   }
+
+  addRangeFilter(where, 'min_cast_size', 'max_cast_size', totalCast);
+  addMinimumFilter(where, 'female_roles', femaleRoles);
+  addMinimumFilter(where, 'male_roles', maleRoles);
+  addMinimumFilter(where, 'neutral_roles', neutralRoles);
 
   const playedKeys = new Set(
     playedReferences
@@ -157,7 +191,27 @@ export async function searchConcordPlays({
       params,
     );
 
-    const [genres, sources] = await Promise.all([getConcordGenres(pool), getConcordSources(pool)]);
+    const [
+      genres,
+      playTypes,
+      subgenres,
+      themes,
+      targetAudiences,
+      performanceGroups,
+      features,
+      cautions,
+      sources,
+    ] = await Promise.all([
+      getConcordGenres(pool),
+      getDistinctScalar(pool, 'play_type'),
+      getDistinctArrayValues(pool, 'subgenres'),
+      getDistinctArrayValues(pool, 'themes'),
+      getDistinctTargetAudiences(pool),
+      getDistinctArrayValues(pool, 'performance_groups'),
+      getDistinctArrayValues(pool, 'features'),
+      getDistinctArrayValues(pool, 'cautions'),
+      getConcordSources(pool),
+    ]);
 
     const result: ConcordSearchResult = {
       items: items.rows.map(normalizeConcordRow),
@@ -166,6 +220,13 @@ export async function searchConcordPlays({
       pageSize: safePageSize,
       totalPages: Math.max(1, Math.ceil(total / safePageSize)),
       genres,
+      playTypes,
+      subgenres,
+      themes,
+      targetAudiences,
+      performanceGroups,
+      features,
+      cautions,
       sources,
       databaseReady: true,
     };
@@ -254,10 +315,51 @@ async function getConcordGenres(pool: pg.Pool): Promise<string[]> {
     `SELECT DISTINCT genre
      FROM concord_plays, unnest(genres) AS genre
      WHERE genre <> ''
+       AND ${displayableTextBankSql()}
+       AND source = 'concord_theatricals'
      ORDER BY genre`,
   );
 
   return payload.rows.map((row) => row.genre);
+}
+
+async function getDistinctArrayValues(pool: pg.Pool, column: string): Promise<string[]> {
+  const payload = await pool.query<{ value: string }>(
+    `SELECT DISTINCT value
+     FROM concord_plays, unnest(${column}) AS value
+     WHERE value <> ''
+       AND ${displayableTextBankSql()}
+       AND source = 'concord_theatricals'
+     ORDER BY value`,
+  );
+
+  return payload.rows.map((row) => row.value);
+}
+
+async function getDistinctScalar(pool: pg.Pool, column: string): Promise<string[]> {
+  const payload = await pool.query<{ value: string }>(
+    `SELECT DISTINCT ${column} AS value
+     FROM concord_plays
+     WHERE ${column} <> ''
+       AND ${displayableTextBankSql()}
+       AND source = 'concord_theatricals'
+     ORDER BY ${column}`,
+  );
+
+  return payload.rows.map((row) => row.value);
+}
+
+async function getDistinctTargetAudiences(pool: pg.Pool): Promise<string[]> {
+  const payload = await pool.query<{ value: string }>(
+    `SELECT DISTINCT trim(value) AS value
+     FROM concord_plays, regexp_split_to_table(target_audience, ',') AS value
+     WHERE trim(value) <> ''
+       AND ${displayableTextBankSql()}
+       AND source = 'concord_theatricals'
+     ORDER BY trim(value)`,
+  );
+
+  return payload.rows.map((row) => row.value);
 }
 
 async function getConcordSources(pool: pg.Pool): Promise<string[]> {
@@ -339,9 +441,64 @@ function emptySearchResult(page: number, pageSize: number, databaseReady: boolea
     pageSize,
     totalPages: 1,
     genres: [],
+    playTypes: [],
+    subgenres: [],
+    themes: [],
+    targetAudiences: [],
+    performanceGroups: [],
+    features: [],
+    cautions: [],
     sources: [],
     databaseReady,
   };
+}
+
+function addScalarFilter(where: string[], params: unknown[], column: string, value: string): void {
+  params.push(value);
+  where.push(`lower(${column}) = lower($${params.length})`);
+}
+
+function addArrayFilter(where: string[], params: unknown[], column: string, value: string): void {
+  params.push(value);
+  where.push(`EXISTS (SELECT 1 FROM unnest(${column}) AS item WHERE lower(item) = lower($${params.length}))`);
+}
+
+function addTextListFilter(where: string[], params: unknown[], column: string, value: string): void {
+  params.push(value);
+  where.push(`EXISTS (
+    SELECT 1
+    FROM regexp_split_to_table(${column}, ',') AS item
+    WHERE lower(trim(item)) = lower($${params.length})
+  )`);
+}
+
+function addRangeFilter(where: string[], minColumn: string, maxColumn: string, value: string): void {
+  if (value === 'small') {
+    where.push(`${minColumn} IS NOT NULL AND ${maxColumn} IS NOT NULL AND ${minColumn} <= 6 AND ${maxColumn} <= 6`);
+  } else if (value === 'medium') {
+    where.push(`${minColumn} IS NOT NULL AND ${maxColumn} IS NOT NULL AND ${minColumn} <= 12 AND ${maxColumn} >= 7`);
+  } else if (value === 'large') {
+    where.push(`${maxColumn} IS NOT NULL AND ${maxColumn} >= 13`);
+  }
+}
+
+function addMinimumFilter(where: string[], column: string, value: string): void {
+  const minimum = Number(value);
+  if (!Number.isInteger(minimum) || minimum < 1) return;
+  where.push(`${column} IS NOT NULL AND ${column} >= ${minimum}`);
+}
+
+function displayableTextBankSql(): string {
+  return `(source <> 'concord_theatricals' OR play_type = ANY (ARRAY[
+    '10 Minute Play',
+    'Full-Length Musical',
+    'Full-Length Play',
+    'Musical',
+    'Musical Revue / Cabaret',
+    'Play',
+    'Short Musical',
+    'Short Play'
+  ]))`;
 }
 
 function clampInteger(value: number, min: number, max: number): number {

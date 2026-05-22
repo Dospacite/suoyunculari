@@ -5,6 +5,7 @@ import {
   fallbackHomepageSections,
   fallbackPages,
   fallbackPlays,
+  fallbackContactItems,
   fallbackRehearsalIdeas,
   fallbackStagings,
 } from '@/data/fallback';
@@ -150,6 +151,15 @@ export type Page = {
   key: string;
   title?: string;
   content?: string | Record<string, unknown>;
+};
+
+export type ContactItem = {
+  label: string;
+  value: string;
+  type?: 'email' | 'phone' | 'address' | 'map' | 'instagram' | 'youtube' | 'website' | 'other';
+  href?: string;
+  sort_order?: number;
+  is_visible?: boolean;
 };
 
 export type HomepageSection = {
@@ -374,6 +384,16 @@ export async function getHomepageSections(): Promise<HomepageSection[]> {
   });
 
   return items ?? fallbackHomepageSections;
+}
+
+export async function getContactItems(): Promise<ContactItem[]> {
+  const items = await fetchItems<ContactItem>('contact_items', {
+    fields: '*',
+    'filter[is_visible][_eq]': 'true',
+    sort: 'sort_order,label',
+  });
+
+  return items && items.length > 0 ? items : fallbackContactItems;
 }
 
 export async function getRehearsalIdeas(): Promise<RehearsalIdea[]> {

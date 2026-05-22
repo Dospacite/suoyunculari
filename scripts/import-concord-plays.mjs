@@ -112,7 +112,7 @@ async function readInput(file) {
     }
 
     return normalizeRecord(record);
-  });
+  }).filter(isDisplayableTextBankRecord);
 }
 
 async function ensureSchema(pool) {
@@ -298,6 +298,21 @@ function normalizeRecord(record) {
     ...normalized,
     search_text: buildSearchText(record, normalized),
   };
+}
+
+function isDisplayableTextBankRecord(record) {
+  if (record.source !== 'concord_theatricals') return true;
+
+  return [
+    '10 Minute Play',
+    'Full-Length Musical',
+    'Full-Length Play',
+    'Musical',
+    'Musical Revue / Cabaret',
+    'Play',
+    'Short Musical',
+    'Short Play',
+  ].includes(record.play_type);
 }
 
 function buildSearchText(record, normalized) {

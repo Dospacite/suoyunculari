@@ -21,6 +21,7 @@ const contentCollections = [
   'periods',
   'pages',
   'homepage_sections',
+  'contact_items',
   'plays_genres',
   'plays_tags',
   'blog_posts_plays',
@@ -149,6 +150,15 @@ const publicFields = {
     'sort_order',
     'is_visible',
   ],
+  contact_items: [
+    'id',
+    'label',
+    'value',
+    'type',
+    'href',
+    'sort_order',
+    'is_visible',
+  ],
 };
 
 const editableFields = {
@@ -159,6 +169,7 @@ const editableFields = {
   rehearsal_ideas: publicFields.rehearsal_ideas,
   blog_posts: publicFields.blog_posts,
   homepage_sections: publicFields.homepage_sections,
+  contact_items: publicFields.contact_items,
 };
 
 const publicPolicy = await findPolicyByName('$t:public_label');
@@ -202,6 +213,10 @@ await ensurePermission(publicPolicy.id, 'homepage_sections', 'read', {
   permissions: { is_visible: { _eq: true } },
   fields: publicFields.homepage_sections,
 });
+await ensurePermission(publicPolicy.id, 'contact_items', 'read', {
+  permissions: { is_visible: { _eq: true } },
+  fields: publicFields.contact_items,
+});
 
 for (const collection of ['authors', 'genres', 'tags', 'languages', 'periods', 'pages']) {
   await ensurePermission(publicPolicy.id, collection, 'read', { fields: ['*'] });
@@ -233,7 +248,7 @@ for (const collection of contentCollections) {
   await ensurePermission(contentEditorPolicy.id, collection, 'update', { fields: ['*'] });
 }
 
-for (const collection of ['plays', 'stagings', 'staging_photos', 'books', 'blog_posts', 'rehearsal_ideas']) {
+for (const collection of ['plays', 'stagings', 'staging_photos', 'books', 'blog_posts', 'rehearsal_ideas', 'contact_items']) {
   const fields = (editableFields[collection] ?? ['*']).filter(
     (field) => field !== 'is_published',
   );

@@ -63,12 +63,13 @@ const fields = {
     stringField('original_title'),
     textField('summary', { interfaceName: 'input-rich-text-md' }),
     fileField('cover_image'),
-    fileField('poster_image'),
+    fileField('poster_image', {
+      note: 'A3 portrait poster used on play detail pages. This is separate from cover and home card images.',
+    }),
     m2oField('author'),
     integerField('year_written'),
     m2oField('language'),
     integerField('duration_minutes'),
-    stringField('director'),
     textField('cast', { width: 'full' }),
     integerField('min_cast_size'),
     integerField('max_cast_size'),
@@ -253,14 +254,37 @@ const relations = [
   relation('staging_photos', 'image', 'directus_files'),
 ];
 
+const fieldsToDelete = [
+  { collection: 'plays', field: 'director' },
+];
+
+const fieldUpdates = [
+  { collection: 'plays', field: aliasM2mField('genres') },
+  { collection: 'plays', field: aliasM2mField('tags') },
+  {
+    collection: 'plays',
+    field: fileField('poster_image', {
+      note: 'A3 portrait poster used on play detail pages. This is separate from cover and home card images.',
+    }),
+  },
+];
+
 for (const definition of collectionDefinitions) {
   await ensureCollection(definition);
+}
+
+for (const item of fieldsToDelete) {
+  await deleteFieldIfExists(item.collection, item.field);
 }
 
 for (const [collection, collectionFields] of Object.entries(fields)) {
   for (const field of collectionFields) {
     await ensureField(collection, field);
   }
+}
+
+for (const item of fieldUpdates) {
+  await updateField(item.collection, item.field);
 }
 
 for (const item of relations) {
@@ -332,6 +356,24 @@ async function ensureField(collection, field) {
 
   await request('POST', `/fields/${collection}`, field);
   console.log(`field created: ${collection}.${field.field}`);
+}
+
+async function updateField(collection, field) {
+  if (!(await exists(`/fields/${collection}/${field.field}`))) return;
+
+  const body = {
+    meta: field.meta,
+    ...(field.schema ? { schema: field.schema } : {}),
+  };
+  await request('PATCH', `/fields/${collection}/${field.field}`, body);
+  console.log(`field updated: ${collection}.${field.field}`);
+}
+
+async function deleteFieldIfExists(collection, field) {
+  if (!(await exists(`/fields/${collection}/${field}`))) return;
+
+  await request('DELETE', `/fields/${collection}/${field}`);
+  console.log(`field deleted: ${collection}.${field}`);
 }
 
 async function ensureRelation(item) {
@@ -463,7 +505,7 @@ function dateTimeField(field) {
   };
 }
 
-function fileField(field) {
+function fileField(field, { note } = {}) {
   return {
     field,
     type: 'uuid',
@@ -471,6 +513,7 @@ function fileField(field) {
       interface: 'file-image',
       special: ['file'],
       width: 'half',
+      note,
     },
     schema: {
       is_nullable: true,
@@ -522,7 +565,12 @@ function relation(collection, field, related_collection, meta = {}) {
     collection,
     field,
     related_collection,
-    meta,
+    meta: {
+      many_collection: collection,
+      many_field: field,
+      one_collection: related_collection,
+      ...meta,
+    },
     schema: {
       on_delete: meta.one_deselect_action === 'delete' ? 'CASCADE' : 'SET NULL',
     },

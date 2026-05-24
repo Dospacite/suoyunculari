@@ -95,5 +95,17 @@ jobs:
             rm -f "$tmp_env"
 
             docker compose up -d --build --force-recreate app
+            if [ -n "${DIRECTUS_TOKEN_VALUE:-}" ]; then
+              docker compose exec -T \
+                -e DIRECTUS_URL="${PUBLIC_DIRECTUS_URL_VALUE:-https://cms.suoyunculari.com}" \
+                -e DIRECTUS_TOKEN="$DIRECTUS_TOKEN_VALUE" \
+                app node scripts/setup-directus-schema.mjs
+              docker compose exec -T \
+                -e DIRECTUS_URL="${PUBLIC_DIRECTUS_URL_VALUE:-https://cms.suoyunculari.com}" \
+                -e DIRECTUS_TOKEN="$DIRECTUS_TOKEN_VALUE" \
+                app node scripts/setup-directus-permissions.mjs
+            else
+              echo "Directus schema skipped on VPS because DIRECTUS_TOKEN is not configured."
+            fi
             docker compose exec -T app npm run db:import:text-bank -- --truncate
             docker image prune -f

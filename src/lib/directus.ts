@@ -52,7 +52,6 @@ export type Play = {
   year_written?: number;
   language?: Taxonomy;
   duration_minutes?: number;
-  director?: string;
   cast?: string;
   min_cast_size?: number;
   max_cast_size?: number;

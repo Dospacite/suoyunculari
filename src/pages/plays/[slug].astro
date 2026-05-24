@@ -17,7 +17,6 @@ if (!play) Astro.response.status = 404;
 
 const nextStaging = stagings.find((staging) => staging.date && new Date(staging.date) >= new Date()) ?? stagings[0];
 const textBankReference = getTextBankReference(play);
-const directorText = play?.director || nextStaging?.director;
 const castText = play?.cast || nextStaging?.cast_notes;
 const posterImage = assetUrl(play?.poster_image || play?.cover_image);
 const scriptHref =
@@ -73,10 +72,6 @@ const shortDateFormatter = new Intl.DateTimeFormat('tr-TR', {
               <div>
                 <h2>Kadro</h2>
                 <p>{castText || 'Kadro bilgisi Directus oyun kaydından eklenebilir.'}</p>
-              </div>
-              <div>
-                <h2>Yönetmen</h2>
-                <p>{directorText || 'Yönetmen bilgisi Directus oyun kaydından eklenebilir.'}</p>
               </div>
             </div>
             <div>

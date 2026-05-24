@@ -43,7 +43,6 @@ const publicFields = {
     'year_written',
     'language',
     'duration_minutes',
-    'director',
     'cast',
     'min_cast_size',
     'max_cast_size',

@@ -1,11 +1,13 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { getBlogPostBySlug } from '@/lib/directus';
+import { renderMarkdown } from '@/lib/markdown';
 
 export const prerender = false;
 
 const post = Astro.params.slug ? await getBlogPostBySlug(Astro.params.slug) : undefined;
 if (!post) Astro.response.status = 404;
+const postBodyHtml = renderMarkdown(post?.body);
 ---
 
 <BaseLayout title={post?.title ?? 'Post not found'} description={post?.excerpt}>
@@ -16,9 +18,7 @@ if (!post) Astro.response.status = 404;
           <div class="section-heading">
             <h1>{post.title}</h1>
           </div>
-          <div class="prose">
-            <p>{post.body}</p>
-          </div>
+          {postBodyHtml && <div class="prose markdown-content" set:html={postBodyHtml} />}
 
           {post.related_plays && post.related_plays.length > 0 && (
             <section class="related-section" aria-labelledby="related-plays-heading">
@@ -26,9 +26,9 @@ if (!post) Astro.response.status = 404;
               <div class="article-list compact-list">
                 {post.related_plays.map((play) => (
                   <a href={`/plays/${play.slug}`}>
-                    <p class="kicker">{play.author?.name || 'SUOyuncuları'}</p>
+                    {play.author?.name && <p class="kicker">{play.author.name}</p>}
                     <h2>{play.title}</h2>
-                    <p>{play.summary}</p>
+                    {play.summary && <p>{play.summary}</p>}
                   </a>
                 ))}
               </div>
@@ -45,9 +45,9 @@ if (!post) Astro.response.status = 404;
                       reference.source_id || '',
                     )}`}
                   >
-                    <p class="kicker">{reference.source?.replaceAll('_', ' ') || 'Kaynak'}</p>
-                    <h2>{reference.title || reference.source_id}</h2>
-                    <p>{reference.source_url || 'Kaynak bağlantısı Directus kaydından düzenlenebilir.'}</p>
+                    {reference.source && <p class="kicker">{reference.source.replaceAll('_', ' ')}</p>}
+                    {(reference.title || reference.source_id) && <h2>{reference.title || reference.source_id}</h2>}
+                    {reference.source_url && <p>{reference.source_url}</p>}
                   </a>
                 ))}
               </div>
@@ -60,13 +60,11 @@ if (!post) Astro.response.status = 404;
               <div class="article-list compact-list">
                 {post.related_books.map((book) => (
                   <article>
-                    <p class="kicker">{book.category || 'Kitap'}</p>
+                    {book.category && <p class="kicker">{book.category}</p>}
                     <h2>{book.title}</h2>
-                    <p>
-                      {[book.author, book.publisher, book.location || 'Kulüp Kitaplığı']
-                        .filter(Boolean)
-                        .join(' / ')}
-                    </p>
+                    {[book.author, book.publisher, book.location].filter(Boolean).length > 0 && (
+                      <p>{[book.author, book.publisher, book.location].filter(Boolean).join(' / ')}</p>
+                    )}
                   </article>
                 ))}
               </div>

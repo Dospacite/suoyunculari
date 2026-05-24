@@ -17,9 +17,9 @@ const authors = await getAuthors();
         {
           authors.map((author) => (
             <a href={`/authors/${author.slug}`}>
-              <p class="kicker">{author.country || 'Playwright'}</p>
+              {author.country && <p class="kicker">{author.country}</p>}
               <h2>{author.name}</h2>
-              <p>{author.bio}</p>
+              {author.bio && <p>{author.bio}</p>}
             </a>
           ))
         }

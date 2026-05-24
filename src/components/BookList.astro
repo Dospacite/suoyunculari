@@ -14,6 +14,19 @@ const categories = Array.from(
 const languages = Array.from(
   new Set(books.map((book) => book.language).filter((item): item is string => Boolean(item))),
 ).sort((a, b) => a.localeCompare(b, 'tr'));
+
+type BookMetaRow = {
+  label: string;
+  value: string;
+};
+
+function getBookMetaRows(book: Book): BookMetaRow[] {
+  return [
+    book.publisher ? { label: 'Yayınevi', value: book.publisher } : undefined,
+    book.publication_year ? { label: 'Yıl', value: String(book.publication_year) } : undefined,
+    book.location ? { label: 'Konum', value: book.location } : undefined,
+  ].filter((row): row is BookMetaRow => Boolean(row));
+}
 ---
 
 <section class="play-browser" aria-label="Kütüphane arama">
@@ -51,6 +64,7 @@ const languages = Array.from(
       books.map((book) => {
         const tags = Array.isArray(book.tags) ? book.tags : [];
         const status = book.is_available === false ? 'borrowed' : 'available';
+        const metaRows = getBookMetaRows(book);
         const searchable = [
           book.title,
           book.author,
@@ -76,29 +90,27 @@ const languages = Array.from(
           >
             <div>
               <p class="kicker row-kicker">
-                {book.category || 'Kitap'}
+                {book.category}
                 <span class="played-badge">{status === 'available' ? 'Rafta' : 'Ödünçte'}</span>
               </p>
               <h2>{book.title}</h2>
-              <p>{[book.author, book.translator && `Çev. ${book.translator}`].filter(Boolean).join(' / ')}</p>
+              {[book.author, book.translator && `Çev. ${book.translator}`].filter(Boolean).length > 0 && (
+                <p>{[book.author, book.translator && `Çev. ${book.translator}`].filter(Boolean).join(' / ')}</p>
+              )}
               <div class="taxonomy">
                 {tags.map((tag) => <span>{tag}</span>)}
               </div>
             </div>
-            <dl>
-              <div>
-                <dt>Yayınevi</dt>
-                <dd>{book.publisher || 'Belirsiz'}</dd>
-              </div>
-              <div>
-                <dt>Yıl</dt>
-                <dd>{book.publication_year || 'Belirsiz'}</dd>
-              </div>
-              <div>
-                <dt>Konum</dt>
-                <dd>{book.location || 'Kulüp Kitaplığı'}</dd>
-              </div>
-            </dl>
+            {metaRows.length > 0 && (
+              <dl>
+                {metaRows.map((row) => (
+                  <div>
+                    <dt>{row.label}</dt>
+                    <dd>{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
           </article>
         );
       })

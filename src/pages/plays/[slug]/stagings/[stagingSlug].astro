@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { assetUrl, getPlayBySlug, getStagingBySlug, getStagingsForPlay } from '@/lib/directus';
+import { renderMarkdown } from '@/lib/markdown';
 
 export const prerender = false;
 
@@ -27,6 +28,9 @@ const timeFormatter = new Intl.DateTimeFormat('tr-TR', {
 });
 const castText = play?.cast || staging?.cast_notes;
 const videoEmbedUrl = getYouTubeEmbedUrl(staging?.video_url);
+const stagingNoteHtml = renderMarkdown(staging?.body || staging?.production_notes);
+const castHtml = renderMarkdown(castText);
+const hasMeta = Boolean(staging?.date || staging?.venue || play?.title);
 
 function getYouTubeEmbedUrl(value?: string): string | undefined {
   if (!value) return undefined;
@@ -86,35 +90,49 @@ function getYouTubeEmbedUrl(value?: string): string | undefined {
             </a>
           ) : null}
 
-          <div class="detail-meta">
-            <div>
-              <dt>Tarih</dt>
-              <dd>{staging.date ? dateFormatter.format(new Date(staging.date)) : 'Yakında'}</dd>
+          {hasMeta && (
+            <div class="detail-meta">
+              {staging.date && (
+                <div>
+                  <dt>Tarih</dt>
+                  <dd>{dateFormatter.format(new Date(staging.date))}</dd>
+                </div>
+              )}
+              {staging.date && (
+                <div>
+                  <dt>Saat</dt>
+                  <dd>{timeFormatter.format(new Date(staging.date))}</dd>
+                </div>
+              )}
+              {staging.venue && (
+                <div>
+                  <dt>Mekan</dt>
+                  <dd>{staging.venue}</dd>
+                </div>
+              )}
+              <div>
+                <dt>Oyun</dt>
+                <dd>{play.title}</dd>
+              </div>
             </div>
-            <div>
-              <dt>Saat</dt>
-              <dd>{staging.date ? timeFormatter.format(new Date(staging.date)) : 'Yakında'}</dd>
-            </div>
-            <div>
-              <dt>Mekan</dt>
-              <dd>{staging.venue || 'Belirsiz'}</dd>
-            </div>
-            <div>
-              <dt>Oyun</dt>
-              <dd>{play.title}</dd>
-            </div>
-          </div>
+          )}
 
-          <div class="split">
-            <div>
-              <p class="kicker">Sahneleme Notu</p>
-              <p class="prose">{staging.body || staging.production_notes || 'Sahneleme notları yakında.'}</p>
+          {(stagingNoteHtml || castHtml) && (
+            <div class="split">
+              {stagingNoteHtml && (
+                <div>
+                  <p class="kicker">Sahneleme Notu</p>
+                  <div class="prose markdown-content" set:html={stagingNoteHtml} />
+                </div>
+              )}
+              {castHtml && (
+                <div>
+                  <p class="kicker">Kadro / Ekip</p>
+                  <div class="prose markdown-content" set:html={castHtml} />
+                </div>
+              )}
             </div>
-            <div>
-              <p class="kicker">Kadro / Ekip</p>
-              <p class="prose">{castText || 'Kadro bilgisi Directus oyun kaydından eklenebilir.'}</p>
-            </div>
-          </div>
+          )}
 
           {staging.photos && staging.photos.length > 0 && (
             <section class="related-section" aria-labelledby="photos-heading">

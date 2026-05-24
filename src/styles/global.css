@@ -1026,6 +1026,7 @@ dd {
   display: grid;
   gap: 34px;
   grid-template-columns: minmax(0, 1fr);
+  margin-top: 34px;
 }
 
 .play-cast-panel {
@@ -1033,19 +1034,40 @@ dd {
   gap: 24px;
 }
 
-.play-cast-panel h2 {
+.play-cast-panel h2,
+.play-description-block h2 {
   font-size: 0.76rem;
   line-height: 1;
   margin: 0 0 10px;
   text-transform: uppercase;
 }
 
-.play-cast-panel p,
-.play-description {
+.play-cast-panel .markdown-content,
+.play-description,
+.markdown-content {
   color: var(--muted);
   line-height: 1.75;
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.markdown-content > * {
+  margin: 0;
+}
+
+.markdown-content > * + * {
+  margin-top: 12px;
+}
+
+.markdown-content ul {
+  padding-left: 1.1rem;
+}
+
+.markdown-content a {
+  color: var(--accent);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .play-poster {
@@ -1084,7 +1106,10 @@ dd {
 
 .play-description {
   font-size: 1.02rem;
-  margin-top: 34px;
+  max-width: 820px;
+}
+
+.play-description-block {
   max-width: 820px;
 }
 
@@ -1107,6 +1132,31 @@ dd {
   aspect-ratio: 16 / 9;
   object-fit: cover;
   width: 100%;
+}
+
+.staging-card .play-card-copy {
+  gap: 5px;
+}
+
+.staging-card .play-card-copy h2 {
+  color: var(--ink);
+  font-size: clamp(1.28rem, 2.3vw, 1.7rem);
+  font-weight: 950;
+  line-height: 1.08;
+  margin: 0;
+}
+
+.location-line {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.location-line svg {
+  fill: currentColor;
+  flex: 0 0 auto;
+  height: 15px;
+  width: 15px;
 }
 
 .photo-grid {

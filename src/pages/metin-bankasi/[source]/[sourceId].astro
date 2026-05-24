@@ -17,9 +17,11 @@ const sourceLabels: Record<string, string> = {
   drama_online_library: 'Drama Online',
 };
 
-const sourceLabel = sourceLabels[play?.source ?? ''] ?? 'Kaynak';
-const authorText = play?.authors?.map((author) => author.name).filter(Boolean).join(', ') || 'Belirsiz';
-const duration = play?.duration_text || (play?.duration_minutes ? `${play.duration_minutes} dk` : 'Belirsiz');
+const sourceLabel = play?.source ? (sourceLabels[play.source] ?? play.source) : undefined;
+const authorText = play?.authors?.map((author) => author.name).filter(Boolean).join(', ');
+const duration = play?.duration_text || (play?.duration_minutes ? `${play.duration_minutes} dk` : undefined);
+const noteItems = [...(play?.themes ?? []), ...(play?.features ?? [])];
+const taxonomyItems = [...(play?.genres ?? []), ...(play?.tags ?? [])];
 ---
 
 <BaseLayout title={play?.title ?? 'Metin bulunamadı'} description={play?.summary_text}>
@@ -37,40 +39,55 @@ const duration = play?.duration_text || (play?.duration_minutes ? `${play.durati
           </div>
 
           <div class="detail-meta">
-            <div>
-              <dt>Yazar</dt>
-              <dd>{authorText}</dd>
-            </div>
-            <div>
-              <dt>Kadro</dt>
-              <dd>{play.casting_text || 'Belirsiz'}</dd>
-            </div>
-            <div>
-              <dt>Süre</dt>
-              <dd>{duration}</dd>
-            </div>
-            <div>
-              <dt>Kaynak</dt>
-              <dd>{sourceLabel}</dd>
-            </div>
+            {authorText && (
+              <div>
+                <dt>Yazar</dt>
+                <dd>{authorText}</dd>
+              </div>
+            )}
+            {play.casting_text && (
+              <div>
+                <dt>Kadro</dt>
+                <dd>{play.casting_text}</dd>
+              </div>
+            )}
+            {duration && (
+              <div>
+                <dt>Süre</dt>
+                <dd>{duration}</dd>
+              </div>
+            )}
+            {sourceLabel && (
+              <div>
+                <dt>Kaynak</dt>
+                <dd>{sourceLabel}</dd>
+              </div>
+            )}
           </div>
 
           <div class="split">
-            <div>
-              <p class="kicker">Haklar</p>
-              <p class="prose">{play.rights_status || 'licensed'}</p>
-              {play.licensing_fee_text && <p class="prose">{play.licensing_fee_text}</p>}
-            </div>
-            <div>
-              <p class="kicker">Notlar</p>
-              <p class="prose">
-                {[...(play.themes ?? []), ...(play.features ?? [])].join(', ') ||
-                  'Bu metin için ek tema veya özellik bilgisi bulunmuyor.'}
-              </p>
-              <div class="taxonomy">
-                {[...(play.genres ?? []), ...(play.tags ?? [])].map((item) => <span>{item}</span>)}
+            {(play.rights_status || play.licensing_fee_text) && (
+              <div>
+                <p class="kicker">Haklar</p>
+                {play.rights_status && <p class="prose">{play.rights_status}</p>}
+                {play.licensing_fee_text && <p class="prose">{play.licensing_fee_text}</p>}
               </div>
-            </div>
+            )}
+            {(noteItems.length > 0 || taxonomyItems.length > 0) && (
+              <div>
+                {noteItems.length > 0 && (
+                  <>
+                    <p class="kicker">Notlar</p>
+                    <p class="prose">{noteItems.join(', ')}</p>
+                  </>
+                )}
+                {taxonomyItems.length > 0 && (
+                  <div class="taxonomy">
+                    {taxonomyItems.map((item) => <span>{item}</span>)}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {relatedPosts.length > 0 && (
@@ -79,9 +96,9 @@ const duration = play?.duration_text || (play?.duration_minutes ? `${play.durati
               <div class="article-list compact-list">
                 {relatedPosts.map((post) => (
                   <a href={`/blog/${post.slug}`}>
-                    <p class="kicker">{post.author_name || 'SUOyuncuları'}</p>
+                    {post.author_name && <p class="kicker">{post.author_name}</p>}
                     <h2>{post.title}</h2>
-                    <p>{post.excerpt}</p>
+                    {post.excerpt && <p>{post.excerpt}</p>}
                   </a>
                 ))}
               </div>

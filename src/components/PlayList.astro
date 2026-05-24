@@ -1,5 +1,6 @@
 ---
 import { assetUrl, type Play } from '@/lib/directus';
+import { markdownToPlainText } from '@/lib/markdown';
 
 type Props = {
   plays: Play[];
@@ -11,14 +12,15 @@ const genres = Array.from(
   new Set(plays.flatMap((play) => play.genres?.map((genre) => genre.name).filter(Boolean) ?? [])),
 ).sort((a, b) => a.localeCompare(b, 'tr'));
 
-function formatPlayYear(value?: string): string {
-  if (!value) return 'Yıl belirsiz';
+function formatPlayYear(value?: string): string | undefined {
+  if (!value) return undefined;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? 'Yıl belirsiz' : String(date.getFullYear());
+  return Number.isNaN(date.getTime()) ? undefined : String(date.getFullYear());
 }
 
-function formatArchiveLabel(play: Play): string {
+function formatArchiveLabel(play: Play): string | undefined {
   const year = formatPlayYear(play.event_date);
+  if (!year) return play.is_newcomer_play ? 'Yeniler' : undefined;
   return play.is_newcomer_play ? `${year} - Yeniler` : year;
 }
 ---
@@ -41,10 +43,10 @@ function formatArchiveLabel(play: Play): string {
   <div class="play-list play-thumbnail-grid" id="play-list">
     {
       plays.map((play) => {
-        const originalTitle = play.original_title || play.title;
-        const authorName = play.author?.name || 'Yazar belirsiz';
+        const yearLabel = formatArchiveLabel(play);
+        const authorName = play.author?.name;
         const thumbnail = assetUrl(play.home_card_image || play.cover_image);
-        const description = play.short_description || play.summary || originalTitle;
+        const description = markdownToPlainText(play.short_description || play.summary);
         const genreSearch = play.genres?.map((genre) => genre.name.toLowerCase()).join(' ') ?? '';
         const searchable = [
           play.title,
@@ -66,7 +68,7 @@ function formatArchiveLabel(play: Play): string {
             data-genre={genreSearch}
           >
             <a href={`/plays/${play.slug}`}>
-              <div class="play-card-year">{formatArchiveLabel(play)}</div>
+              {yearLabel && <div class="play-card-year">{yearLabel}</div>}
               {
                 thumbnail ? (
                   <img src={thumbnail} alt="" loading="lazy" />
@@ -76,8 +78,8 @@ function formatArchiveLabel(play: Play): string {
               }
               <div class="play-card-copy">
                 <h2>{play.title}</h2>
-                <p class="play-card-author">{authorName}</p>
-                <p class="play-card-description">{description}</p>
+                {authorName && <p class="play-card-author">{authorName}</p>}
+                {description && <p class="play-card-description">{description}</p>}
               </div>
             </a>
           </article>

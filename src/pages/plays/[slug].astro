@@ -7,6 +7,7 @@ import {
   getStagingsForPlay,
   getTextBankReference,
 } from '@/lib/directus';
+import { markdownToPlainText, renderMarkdown } from '@/lib/markdown';
 
 export const prerender = false;
 
@@ -19,12 +20,16 @@ const nextStaging = stagings.find((staging) => staging.date && new Date(staging.
 const textBankReference = getTextBankReference(play);
 const castText = play?.cast || nextStaging?.cast_notes;
 const posterImage = assetUrl(play?.poster_image || play?.cover_image);
+const descriptionHtml = renderMarkdown(play?.summary);
+const castHtml = renderMarkdown(castText);
+const hasPosterDetails = Boolean(posterImage || play?.event_date || play?.event_venue);
 const scriptHref =
   textBankReference?.source && textBankReference.source_id
     ? `/metin-bankasi/${encodeURIComponent(textBankReference.source)}/${encodeURIComponent(
         textBankReference.source_id,
       )}`
     : play?.script_url;
+const hasDetailActions = Boolean(scriptHref || nextStaging);
 
 const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
   day: 'numeric',
@@ -49,60 +54,79 @@ const shortDateFormatter = new Intl.DateTimeFormat('tr-TR', {
           <header class="play-detail-hero">
             <div class="play-detail-title">
               <h1>{play.title}</h1>
-              <p>{play.author?.name || 'Yazar belirsiz'}</p>
+              {play.author?.name && <p>{play.author.name}</p>}
             </div>
-            <div class="play-detail-actions">
-                <a class:list={['button', !scriptHref && 'disabled-link']} href={scriptHref || '#'} aria-disabled={!scriptHref}>
+            {hasDetailActions && (
+              <div class="play-detail-actions">
+                {scriptHref && (
+                  <a class="button" href={scriptHref}>
                   Metin Detayı
-                </a>
-                <a
-                  class:list={['button', 'secondary-button', !nextStaging && 'disabled-link']}
-                  href={nextStaging ? `/plays/${play.slug}/stagings/${nextStaging.slug}` : '#'}
-                  aria-disabled={!nextStaging}
-                >
-                  Sahneleme Detayı
-                </a>
-            </div>
+                  </a>
+                )}
+                {nextStaging && (
+                  <a class="button secondary-button" href={`/plays/${play.slug}/stagings/${nextStaging.slug}`}>
+                    Sahneleme Detayı
+                  </a>
+                )}
+              </div>
+            )}
           </header>
 
           <div class="detail-divider"></div>
 
-          <section class="play-production-layout" aria-label="Oyun üretim bilgileri">
-            <div class="play-cast-panel">
-              <div>
-                <h2>Kadro</h2>
-                <p>{castText || 'Kadro bilgisi Directus oyun kaydından eklenebilir.'}</p>
-              </div>
-            </div>
-            <div>
-              <figure class="play-poster">
-                {posterImage ? <img src={posterImage} alt="" loading="lazy" /> : <div class="play-card-fallback" aria-hidden="true"></div>}
-                <figcaption>
-                  <strong>{play.title}</strong>
-                  <span>
-                    {play.event_date ? `Prömiyer: ${shortDateFormatter.format(new Date(play.event_date))}` : 'Prömiyer: Yakında'}
-                  </span>
-                  <span>{play.event_venue || 'Mekan yakında'}</span>
-                </figcaption>
-              </figure>
-            </div>
-          </section>
+          {descriptionHtml && (
+            <section class="play-description-block">
+              <h2>Açıklama</h2>
+              <div class="play-description markdown-content" set:html={descriptionHtml} />
+            </section>
+          )}
 
-          <p class="play-description">{play.summary}</p>
+          {(castHtml || hasPosterDetails) && (
+            <section class="play-production-layout" aria-label="Oyun üretim bilgileri">
+              {castHtml && (
+                <div class="play-cast-panel">
+                  <div>
+                    <h2>Kadro</h2>
+                    <div class="markdown-content" set:html={castHtml} />
+                  </div>
+                </div>
+              )}
+              {hasPosterDetails && (
+                <div>
+                  <figure class="play-poster">
+                    {posterImage && <img src={posterImage} alt="" loading="lazy" />}
+                    <figcaption>
+                      <strong>{play.title}</strong>
+                      {play.event_date && <span>Prömiyer: {shortDateFormatter.format(new Date(play.event_date))}</span>}
+                      {play.event_venue && <span>{play.event_venue}</span>}
+                    </figcaption>
+                  </figure>
+                </div>
+              )}
+            </section>
+          )}
 
           <section class="related-section" aria-label="Sahnelemeler">
             {stagings.length > 0 ? (
               <div class="staging-card-grid">
                 {stagings.map((staging) => {
                   const image = assetUrl(staging.cover_image || play.cover_image);
+                  const stagingDescription = markdownToPlainText(staging.summary || staging.production_notes);
                   return (
                     <a class="staging-card" href={`/plays/${play.slug}/stagings/${staging.slug}`}>
-                      <span class="play-card-year">{staging.date ? dateFormatter.format(new Date(staging.date)) : 'Tarih yakında'}</span>
+                      {staging.date && <span class="play-card-year">{dateFormatter.format(new Date(staging.date))}</span>}
                       {image ? <img src={image} alt="" loading="lazy" /> : <div class="play-card-fallback" aria-hidden="true"></div>}
                       <div class="play-card-copy">
                         <h2>{staging.title}</h2>
-                        <p class="play-card-author">{staging.venue || 'Mekan yakında'}</p>
-                        <p class="play-card-description">{staging.summary || staging.production_notes || 'Sahneleme ayrıntıları yakında.'}</p>
+                        {staging.venue && (
+                          <p class="play-card-author location-line">
+                            <svg aria-hidden="true" viewBox="0 0 24 24">
+                              <path d="M12 21s7-5.4 7-12a7 7 0 1 0-14 0c0 6.6 7 12 7 12Zm0-9a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z" />
+                            </svg>
+                            <span>{staging.venue}</span>
+                          </p>
+                        )}
+                        {stagingDescription && <p class="play-card-description">{stagingDescription}</p>}
                       </div>
                     </a>
                   );
@@ -119,9 +143,9 @@ const shortDateFormatter = new Intl.DateTimeFormat('tr-TR', {
               <div class="article-list compact-list">
                 {relatedPosts.map((post) => (
                   <a href={`/blog/${post.slug}`}>
-                    <p class="kicker">{post.author_name || 'SUOyuncuları'}</p>
+                    {post.author_name && <p class="kicker">{post.author_name}</p>}
                     <h2>{post.title}</h2>
-                    <p>{post.excerpt}</p>
+                    {post.excerpt && <p>{post.excerpt}</p>}
                   </a>
                 ))}
               </div>

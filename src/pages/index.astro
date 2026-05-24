@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { assetUrl, getBlogPosts, getHomePlays, getHomepageSections } from '@/lib/directus';
+import { markdownToPlainText } from '@/lib/markdown';
 
 export const prerender = false;
 
@@ -61,8 +62,8 @@ const postDateFormatter = new Intl.DateTimeFormat('tr-TR', {
         >
           {homePlays.map((play) => {
             const image = assetUrl(play.home_card_image || play.cover_image);
-            const date = play.event_date ? dateFormatter.format(new Date(play.event_date)) : 'Tarih yakında';
-            const description = play.short_description || play.summary;
+            const date = play.event_date ? dateFormatter.format(new Date(play.event_date)) : undefined;
+            const description = markdownToPlainText(play.short_description || play.summary);
 
             return (
               <article class="home-play-card">
@@ -72,11 +73,11 @@ const postDateFormatter = new Intl.DateTimeFormat('tr-TR', {
                   <div class="home-card-fallback" aria-hidden="true" />
                 )}
                 <div>
-                  <p class="kicker">{date}</p>
+                  {date && <p class="kicker">{date}</p>}
                   <h3>{play.title}</h3>
                   {description && <p class="home-card-description">{description}</p>}
                   <div class="home-card-meta">
-                    <span>{play.event_venue || 'Mekan yakında'}</span>
+                    {play.event_venue && <span>{play.event_venue}</span>}
                     <a class="button compact-button" href={`/plays/${play.slug}`}>DETAY</a>
                   </div>
                 </div>
@@ -99,9 +100,7 @@ const postDateFormatter = new Intl.DateTimeFormat('tr-TR', {
           >
             {latestPosts.map((post) => {
               const image = assetUrl(post.cover_image);
-              const date = post.published_at
-                ? postDateFormatter.format(new Date(post.published_at))
-                : 'Yayın tarihi yok';
+              const date = post.published_at ? postDateFormatter.format(new Date(post.published_at)) : undefined;
 
               return (
                 <article class="home-play-card home-blog-card">
@@ -111,11 +110,11 @@ const postDateFormatter = new Intl.DateTimeFormat('tr-TR', {
                     <div class="home-card-fallback blog-fallback" aria-hidden="true" />
                   )}
                   <div>
-                    <p class="kicker">{date}</p>
+                    {date && <p class="kicker">{date}</p>}
                     <h3>{post.title}</h3>
-                    <p>{post.excerpt}</p>
+                    {post.excerpt && <p>{post.excerpt}</p>}
                     <div class="home-card-meta">
-                      <span>{post.author_name || 'SUOyuncuları'}</span>
+                      {post.author_name && <span>{post.author_name}</span>}
                       <a class="button compact-button" href={`/blog/${post.slug}`}>OKU</a>
                     </div>
                   </div>

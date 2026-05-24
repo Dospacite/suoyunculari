@@ -1,12 +1,14 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { getAuthorBySlug, getPlays } from '@/lib/directus';
+import { renderMarkdown } from '@/lib/markdown';
 
 export const prerender = false;
 
 const author = Astro.params.slug ? await getAuthorBySlug(Astro.params.slug) : undefined;
 if (!author) Astro.response.status = 404;
 const plays = author ? (await getPlays()).filter((play) => play.author?.slug === author.slug) : [];
+const bioHtml = renderMarkdown(author?.bio);
 ---
 
 <BaseLayout title={author?.name ?? 'Author not found'} description={author?.bio}>
@@ -17,7 +19,7 @@ const plays = author ? (await getPlays()).filter((play) => play.author?.slug ===
           <div class="section-heading">
             <h1>{author.name}</h1>
           </div>
-          <p class="prose">{author.bio}</p>
+          {bioHtml && <div class="prose markdown-content" set:html={bioHtml} />}
 
           <section class="section-heading" style="margin-top: 56px;">
             <h2>In the archive</h2>
@@ -27,7 +29,7 @@ const plays = author ? (await getPlays()).filter((play) => play.author?.slug ===
               plays.map((play) => (
                 <a href={`/plays/${play.slug}`}>
                   <h2>{play.title}</h2>
-                  <p>{play.summary}</p>
+                  {play.summary && <p>{play.summary}</p>}
                 </a>
               ))
             ) : (

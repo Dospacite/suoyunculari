@@ -17,9 +17,9 @@ const posts = await getBlogPosts();
         {
           posts.map((post) => (
             <a href={`/blog/${post.slug}`}>
-              <p class="kicker">{post.author_name || 'SUOyuncuları'}</p>
+              {post.author_name && <p class="kicker">{post.author_name}</p>}
               <h2>{post.title}</h2>
-              <p>{post.excerpt}</p>
+              {post.excerpt && <p>{post.excerpt}</p>}
             </a>
           ))
         }

@@ -41,8 +41,8 @@ type AssistantSearchResult = TextBankAssistantResult & {
   authorText: string;
   playType?: string;
   genres: string[];
-  duration: string;
-  castingText: string;
+  duration?: string;
+  castingText?: string;
 };
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
@@ -339,8 +339,8 @@ function sanitizeToolArgs(args: Record<string, unknown>): TextBankAssistantSearc
 
 function toAssistantResult(play: ConcordPlay): AssistantSearchResult {
   const authorText = play.authors?.map((author) => author.name).filter(Boolean).join(', ') || sourceLabel(play.source);
-  const duration = play.duration_text || (play.duration_minutes ? `${play.duration_minutes} dk` : 'Süre belirsiz');
-  const castingText = play.casting_text || 'Kadro bilgisi belirsiz';
+  const duration = play.duration_text || (play.duration_minutes ? `${play.duration_minutes} dk` : undefined);
+  const castingText = play.casting_text;
   const meta = [authorText, play.play_type, play.genres?.join(', '), duration, castingText].filter(Boolean).join(' · ');
 
   return {

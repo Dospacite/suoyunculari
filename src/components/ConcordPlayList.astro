@@ -325,40 +325,29 @@
 
   function renderPlay(play: ConcordPlay) {
     const sourceText = sourceLabel(play.source || 'concord_theatricals');
-    const authorText = play.authors?.map((author) => author.name).filter(Boolean).join(', ') || sourceText;
-    const genreText = play.genres?.join(', ') || play.play_type || 'Play';
+    const authorText = play.authors?.map((author) => author.name).filter(Boolean).join(', ');
+    const genreText = play.genres?.join(', ') || play.play_type || '';
     const href = `/metin-bankasi/${encodeURIComponent(play.source || 'concord_theatricals')}/${encodeURIComponent(play.source_id)}`;
-    const duration = play.duration_text || (play.duration_minutes ? `${play.duration_minutes} dk` : 'Belirsiz');
+    const duration = play.duration_text || (play.duration_minutes ? `${play.duration_minutes} dk` : '');
     const playedBadge = play.played
       ? `<span class="played-badge" title="${escapeAttribute(play.played_play_title || 'Oynandı')}">★ Oynandı</span>`
       : '';
+    const metaRows = [
+      authorText ? `<div><dt>Yazar</dt><dd>${escapeHtml(authorText)}</dd></div>` : '',
+      sourceText ? `<div><dt>Kaynak</dt><dd>${escapeHtml(sourceText)}</dd></div>` : '',
+      play.casting_text ? `<div><dt>Kadro</dt><dd>${escapeHtml(play.casting_text)}</dd></div>` : '',
+      duration ? `<div><dt>Süre</dt><dd>${escapeHtml(duration)}</dd></div>` : '',
+    ].join('');
 
     return `
       <article class="play-row">
         <a href="${escapeAttribute(href)}">
           <div>
-            <p class="kicker row-kicker">${escapeHtml(genreText)}${playedBadge}</p>
+            ${genreText || playedBadge ? `<p class="kicker row-kicker">${escapeHtml(genreText)}${playedBadge}</p>` : ''}
             <h2>${escapeHtml(play.title)}</h2>
-            <p>${escapeHtml(play.summary_text || 'Özet bilgisi bulunmuyor.')}</p>
+            ${play.summary_text ? `<p>${escapeHtml(play.summary_text)}</p>` : ''}
           </div>
-          <dl>
-            <div>
-              <dt>Yazar</dt>
-              <dd>${escapeHtml(authorText)}</dd>
-            </div>
-            <div>
-              <dt>Kaynak</dt>
-              <dd>${escapeHtml(sourceText)}</dd>
-            </div>
-            <div>
-              <dt>Kadro</dt>
-              <dd>${escapeHtml(play.casting_text || 'Belirsiz')}</dd>
-            </div>
-            <div>
-              <dt>Süre</dt>
-              <dd>${escapeHtml(duration)}</dd>
-            </div>
-          </dl>
+          ${metaRows ? `<dl>${metaRows}</dl>` : ''}
         </a>
       </article>
     `;

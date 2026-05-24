@@ -1,5 +1,6 @@
 ---
 import type { RehearsalIdea } from '@/lib/directus';
+import { renderMarkdown } from '@/lib/markdown';
 
 type Props = {
   ideas: RehearsalIdea[];
@@ -11,7 +12,6 @@ const difficultyLabels = {
   easy: 'Kolay',
   medium: 'Orta',
   hard: 'Zor',
-  unknown: 'Belirsiz',
 };
 
 const tags = Array.from(
@@ -53,6 +53,8 @@ const tags = Array.from(
         const ideaTags = Array.isArray(idea.tags)
           ? idea.tags.map((tag) => (typeof tag === 'string' ? tag : tag.name)).filter(Boolean)
           : [];
+        const difficultyLabel = idea.difficulty && idea.difficulty !== 'unknown' ? difficultyLabels[idea.difficulty] : undefined;
+        const bodyHtml = renderMarkdown(idea.body);
         const searchable = [idea.title, idea.summary, idea.body, ideaTags.join(' ')]
           .filter(Boolean)
           .join(' ')
@@ -62,18 +64,18 @@ const tags = Array.from(
           <article
             class="idea-row"
             data-search={searchable}
-            data-difficulty={idea.difficulty || 'unknown'}
+            data-difficulty={idea.difficulty && idea.difficulty !== 'unknown' ? idea.difficulty : ''}
             data-tags={ideaTags.join(' ').toLowerCase()}
           >
             <div>
-              <p class="kicker">{difficultyLabels[idea.difficulty || 'unknown']}</p>
+              {difficultyLabel && <p class="kicker">{difficultyLabel}</p>}
               <h2>{idea.title}</h2>
-              <p>{idea.summary}</p>
+              {idea.summary && <p>{idea.summary}</p>}
               <div class="taxonomy">
                 {ideaTags.map((tag) => <span>{tag}</span>)}
               </div>
             </div>
-            <p>{idea.body}</p>
+            {bodyHtml && <div class="markdown-content" set:html={bodyHtml} />}
           </article>
         );
       })

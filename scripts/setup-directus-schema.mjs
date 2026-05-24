@@ -62,7 +62,7 @@ const fields = {
     stringField('slug', { required: true, unique: true }),
     stringField('original_title'),
     textField('summary', { interfaceName: 'input-rich-text-md' }),
-    textField('short_description'),
+    textField('short_description', { interfaceName: 'input-rich-text-md' }),
     fileField('cover_image'),
     fileField('poster_image', {
       note: 'A3 portrait poster used on play detail pages. This is separate from cover and home card images.',
@@ -262,6 +262,7 @@ const fieldsToDelete = [
 const fieldUpdates = [
   { collection: 'plays', field: aliasM2mField('genres') },
   { collection: 'plays', field: aliasM2mField('tags') },
+  { collection: 'plays', field: textField('short_description', { interfaceName: 'input-rich-text-md' }) },
   {
     collection: 'plays',
     field: fileField('poster_image', {

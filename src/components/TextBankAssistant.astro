@@ -1,17 +1,21 @@
 <div class="text-bank-assistant" data-text-bank-assistant>
-  <button class="assistant-toggle" type="button" aria-expanded="false" aria-controls="text-bank-assistant-panel">
-    Asistan
+  <button class="assistant-toggle" type="button" aria-expanded="false" aria-controls="text-bank-assistant-panel" aria-label="Pingo asistanını aç">
+    <img src="/pingo.svg" alt="" aria-hidden="true" />
+    <span>Pingo</span>
   </button>
 
-  <section class="assistant-panel" id="text-bank-assistant-panel" aria-label="Metin Bankası asistanı" hidden>
+  <section class="assistant-panel" id="text-bank-assistant-panel" aria-label="Pingo Metin Bankası asistanı" hidden>
     <div class="assistant-header">
-      <div>
-        <p class="kicker">Metin Bankası</p>
-        <h2>Asistan</h2>
+      <div class="assistant-identity">
+        <img src="/pingo.svg" alt="" aria-hidden="true" />
+        <div>
+          <h2>Pingo</h2>
+          <span>Metin Bankası asistanı</span>
+        </div>
       </div>
       <div class="assistant-actions">
         <button type="button" class="ghost-button assistant-clear">Temizle</button>
-        <button type="button" class="ghost-button assistant-close" aria-label="Asistanı kapat">Kapat</button>
+        <button type="button" class="ghost-button assistant-close" aria-label="Pingo'yu kapat">Kapat</button>
       </div>
     </div>
 
@@ -86,10 +90,11 @@
 
   const STORAGE_KEY = 'suo_text_bank_chat_v1';
   const INITIAL_MESSAGE =
-    "Merhaba. Metin Bankası'nda oyun bulmana yardımcı olabilirim. Tür, kadro, süre, tema ya da hedef kitle söyleyebilirsin.";
+    "Merhaba, ben Pingo. Metin Bankası'nda oyun bulmana yardımcı olabilirim. Tür, kadro, süre, tema ya da hedef kitle söyleyebilirsin.";
   const MAX_MESSAGES = 12;
   const MAX_SEND_HISTORY = 8;
   const MAX_INPUT_LENGTH = 1000;
+  const REQUEST_TIMEOUT_MS = 20000;
 
   const root = document.querySelector<HTMLElement>('[data-text-bank-assistant]');
   const toggle = root?.querySelector<HTMLButtonElement>('.assistant-toggle');
@@ -180,7 +185,11 @@
 
       isSending = true;
       form.querySelector<HTMLButtonElement>('button[type="submit"]')?.setAttribute('disabled', 'true');
+      input.setAttribute('disabled', 'true');
       render();
+
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
       try {
         const response = await fetch('/api/metin-bankasi/chat.json', {
@@ -188,6 +197,7 @@
           headers: {
             'Content-Type': 'application/json',
           },
+          signal: controller.signal,
           body: JSON.stringify({
             messages: messages.slice(-MAX_SEND_HISTORY).map((message) => ({
               role: message.role,
@@ -197,28 +207,42 @@
         });
 
         if (response.status === 503) {
-          appendAssistantMessage('Asistan şu anda yapılandırılmamış. Lütfen daha sonra tekrar dene.', []);
+          appendAssistantMessage('Pingo şu anda yapılandırılmamış. Lütfen daha sonra tekrar dene.', []);
           return;
         }
 
         const payload = (await response.json().catch(() => null)) as ChatResponse | null;
 
-        if (response.status === 429 && payload?.reply) {
+        if (response.status === 429 && isChatResponse(payload)) {
           appendAssistantMessage(payload.reply, []);
           return;
         }
 
-        if (!response.ok || !payload) {
-          appendAssistantMessage('Asistan şu anda yanıt veremiyor. Lütfen biraz sonra tekrar dene.', []);
+        if (!response.ok) {
+          appendAssistantMessage(
+            isChatResponse(payload) ? payload.reply : 'Pingo şu anda yanıt veremiyor. Lütfen biraz sonra tekrar dene.',
+            [],
+          );
           return;
         }
 
-        appendAssistantMessage(payload.reply, payload.results ?? []);
-      } catch {
-        appendAssistantMessage('Bağlantı kurulamadı. Lütfen tekrar dene.', []);
+        if (!isChatResponse(payload)) {
+          appendAssistantMessage('Pingo beklenmeyen bir yanıt aldı. Lütfen biraz sonra tekrar dene.', []);
+          return;
+        }
+
+        appendAssistantMessage(payload.reply, payload.results);
+      } catch (caughtError) {
+        const message =
+          caughtError instanceof DOMException && caughtError.name === 'AbortError'
+            ? 'Pingo yanıtı zamanında alamadı. Lütfen tekrar dene.'
+            : 'Bağlantı kurulamadı. Lütfen tekrar dene.';
+        appendAssistantMessage(message, []);
       } finally {
+        window.clearTimeout(timeout);
         isSending = false;
         form.querySelector<HTMLButtonElement>('button[type="submit"]')?.removeAttribute('disabled');
+        input.removeAttribute('disabled');
         render();
         input.focus();
       }
@@ -274,20 +298,24 @@
   }
 
   function persistMessages(): void {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-MAX_MESSAGES)));
+    try {
+      window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-MAX_MESSAGES)));
+    } catch {
+      setError('Bu tarayıcı oturum geçmişini kaydedemiyor.');
+    }
   }
 
   function appendAssistantMessage(text: string, results: ChatResponse['results']): void {
+    const safeText = typeof text === 'string' && text.trim()
+      ? text.slice(0, 2000)
+      : 'Pingo şu anda yanıt veremiyor. Lütfen biraz sonra tekrar dene.';
+
     messages = trimMessages([
       ...messages,
       {
         role: 'assistant',
-        text,
-        results: results.map((result) => ({
-          title: result.title,
-          href: result.href,
-          meta: result.meta,
-        })),
+        text: safeText,
+        results: sanitizeResults(results),
       },
     ]);
     persistMessages();
@@ -418,5 +446,31 @@
   function setError(message: string): void {
     if (!error) return;
     error.textContent = message;
+  }
+
+  function isChatResponse(value: unknown): value is ChatResponse {
+    if (!value || typeof value !== 'object') return false;
+    const candidate = value as Partial<ChatResponse>;
+    return typeof candidate.reply === 'string' && Array.isArray(candidate.results);
+  }
+
+  function sanitizeResults(results: ChatResponse['results'] | undefined): NonNullable<ChatMessage['results']> {
+    if (!Array.isArray(results)) return [];
+
+    return results
+      .filter(
+        (result) =>
+          result &&
+          typeof result === 'object' &&
+          typeof result.title === 'string' &&
+          typeof result.href === 'string' &&
+          typeof result.meta === 'string',
+      )
+      .slice(0, 8)
+      .map((result) => ({
+        title: result.title.slice(0, 160),
+        href: result.href.startsWith('/metin-bankasi/') ? result.href : '/metin-bankasi',
+        meta: result.meta.slice(0, 240),
+      }));
   }
 </script>

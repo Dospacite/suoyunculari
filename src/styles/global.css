@@ -264,8 +264,8 @@ img {
 
 .section-heading {
   display: grid;
-  gap: 12px;
-  margin-bottom: 34px;
+  gap: 8px;
+  margin-bottom: 28px;
   max-width: 780px;
   min-width: 0;
 }
@@ -278,11 +278,12 @@ img {
 
 .section-heading h1,
 .section-heading h2 {
-  font-size: clamp(2.5rem, 9vw, 6.8rem);
-  line-height: 0.9;
+  font-size: clamp(2.1rem, 6vw, 4.8rem);
+  line-height: 0.95;
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   text-transform: uppercase;
+  word-break: normal;
 }
 
 .section-heading p {
@@ -721,6 +722,70 @@ textarea:focus {
   padding: 26px 14px;
 }
 
+.play-thumbnail-grid {
+  align-items: stretch;
+  border-top: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px 22px;
+  justify-content: center;
+}
+
+.play-thumbnail-grid .play-row {
+  border: 1px solid var(--line);
+  display: flex;
+  flex: 0 1 100%;
+  min-width: 0;
+}
+
+.play-thumbnail-grid .play-row:hover {
+  background: #fff;
+  border-color: rgba(196, 20, 34, 0.45);
+}
+
+.play-thumbnail-grid .play-row a {
+  align-content: start;
+  display: grid;
+  gap: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.play-card-year {
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  padding: 14px 16px 10px;
+  text-transform: uppercase;
+}
+
+.play-thumbnail-grid img,
+.play-card-fallback {
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  width: 100%;
+}
+
+.play-card-fallback {
+  background:
+    linear-gradient(135deg, rgba(13, 13, 15, 0.96), rgba(21, 95, 159, 0.86)),
+    radial-gradient(circle at 68% 22%, rgba(255, 255, 255, 0.22), transparent 31%);
+}
+
+.play-card-copy {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 18px 16px 20px;
+}
+
+.play-card-copy .play-card-author {
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+
 .play-row h2,
 .idea-row h2,
 .article-list h2 {
@@ -731,6 +796,12 @@ textarea:focus {
   text-transform: uppercase;
 }
 
+.play-thumbnail-grid .play-row h2 {
+  font-size: clamp(1.28rem, 3vw, 1.9rem);
+  line-height: 1;
+  margin: 0;
+}
+
 .play-row p,
 .idea-row p,
 .article-list p {
@@ -738,6 +809,16 @@ textarea:focus {
   line-height: 1.65;
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.play-thumbnail-grid .play-row p {
+  display: -webkit-box;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
 }
 
 .play-row a > div,
@@ -1009,20 +1090,29 @@ dd {
 }
 
 .assistant-toggle {
+  align-items: center;
   background: var(--accent);
   border: 0;
   color: #fff;
   cursor: pointer;
+  display: inline-flex;
+  gap: 8px;
   font: inherit;
   font-size: 0.78rem;
   font-weight: 900;
   min-height: 46px;
-  min-width: 104px;
+  min-width: 112px;
+  padding: 0 14px 0 10px;
   pointer-events: auto;
   text-transform: none;
   transition:
     background 160ms ease,
     transform 160ms ease;
+}
+
+.assistant-toggle img {
+  height: 30px;
+  width: 30px;
 }
 
 .assistant-toggle:hover {
@@ -1058,9 +1148,17 @@ dd {
   padding: 16px;
 }
 
-.assistant-header .kicker {
-  margin-bottom: 4px;
-  text-transform: none;
+.assistant-identity {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.assistant-identity img {
+  flex: 0 0 auto;
+  height: 38px;
+  width: 38px;
 }
 
 .assistant-header h2 {
@@ -1068,6 +1166,14 @@ dd {
   line-height: 1;
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.assistant-identity span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  margin-top: 3px;
 }
 
 .assistant-actions {
@@ -1428,6 +1534,10 @@ dd {
     grid-template-columns: minmax(0, 1fr) repeat(3, minmax(0, 170px));
   }
 
+  .play-thumbnail-grid .play-row {
+    flex-basis: calc((100% - 22px) / 2);
+  }
+
   .tool-tile span {
     font-size: clamp(2.4rem, 5.2vw, 4rem);
   }
@@ -1469,6 +1579,10 @@ dd {
   .home-play-grid.centered {
     grid-template-columns: repeat(var(--home-play-count), minmax(0, 360px));
     justify-content: center;
+  }
+
+  .play-thumbnail-grid .play-row {
+    flex-basis: calc((100% - 44px) / 3);
   }
 
   .section {

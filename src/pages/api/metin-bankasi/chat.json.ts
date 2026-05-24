@@ -51,9 +51,11 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const MAX_HISTORY_MESSAGES = 8;
 const MAX_MESSAGE_LENGTH = 1000;
 const MAX_TOTAL_MESSAGE_LENGTH = MAX_HISTORY_MESSAGES * MAX_MESSAGE_LENGTH;
+const MAX_REQUEST_BYTES = 12_000;
+const GEMINI_TIMEOUT_MS = 18_000;
 const rateLimitBuckets = new Map<string, number[]>();
 
-const SYSTEM_INSTRUCTION = `You are the SUOyuncuları Metin Bankası assistant.
+const SYSTEM_INSTRUCTION = `You are Pingo, the SUOyuncuları Metin Bankası assistant.
 
 Your only job is to help users find plays and musicals from the local Metin Bankası database.
 
@@ -110,24 +112,29 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return json(
-      {
-        reply: 'Asistan şu anda yapılandırılmamış. Lütfen daha sonra tekrar dene.',
-        results: [],
-      },
-      503,
-    );
-  }
-
   const contentType = request.headers.get('content-type') ?? '';
   if (!contentType.toLowerCase().includes('application/json')) {
     return json({ reply: 'Geçersiz istek.', results: [] }, 400);
   }
 
+  const contentLength = Number(request.headers.get('content-length') ?? 0);
+  if (contentLength > MAX_REQUEST_BYTES) {
+    return json({ reply: 'Mesaj çok uzun.', results: [] }, 400);
+  }
+
   const messages = await parseMessages(request);
   if (!messages.ok) return json({ reply: messages.error, results: [] }, 400);
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return json(
+      {
+        reply: 'Pingo şu anda yapılandırılmamış. Lütfen daha sonra tekrar dene.',
+        results: [],
+      },
+      503,
+    );
+  }
 
   try {
     const contents = toGeminiContents(messages.value);
@@ -180,25 +187,22 @@ export const POST: APIRoute = async ({ request }) => {
         },
       ],
       false,
-    );
+    ).catch((error) => {
+      console.error('Metin Bankasi assistant finalization failed:', safeError(error));
+      return null;
+    });
 
     return json({
       reply:
-        extractText(secondResponse) ||
+        (secondResponse ? extractText(secondResponse) : '') ||
         (results.length > 0
-          ? 'Bu aramaya uygun kayıtlar buldum.'
+          ? 'Pingo bu aramaya uygun kayıtlar buldu.'
           : 'Bu ölçütlerle eşleşen bir oyun bulamadım. Kadro, tür veya süreyi genişletmeyi deneyebilirsin.'),
       results,
     });
   } catch (error) {
     console.error('Metin Bankasi assistant failed:', safeError(error));
-    return json(
-      {
-        reply: 'Asistan şu anda yanıt veremiyor. Lütfen biraz sonra tekrar dene.',
-        results: [],
-      },
-      500,
-    );
+    return fallbackSearchResponse(messages.value);
   }
 };
 
@@ -260,29 +264,42 @@ function toGeminiContents(messages: ChatMessage[]): GeminiContent[] {
 
 async function callGemini(apiKey: string, contents: GeminiContent[], includeTools: boolean): Promise<GeminiResponse> {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: SYSTEM_INSTRUCTION }],
-      },
-      contents,
-      tools: includeTools ? [toolDeclaration] : undefined,
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 700,
-      },
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
 
-  if (!response.ok) {
-    throw new Error(`Gemini request failed with ${response.status}`);
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: SYSTEM_INSTRUCTION }],
+        },
+        contents,
+        tools: includeTools ? [toolDeclaration] : undefined,
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 700,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini request failed with ${response.status}`);
+    }
+
+    const payload = (await response.json().catch(() => null)) as GeminiResponse | null;
+    if (!isGeminiResponse(payload)) {
+      throw new Error('Gemini returned an invalid response');
+    }
+
+    return payload;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return (await response.json()) as GeminiResponse;
 }
 
 function getFunctionCall(response: GeminiResponse): GeminiPart['functionCall'] | undefined {
@@ -295,7 +312,7 @@ function extractText(response: GeminiResponse): string {
       ?.map((part) => part.text)
       .filter(Boolean)
       .join('\n') ?? '',
-  );
+  ).slice(0, 2000);
 }
 
 function sanitizeToolArgs(args: Record<string, unknown>): TextBankAssistantSearchOptions {
@@ -419,11 +436,52 @@ function safeError(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
 }
 
+function isGeminiResponse(value: unknown): value is GeminiResponse {
+  if (!value || typeof value !== 'object') return false;
+  const candidates = (value as GeminiResponse).candidates;
+  return candidates === undefined || Array.isArray(candidates);
+}
+
+async function fallbackSearchResponse(messages: ChatMessage[]): Promise<Response> {
+  const lastUserMessage = [...messages].reverse().find((message) => message.role === 'user')?.text ?? '';
+
+  try {
+    const playedReferences = await getPlayedTextBankReferences();
+    const plays = await searchTextBankForAssistant({
+      query: lastUserMessage.slice(0, 300),
+      pageSize: 6,
+      playedReferences,
+    });
+    const results = plays.map(toAssistantResult);
+
+    return json(
+      {
+        reply:
+          results.length > 0
+            ? 'Pingo şu anda kısa yanıt modunda. Mesajına yakın Metin Bankası kayıtlarını aşağıda listeledim.'
+            : 'Pingo şu anda yanıt veremiyor. Bu aramayla eşleşen bir kayıt da bulamadım; lütfen biraz sonra tekrar dene.',
+        results,
+      },
+      results.length > 0 ? 200 : 500,
+    );
+  } catch (fallbackError) {
+    console.error('Metin Bankasi assistant fallback failed:', safeError(fallbackError));
+    return json(
+      {
+        reply: 'Pingo şu anda yanıt veremiyor. Lütfen biraz sonra tekrar dene.',
+        results: [],
+      },
+      500,
+    );
+  }
+}
+
 function json(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
     headers: {
       'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
     },
   });
 }

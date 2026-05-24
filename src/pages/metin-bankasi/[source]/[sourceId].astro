@@ -19,7 +19,6 @@ const sourceLabels: Record<string, string> = {
 
 const sourceLabel = sourceLabels[play?.source ?? ''] ?? 'Kaynak';
 const authorText = play?.authors?.map((author) => author.name).filter(Boolean).join(', ') || 'Belirsiz';
-const genreText = play?.genres?.join(', ') || play?.play_type || 'Metin';
 const duration = play?.duration_text || (play?.duration_minutes ? `${play.duration_minutes} dk` : 'Belirsiz');
 ---
 
@@ -29,9 +28,7 @@ const duration = play?.duration_text || (play?.duration_minutes ? `${play.durati
       play ? (
         <article class="section-inner">
           <div class="section-heading">
-            <p class="kicker">{genreText}</p>
             <h1>{play.title}</h1>
-            <p>{play.summary_text || 'Bu metin için özet bilgisi bulunmuyor.'}</p>
             {play.source_url && (
               <a class="button detail-source-button" href={play.source_url} target="_blank" rel="noreferrer">
                 {`See in ${sourceLabel}`}
@@ -94,9 +91,7 @@ const duration = play?.duration_text || (play?.duration_minutes ? `${play.durati
       ) : (
         <article class="section-inner">
           <div class="section-heading">
-            <p class="kicker">404</p>
             <h1>Metin bulunamadı</h1>
-            <p>Bu metin kaydı henüz yüklenmemiş veya kaldırılmış.</p>
           </div>
         </article>
       )

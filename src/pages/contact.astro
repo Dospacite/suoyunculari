@@ -1,11 +1,9 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { getContactItems, getPageByKey, getPages, textContent } from '@/lib/directus';
+import { getContactItems, getPageByKey, getPages } from '@/lib/directus';
 
 const page = getPageByKey(await getPages(), 'contact');
 const contactItems = await getContactItems();
-const pageText =
-  textContent(page?.content) || 'Prova, gösterim, iş birliği ve arşiv soruları için bize ulaşabilirsiniz.';
 const email = contactItems.find((item) => item.type === 'email');
 const address = contactItems.find((item) => item.type === 'address');
 const mapItem = contactItems.find((item) => item.type === 'map');
@@ -21,9 +19,7 @@ const mapSrc =
     <div class="section-inner contact-layout">
       <div>
         <div class="section-heading contact-heading">
-          <p class="kicker">İletişim</p>
           <h1>{page?.title || 'İletişim'}</h1>
-          <p>{pageText}</p>
         </div>
         <div class="contact-list">
           {

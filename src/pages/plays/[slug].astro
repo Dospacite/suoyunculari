@@ -43,9 +43,7 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
       play ? (
         <article class="section-inner">
           <div class="section-heading">
-            <p class="kicker">{genres.join(', ') || 'Oyun'}</p>
             <h1>{play.title}</h1>
-            <p>{play.summary}</p>
             <div class="button-row">
               {scriptHref && (
                 <a class="button detail-source-button" href={scriptHref}>
@@ -103,9 +101,7 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
 
           <section class="related-section" aria-labelledby="stagings-heading">
             <div class="section-heading small-heading">
-              <p class="kicker" id="stagings-heading">Sahnelemeler</p>
               <h2>Gösterim ve Üretim Notları</h2>
-              <p>Her sahneleme kendi tarih, mekan, ekip notu, fotoğraf ve bilet bilgileriyle ayrı tutulur.</p>
             </div>
 
             {stagings.length > 0 ? (
@@ -186,9 +182,7 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
       ) : (
         <article class="section-inner">
           <div class="section-heading">
-            <p class="kicker">404</p>
             <h1>Oyun bulunamadı</h1>
-            <p>Bu oyun yayınlanmamış veya mevcut değil.</p>
           </div>
         </article>
       )

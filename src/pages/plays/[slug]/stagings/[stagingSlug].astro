@@ -34,9 +34,7 @@ const castText = play?.cast || staging?.cast_notes;
       staging && play ? (
         <article class="section-inner">
           <div class="section-heading">
-            <p class="kicker">{play.title}</p>
             <h1>{staging.title}</h1>
-            <p>{staging.summary || play.summary}</p>
             <div class="button-row">
               <a class="button detail-source-button" href={`/plays/${play.slug}`}>
                 Oyun Detayı
@@ -84,7 +82,6 @@ const castText = play?.cast || staging?.cast_notes;
           {staging.photos && staging.photos.length > 0 && (
             <section class="related-section" aria-labelledby="photos-heading">
               <div class="section-heading small-heading">
-                <p class="kicker" id="photos-heading">Fotoğraflar</p>
                 <h2>Sahneleme Arşivi</h2>
               </div>
               <div class="photo-grid">
@@ -104,9 +101,7 @@ const castText = play?.cast || staging?.cast_notes;
       ) : (
         <article class="section-inner">
           <div class="section-heading">
-            <p class="kicker">404</p>
             <h1>Sahneleme bulunamadı</h1>
-            <p>Bu sahneleme yayınlanmamış veya mevcut değil.</p>
           </div>
         </article>
       )

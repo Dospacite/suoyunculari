@@ -15,17 +15,11 @@ const plays = author ? (await getPlays()).filter((play) => play.author?.slug ===
       author ? (
         <article class="section-inner">
           <div class="section-heading">
-            <p class="kicker">{author.country || 'Author'}</p>
             <h1>{author.name}</h1>
-            <p>
-              {[author.birth_year, author.death_year].filter(Boolean).join(' - ') ||
-                'Author record'}
-            </p>
           </div>
           <p class="prose">{author.bio}</p>
 
           <section class="section-heading" style="margin-top: 56px;">
-            <p class="kicker">Plays</p>
             <h2>In the archive</h2>
           </section>
           <div class="article-list">
@@ -46,9 +40,7 @@ const plays = author ? (await getPlays()).filter((play) => play.author?.slug ===
       ) : (
         <article class="section-inner">
           <div class="section-heading">
-            <p class="kicker">404</p>
             <h1>Author not found</h1>
-            <p>This author does not exist.</p>
           </div>
         </article>
       )

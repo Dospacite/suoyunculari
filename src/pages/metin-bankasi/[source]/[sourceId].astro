@@ -17,87 +17,210 @@ const sourceLabels: Record<string, string> = {
   drama_online_library: 'Drama Online',
 };
 
-const sourceLabel = play?.source ? (sourceLabels[play.source] ?? play.source) : undefined;
+const sourceLabel = play?.source ? (sourceLabels[play.source] ?? play.source) : 'Source';
 const authorText = play?.authors?.map((author) => author.name).filter(Boolean).join(', ');
 const duration = play?.duration_text || (play?.duration_minutes ? `${play.duration_minutes} dk` : undefined);
-const noteItems = [...(play?.themes ?? []), ...(play?.features ?? [])];
-const taxonomyItems = [...(play?.genres ?? []), ...(play?.tags ?? [])];
+const titleLine = [play?.play_type, play?.genres?.join(', ')].filter(Boolean).join(', ');
+const castLine = play?.casting_text || formatCastRange(play);
+const topFacts = [
+  castLine ? { label: 'Cast Size', value: castLine } : undefined,
+  duration ? { label: 'Duration', value: duration } : undefined,
+  play?.subgenres?.length ? { label: 'Subgenre', value: play.subgenres.join(', ') } : undefined,
+  play?.target_audience ? { label: 'Target Audience', value: play.target_audience } : undefined,
+].filter((item): item is { label: string; value: string } => Boolean(item));
+const detailFacts = [
+  play?.themes?.length ? { label: 'Keywords', items: play.themes } : undefined,
+  play?.features?.length ? { label: 'Cast Attributes', items: play.features } : undefined,
+  play?.performance_groups?.length ? { label: 'Performing Groups', items: play.performance_groups } : undefined,
+  play?.cautions?.length ? { label: 'Content Notes', items: play.cautions } : undefined,
+].filter((item): item is { label: string; items: string[] } => Boolean(item));
+const taxonomyItems = [...(play?.genres ?? []), ...(play?.subgenres ?? []), ...(play?.tags ?? [])];
+const summaryHtml = sanitizeTextBankHtml(play?.summary_html || '');
+const descriptionHtml = sanitizeTextBankHtml(play?.full_description_html || '');
+const settingHtml = sanitizeTextBankHtml(play?.setting_html || '');
+const primaryImage = play?.image_urls?.[0];
+
+function formatCastRange(item?: typeof play): string | undefined {
+  if (!item) return undefined;
+  if (item.min_cast_size && item.max_cast_size && item.min_cast_size !== item.max_cast_size) {
+    return `${item.min_cast_size}-${item.max_cast_size}`;
+  }
+  if (item.min_cast_size || item.max_cast_size) return String(item.min_cast_size || item.max_cast_size);
+  return undefined;
+}
+
+function sanitizeTextBankHtml(value: string): string {
+  return value
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+    .replace(/\s(href|src)=["']javascript:[^"']*["']/gi, '');
+}
 ---
 
 <BaseLayout title={play?.title ?? 'Metin bulunamadı'} description={play?.summary_text}>
   <main class="section compact">
     {
       play ? (
-        <article class="section-inner">
-          <div class="section-heading">
-            <h1>{play.title}</h1>
-            {play.source_url && (
-              <a class="button detail-source-button" href={play.source_url} target="_blank" rel="noreferrer">
-                {`See in ${sourceLabel}`}
-              </a>
-            )}
-          </div>
-
-          <div class="detail-meta">
-            {authorText && (
-              <div>
-                <dt>Yazar</dt>
-                <dd>{authorText}</dd>
-              </div>
-            )}
-            {play.casting_text && (
-              <div>
-                <dt>Kadro</dt>
-                <dd>{play.casting_text}</dd>
-              </div>
-            )}
-            {duration && (
-              <div>
-                <dt>Süre</dt>
-                <dd>{duration}</dd>
-              </div>
-            )}
-            {sourceLabel && (
-              <div>
-                <dt>Kaynak</dt>
-                <dd>{sourceLabel}</dd>
-              </div>
-            )}
-          </div>
-
-          <div class="split">
-            {(play.rights_status || play.licensing_fee_text) && (
-              <div>
-                <p class="kicker">Haklar</p>
-                {play.rights_status && <p class="prose">{play.rights_status}</p>}
-                {play.licensing_fee_text && <p class="prose">{play.licensing_fee_text}</p>}
-              </div>
-            )}
-            {(noteItems.length > 0 || taxonomyItems.length > 0) && (
-              <div>
-                {noteItems.length > 0 && (
-                  <>
-                    <p class="kicker">Notlar</p>
-                    <p class="prose">{noteItems.join(', ')}</p>
-                  </>
+        <article class="section-inner text-detail">
+          <header class="text-detail-hero">
+            <div class="text-detail-copy">
+              {titleLine && <p class="kicker">{titleLine}</p>}
+              <h1>{play.title}</h1>
+              {authorText && <p class="text-detail-byline">{authorText}</p>}
+              {play.summary_text && <p class="text-detail-lead">{play.summary_text}</p>}
+              <div class="text-detail-actions">
+                {play.source_url && (
+                  <a class="button detail-source-button" href={play.source_url} target="_blank" rel="noreferrer">
+                    {`See in ${sourceLabel}`}
+                  </a>
                 )}
-                {taxonomyItems.length > 0 && (
-                  <div class="taxonomy">
-                    {taxonomyItems.map((item) => <span>{item}</span>)}
-                  </div>
-                )}
+                {play.sample_pdf_urls?.map((url) => (
+                  <a class="button secondary" href={url} target="_blank" rel="noreferrer">
+                    Script
+                  </a>
+                ))}
               </div>
+            </div>
+            {primaryImage && <img class="text-detail-image" src={primaryImage} alt={play.title} loading="lazy" />}
+          </header>
+
+          {topFacts.length > 0 && (
+            <dl class="text-detail-facts">
+              {topFacts.map((item) => (
+                <div>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          <nav class="text-detail-jump" aria-label="Sayfa bölümleri">
+            <a href="#details">Details</a>
+            <a href="#materials">Materials</a>
+            <a href="#authors">Authors</a>
+            {relatedPosts.length > 0 && <a href="#related-posts">Blog</a>}
+          </nav>
+
+          <section class="text-detail-section" id="details">
+            <h2>Details</h2>
+            {(summaryHtml || play.summary_text) && (
+              <section>
+                <h3>Summary</h3>
+                {summaryHtml ? (
+                  <div class="markdown-content" set:html={summaryHtml} />
+                ) : (
+                  <p class="prose">{play.summary_text}</p>
+                )}
+              </section>
             )}
-          </div>
+            {descriptionHtml && (
+              <section>
+                <h3>Description</h3>
+                <div class="markdown-content" set:html={descriptionHtml} />
+              </section>
+            )}
+            {detailFacts.map((group) => (
+              <section>
+                <h3>{group.label}</h3>
+                <div class="taxonomy">
+                  {group.items.map((item) => <span>{item}</span>)}
+                </div>
+              </section>
+            ))}
+            {(play.setting_html || play.duration_text || play.play_type) && (
+              <section>
+                <h3>Production Notes</h3>
+                <dl class="text-detail-mini-facts">
+                  {play.play_type && (
+                    <div>
+                      <dt>Type</dt>
+                      <dd>{play.play_type}</dd>
+                    </div>
+                  )}
+                  {duration && (
+                    <div>
+                      <dt>Duration</dt>
+                      <dd>{duration}</dd>
+                    </div>
+                  )}
+                  {settingHtml && (
+                    <div>
+                      <dt>Setting</dt>
+                      <dd><span set:html={settingHtml}></span></dd>
+                    </div>
+                  )}
+                </dl>
+              </section>
+            )}
+            {taxonomyItems.length > 0 && (
+              <section>
+                <h3>Genres & Tags</h3>
+                <div class="taxonomy">
+                  {taxonomyItems.map((item) => <span>{item}</span>)}
+                </div>
+              </section>
+            )}
+          </section>
+
+          <section class="text-detail-section" id="materials">
+            <h2>Materials</h2>
+            <dl class="text-detail-mini-facts">
+              {play.imprint && (
+                <div>
+                  <dt>Imprint</dt>
+                  <dd>{play.imprint}</dd>
+                </div>
+              )}
+              {play.isbn && (
+                <div>
+                  <dt>ISBN</dt>
+                  <dd>{play.isbn}</dd>
+                </div>
+              )}
+              {play.sample_pdf_urls?.length ? (
+                <div>
+                  <dt>Scripts</dt>
+                  <dd>
+                    {play.sample_pdf_urls.map((url, index) => (
+                      <a href={url} target="_blank" rel="noreferrer">{`Script ${index + 1}`}</a>
+                    ))}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </section>
+
+          {play.authors?.length ? (
+            <section class="text-detail-section" id="authors">
+              <h2>Authors</h2>
+              <div class="article-list compact-list">
+                {play.authors.map((author) => (
+                  <article>
+                    <div>
+                      <h3>{author.name}</h3>
+                      {author.source_url && (
+                        <a href={author.source_url} target="_blank" rel="noreferrer">
+                          Profile
+                        </a>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           {relatedPosts.length > 0 && (
-            <section class="related-section" aria-labelledby="related-blog-heading">
-              <p class="kicker" id="related-blog-heading">Blog</p>
+            <section class="text-detail-section" id="related-posts" aria-labelledby="related-blog-heading">
+              <h2 id="related-blog-heading">Blog</h2>
               <div class="article-list compact-list">
                 {relatedPosts.map((post) => (
                   <a href={`/blog/${post.slug}`}>
                     {post.author_name && <p class="kicker">{post.author_name}</p>}
-                    <h2>{post.title}</h2>
+                    <h3>{post.title}</h3>
                     {post.excerpt && <p>{post.excerpt}</p>}
                   </a>
                 ))}

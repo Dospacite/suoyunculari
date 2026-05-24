@@ -539,7 +539,16 @@ function buildTextBankWhereClause({
       const vector = "to_tsvector('english', search_text)";
       const tsQuery = `websearch_to_tsquery('english', ${searchParam})`;
       where.push(`${vector} @@ ${tsQuery}`);
-      rankExpression = `ts_rank_cd(${vector}, ${tsQuery}) AS rank`;
+      rankExpression = `(
+        CASE
+          WHEN lower(title) = lower(${searchParam}) THEN 500
+          WHEN lower(title) LIKE lower(${searchParam}) || '%' THEN 420
+          WHEN lower(title) LIKE '%' || lower(${searchParam}) || '%' THEN 360
+          WHEN ${authorContainsSql(searchParam)} THEN 260
+          WHEN ${descriptionContainsSql(searchParam)} THEN 140
+          ELSE 0
+        END + ts_rank_cd(${vector}, ${tsQuery})
+      )::real AS rank`;
     }
   }
 
@@ -604,22 +613,37 @@ function exactTextBankMatchSql(searchParam: string): string {
     OR lower(title) LIKE lower(${searchParam}) || '%'
     OR lower(title) LIKE '%' || lower(${searchParam}) || '%'
     OR source_id = ${searchParam}
-    OR EXISTS (
-      SELECT 1
-      FROM jsonb_array_elements(CASE WHEN jsonb_typeof(authors::jsonb) = 'array' THEN authors::jsonb ELSE '[]'::jsonb END) AS author
-      WHERE lower(author->>'name') LIKE '%' || lower(${searchParam}) || '%'
-    )
+    OR ${authorContainsSql(searchParam)}
+    OR ${descriptionContainsSql(searchParam)}
   )`;
 }
 
 function exactTextBankRankSql(searchParam: string): string {
   return `CASE
-    WHEN lower(title) = lower(${searchParam}) THEN 100
-    WHEN lower(title) LIKE lower(${searchParam}) || '%' THEN 80
-    WHEN lower(title) LIKE '%' || lower(${searchParam}) || '%' THEN 60
-    WHEN source_id = ${searchParam} THEN 50
+    WHEN lower(title) = lower(${searchParam}) THEN 500
+    WHEN lower(title) LIKE lower(${searchParam}) || '%' THEN 420
+    WHEN lower(title) LIKE '%' || lower(${searchParam}) || '%' THEN 360
+    WHEN ${authorContainsSql(searchParam)} THEN 260
+    WHEN source_id = ${searchParam} THEN 220
+    WHEN ${descriptionContainsSql(searchParam)} THEN 140
     ELSE 20
   END::real AS rank`;
+}
+
+function authorContainsSql(searchParam: string): string {
+  return `EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(CASE WHEN jsonb_typeof(authors::jsonb) = 'array' THEN authors::jsonb ELSE '[]'::jsonb END) AS author
+    WHERE lower(author->>'name') LIKE '%' || lower(${searchParam}) || '%'
+  )`;
+}
+
+function descriptionContainsSql(searchParam: string): string {
+  return `(
+    lower(coalesce(summary_text, '')) LIKE '%' || lower(${searchParam}) || '%'
+    OR lower(coalesce(summary_html, '')) LIKE '%' || lower(${searchParam}) || '%'
+    OR lower(coalesce(full_description_html, '')) LIKE '%' || lower(${searchParam}) || '%'
+  )`;
 }
 
 function emptySearchResult(page: number, pageSize: number, databaseReady: boolean): ConcordSearchResult {

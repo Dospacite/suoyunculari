@@ -45,7 +45,6 @@ const postBodyHtml = renderMarkdown(post?.body);
                       reference.source_id || '',
                     )}`}
                   >
-                    {reference.source && <p class="kicker">{reference.source.replaceAll('_', ' ')}</p>}
                     {(reference.title || reference.source_id) && <h2>{reference.title || reference.source_id}</h2>}
                     {reference.source_url && <p>{reference.source_url}</p>}
                   </a>
@@ -60,11 +59,11 @@ const postBodyHtml = renderMarkdown(post?.body);
               <div class="article-list compact-list">
                 {post.related_books.map((book) => (
                   <article>
-                    {book.category && <p class="kicker">{book.category}</p>}
-                    <h2>{book.title}</h2>
-                    {[book.author, book.publisher, book.location].filter(Boolean).length > 0 && (
-                      <p>{[book.author, book.publisher, book.location].filter(Boolean).join(' / ')}</p>
+                    {[book.category, book.author].filter(Boolean).length > 0 && (
+                      <p class="kicker">{[book.category, book.author].filter(Boolean).join(' / ')}</p>
                     )}
+                    <h2>{book.title}</h2>
+                    {book.notes && <p>{book.notes}</p>}
                   </article>
                 ))}
               </div>

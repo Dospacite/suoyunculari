@@ -2,13 +2,7 @@
   <div class="browser-tools">
     <label>
       <span>Arama</span>
-      <input id="concord-search" type="search" placeholder="Başlık, yazar, tür, tema" autocomplete="off" />
-    </label>
-    <label>
-      <span>Kaynak</span>
-      <select id="concord-source-filter">
-        <option value="">Tümü</option>
-      </select>
+      <input id="concord-search" type="search" placeholder="Tiyatro metinleri ara" autocomplete="off" />
     </label>
     <label>
       <span>Tür</span>
@@ -142,9 +136,12 @@
     authors?: ConcordAuthor[];
     play_type?: string;
     genres?: string[];
+    subgenres?: string[];
+    tags?: string[];
     duration_text?: string;
     duration_minutes?: number;
     casting_text?: string;
+    target_audience?: string;
     played?: boolean;
     played_play_slug?: string;
     played_play_title?: string;
@@ -164,12 +161,10 @@
     performanceGroups: string[];
     features: string[];
     cautions: string[];
-    sources: string[];
     databaseReady: boolean;
   };
 
   const searchInput = document.querySelector<HTMLInputElement>('#concord-search');
-  const sourceSelect = document.querySelector<HTMLSelectElement>('#concord-source-filter');
   const genreSelect = document.querySelector<HTMLSelectElement>('#concord-genre-filter');
   const playTypeSelect = document.querySelector<HTMLSelectElement>('#concord-play-type-filter');
   const subgenreSelect = document.querySelector<HTMLSelectElement>('#concord-subgenre-filter');
@@ -219,7 +214,6 @@
 
     const params = new URLSearchParams({
       q: searchInput?.value.trim() || '',
-      source: sourceSelect?.value || '',
       playType: playTypeSelect?.value || '',
       genre: genreSelect?.value || '',
       subgenre: subgenreSelect?.value || '',
@@ -242,7 +236,6 @@
       currentPage = payload.page;
 
       updateGenres(payload.genres);
-      updateSources(payload.sources);
       updateSelect(playTypeSelect, payload.playTypes);
       updateSelect(subgenreSelect, payload.subgenres);
       updateSelect(themeSelect, payload.themes);
@@ -258,19 +251,6 @@
       pager.hidden = true;
       status.textContent = 'Veritabanı bağlantısı kurulamadı.';
     }
-  }
-
-  function updateSources(sources: string[]) {
-    if (!sourceSelect) return;
-    const selected = sourceSelect.value;
-    const options = ['<option value="">Tümü</option>'];
-
-    for (const source of sources) {
-      options.push(`<option value="${escapeAttribute(source)}">${escapeHtml(sourceLabel(source))}</option>`);
-    }
-
-    sourceSelect.innerHTML = options.join('');
-    sourceSelect.value = sources.includes(selected) ? selected : '';
   }
 
   function updateGenres(genres: string[]) {
@@ -297,7 +277,6 @@
 
     const hasActiveSearch =
       Boolean(searchInput?.value.trim()) ||
-      Boolean(sourceSelect?.value) ||
       Boolean(playTypeSelect?.value) ||
       Boolean(genreSelect?.value) ||
       Boolean(subgenreSelect?.value) ||
@@ -324,28 +303,31 @@
   }
 
   function renderPlay(play: ConcordPlay) {
-    const sourceText = sourceLabel(play.source || 'concord_theatricals');
     const authorText = play.authors?.map((author) => author.name).filter(Boolean).join(', ');
-    const genreText = play.genres?.join(', ') || play.play_type || '';
+    const taxonomyItems = [...(play.genres ?? []), ...(play.subgenres ?? [])].filter(Boolean).slice(0, 8);
     const href = `/metin-bankasi/${encodeURIComponent(play.source || 'concord_theatricals')}/${encodeURIComponent(play.source_id)}`;
     const duration = play.duration_text || (play.duration_minutes ? `${play.duration_minutes} dk` : '');
     const playedBadge = play.played
       ? `<span class="played-badge" title="${escapeAttribute(play.played_play_title || 'Oynandı')}">★ Oynandı</span>`
       : '';
+    const typeBadge = play.play_type ? `<span>${escapeHtml(play.play_type)}</span>` : '';
+    const taxonomy = taxonomyItems.length > 0
+      ? `<div class="taxonomy text-bank-taxonomy">${taxonomyItems.map((item) => `<span>${escapeHtml(item)}</span>`).join('')}</div>`
+      : '';
     const metaRows = [
-      authorText ? `<div><dt>Yazar</dt><dd>${escapeHtml(authorText)}</dd></div>` : '',
-      sourceText ? `<div><dt>Kaynak</dt><dd>${escapeHtml(sourceText)}</dd></div>` : '',
-      play.casting_text ? `<div><dt>Kadro</dt><dd>${escapeHtml(play.casting_text)}</dd></div>` : '',
-      duration ? `<div><dt>Süre</dt><dd>${escapeHtml(duration)}</dd></div>` : '',
+      play.casting_text ? `<div><dt>${icon('users')}Kadro</dt><dd>${escapeHtml(play.casting_text)}</dd></div>` : '',
+      duration ? `<div><dt>${icon('clock')}Süre</dt><dd>${escapeHtml(duration)}</dd></div>` : '',
+      play.target_audience ? `<div><dt>${icon('target')}Hedef</dt><dd>${escapeHtml(play.target_audience)}</dd></div>` : '',
     ].join('');
 
     return `
       <article class="play-row">
         <a href="${escapeAttribute(href)}">
           <div>
-            ${genreText || playedBadge ? `<p class="kicker row-kicker">${escapeHtml(genreText)}${playedBadge}</p>` : ''}
+            ${authorText || playedBadge ? `<p class="kicker row-kicker">${escapeHtml(authorText || '')}${playedBadge}</p>` : ''}
             <h2>${escapeHtml(play.title)}</h2>
             ${play.summary_text ? `<p>${escapeHtml(play.summary_text)}</p>` : ''}
+            ${taxonomy || (typeBadge ? `<div class="taxonomy text-bank-taxonomy">${typeBadge}</div>` : '')}
           </div>
           ${metaRows ? `<dl>${metaRows}</dl>` : ''}
         </a>
@@ -366,24 +348,21 @@
     });
   }
 
-  function sourceLabel(source: string) {
-    const labels: Record<string, string> = {
-      concord_theatricals: 'Concord',
-      drama_online_library: 'Drama Online',
-    };
-
-    return labels[source] || source;
-  }
-
   function escapeAttribute(value: string) {
     return escapeHtml(value);
   }
 
+  function icon(name: 'users' | 'clock' | 'target') {
+    const paths: Record<'users' | 'clock' | 'target', string> = {
+      users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
+      clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+      target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    };
+
+    return `<svg class="meta-icon" aria-hidden="true" viewBox="0 0 24 24">${paths[name]}</svg>`;
+  }
+
   searchInput?.addEventListener('input', debounceSearch);
-  sourceSelect?.addEventListener('change', () => {
-    currentPage = 1;
-    void loadResults();
-  });
   [
     genreSelect,
     playTypeSelect,

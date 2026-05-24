@@ -2,6 +2,7 @@ import type {
   Author,
   BlogPost,
   Book,
+  ClubResource,
   ContactItem,
   HomepageSection,
   Page,
@@ -257,6 +258,36 @@ export const fallbackContactItems: ContactItem[] = [
     type: 'tiktok',
     href: 'https://www.tiktok.com/@suoyuncularii',
     sort_order: 5,
+    is_visible: true,
+  },
+];
+
+export const fallbackClubResources: ClubResource[] = [
+  {
+    title: 'Ana Logo',
+    slug: 'ana-logo',
+    resource_type: 'logo',
+    description: 'SUOyuncuları logosu.',
+    href: '/Logo.svg',
+    sort_order: 1,
+    is_visible: true,
+  },
+  {
+    title: 'SUO Kırmızı',
+    slug: 'suo-kirmizi',
+    resource_type: 'color',
+    value: '#c41422',
+    color_value: '#c41422',
+    sort_order: 2,
+    is_visible: true,
+  },
+  {
+    title: 'İletişim',
+    slug: 'iletisim',
+    resource_type: 'link',
+    value: 'contact@suoyunculari.com',
+    href: 'mailto:contact@suoyunculari.com',
+    sort_order: 3,
     is_visible: true,
   },
 ];

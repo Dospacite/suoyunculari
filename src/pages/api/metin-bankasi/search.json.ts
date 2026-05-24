@@ -12,7 +12,7 @@ export const GET: APIRoute = async ({ url }) => {
     const playedReferences = await getPlayedTextBankReferences();
     const result = await searchConcordPlays({
       query: url.searchParams.get('q') ?? '',
-      source: url.searchParams.get('source') ?? '',
+      source: '',
       playType: url.searchParams.get('playType') ?? '',
       genre: url.searchParams.get('genre') ?? '',
       subgenre: url.searchParams.get('subgenre') ?? '',

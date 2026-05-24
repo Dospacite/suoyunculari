@@ -2,6 +2,7 @@ import {
   fallbackAuthors,
   fallbackBlogPosts,
   fallbackBooks,
+  fallbackClubResources,
   fallbackHomepageSections,
   fallbackPages,
   fallbackPlays,
@@ -172,6 +173,19 @@ export type HomepageSection = {
   image?: string | { id: string };
   button_text?: string;
   button_url?: string;
+  sort_order?: number;
+  is_visible?: boolean;
+};
+
+export type ClubResource = {
+  title: string;
+  slug: string;
+  resource_type?: 'logo' | 'color' | 'link' | 'image' | 'file' | 'other';
+  description?: string;
+  value?: string;
+  href?: string;
+  color_value?: string;
+  file?: string | { id: string };
   sort_order?: number;
   is_visible?: boolean;
 };
@@ -396,6 +410,16 @@ export async function getContactItems(): Promise<ContactItem[]> {
   });
 
   return items && items.length > 0 ? items : fallbackContactItems;
+}
+
+export async function getClubResources(): Promise<ClubResource[]> {
+  const items = await fetchItems<ClubResource>('club_resources', {
+    fields: '*',
+    'filter[is_visible][_eq]': 'true',
+    sort: 'sort_order,title',
+  });
+
+  return items && items.length > 0 ? items : fallbackClubResources;
 }
 
 export async function getRehearsalIdeas(): Promise<RehearsalIdea[]> {

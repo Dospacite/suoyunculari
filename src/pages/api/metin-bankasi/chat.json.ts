@@ -431,7 +431,7 @@ function getClientIp(request: Request): string {
 function sourceLabel(source?: string): string {
   if (source === 'concord_theatricals') return 'Concord';
   if (source === 'drama_online_library') return 'Drama Online';
-  return 'Kaynak';
+  return '';
 }
 
 function safeError(error: unknown): string {

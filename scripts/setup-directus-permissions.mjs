@@ -22,6 +22,7 @@ const contentCollections = [
   'pages',
   'homepage_sections',
   'contact_items',
+  'club_resources',
   'plays_genres',
   'plays_tags',
   'blog_posts_plays',
@@ -161,6 +162,19 @@ const publicFields = {
     'sort_order',
     'is_visible',
   ],
+  club_resources: [
+    'id',
+    'title',
+    'slug',
+    'resource_type',
+    'description',
+    'value',
+    'href',
+    'color_value',
+    'file',
+    'sort_order',
+    'is_visible',
+  ],
 };
 
 const editableFields = {
@@ -172,6 +186,7 @@ const editableFields = {
   blog_posts: publicFields.blog_posts,
   homepage_sections: publicFields.homepage_sections,
   contact_items: publicFields.contact_items,
+  club_resources: publicFields.club_resources,
 };
 
 const publicPolicy = await findPolicyByName('$t:public_label');
@@ -219,6 +234,10 @@ await ensurePermission(publicPolicy.id, 'contact_items', 'read', {
   permissions: { is_visible: { _eq: true } },
   fields: publicFields.contact_items,
 });
+await ensurePermission(publicPolicy.id, 'club_resources', 'read', {
+  permissions: { is_visible: { _eq: true } },
+  fields: publicFields.club_resources,
+});
 await ensurePermission(publicPolicy.id, 'directus_files', 'read', {
   fields: ['id', 'title', 'filename_disk', 'filename_download', 'type', 'modified_on'],
 });
@@ -257,7 +276,7 @@ for (const collection of ['plays_genres', 'plays_tags', 'blog_posts_plays', 'blo
   await ensurePermission(contentEditorPolicy.id, collection, 'delete', { fields: ['*'] });
 }
 
-for (const collection of ['plays', 'stagings', 'staging_photos', 'books', 'blog_posts', 'rehearsal_ideas', 'contact_items']) {
+for (const collection of ['plays', 'stagings', 'staging_photos', 'books', 'blog_posts', 'rehearsal_ideas', 'contact_items', 'club_resources']) {
   const fields = (editableFields[collection] ?? ['*']).filter(
     (field) => field !== 'is_published',
   );

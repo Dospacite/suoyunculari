@@ -1,0 +1,79 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { assetUrl, getClubResources } from '@/lib/directus';
+import { renderMarkdown } from '@/lib/markdown';
+
+export const prerender = false;
+
+const resources = await getClubResources();
+
+const groupedResources = resources.reduce<Record<string, typeof resources>>((groups, resource) => {
+  const key = resource.resource_type || 'other';
+  groups[key] = [...(groups[key] ?? []), resource];
+  return groups;
+}, {});
+
+const typeLabels: Record<string, string> = {
+  logo: 'Logolar',
+  color: 'Renkler',
+  link: 'Bağlantılar',
+  image: 'Görseller',
+  file: 'Dosyalar',
+  other: 'Diğer',
+};
+---
+
+<BaseLayout title="Kulüp Kaynakları" description="SUOyuncuları kulüp logo, renk, bağlantı ve görsel kaynakları.">
+  <main class="section compact">
+    <div class="section-inner">
+      <div class="section-heading">
+        <h1>Kulüp Kaynakları</h1>
+      </div>
+
+      <div class="resource-groups">
+        {
+          Object.entries(groupedResources).map(([type, items]) => (
+            <section class="resource-group" aria-labelledby={`${type}-heading`}>
+              <h2 id={`${type}-heading`}>{typeLabels[type] ?? type}</h2>
+              <div class="resource-list">
+                {items.map((resource) => {
+                  const fileUrl = assetUrl(resource.file);
+                  const resourceHref = resource.href || fileUrl;
+                  const descriptionHtml = renderMarkdown(resource.description);
+
+                  return (
+                    <article class="resource-row">
+                      <div>
+                        {resource.resource_type && <p class="kicker row-kicker">{typeLabels[resource.resource_type] ?? resource.resource_type}</p>}
+                        <h3>{resource.title}</h3>
+                        {descriptionHtml && <div class="markdown-content" set:html={descriptionHtml} />}
+                        {resource.value && <p>{resource.value}</p>}
+                      </div>
+                      <div class="resource-preview">
+                        {resource.color_value && (
+                          <span
+                            class="color-swatch"
+                            style={`--swatch-color: ${resource.color_value}`}
+                            aria-label={`Renk: ${resource.color_value}`}
+                          />
+                        )}
+                        {fileUrl && ['logo', 'image'].includes(resource.resource_type || '') && (
+                          <img src={fileUrl} alt={resource.title} loading="lazy" />
+                        )}
+                        {resourceHref && (
+                          <a class="button secondary" href={resourceHref} target={resourceHref.startsWith('/') ? undefined : '_blank'} rel={resourceHref.startsWith('/') ? undefined : 'noreferrer'}>
+                            Aç
+                          </a>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ))
+        }
+      </div>
+    </div>
+  </main>
+</BaseLayout>

@@ -22,6 +22,7 @@ const collectionDefinitions = [
   { collection: 'pages', icon: 'web', display: '{{key}}' },
   { collection: 'homepage_sections', icon: 'view_agenda', display: '{{section_key}}' },
   { collection: 'contact_items', icon: 'contact_mail', display: '{{label}}' },
+  { collection: 'club_resources', icon: 'folder_shared', display: '{{title}}' },
   { collection: 'plays_genres', icon: 'link', hidden: true },
   { collection: 'plays_tags', icon: 'link', hidden: true },
   { collection: 'blog_posts_plays', icon: 'link', hidden: true },
@@ -184,6 +185,18 @@ const fields = {
     integerField('sort_order'),
     booleanField('is_visible', true),
   ],
+  club_resources: [
+    stringField('title', { required: true, width: 'full' }),
+    stringField('slug', { required: true, unique: true }),
+    selectField('resource_type', ['logo', 'color', 'link', 'image', 'file', 'other'], 'other'),
+    textField('description', { interfaceName: 'input-rich-text-md' }),
+    stringField('value', { width: 'full' }),
+    stringField('href', { maxLength: 1024, width: 'full' }),
+    stringField('color_value'),
+    fileField('file', { note: 'Logo, image, or downloadable club resource file.' }),
+    integerField('sort_order'),
+    booleanField('is_visible', true),
+  ],
   plays_genres: [m2oField('plays_id'), m2oField('genres_id')],
   plays_tags: [m2oField('plays_id'), m2oField('tags_id')],
   blog_posts_plays: [m2oField('blog_posts_id'), m2oField('plays_id')],
@@ -220,6 +233,7 @@ const relations = [
   relation('books', 'cover_image', 'directus_files'),
   relation('blog_posts', 'cover_image', 'directus_files'),
   relation('homepage_sections', 'image', 'directus_files'),
+  relation('club_resources', 'file', 'directus_files'),
   relation('plays_genres', 'plays_id', 'plays', {
     one_field: 'genres',
     junction_field: 'genres_id',
@@ -271,6 +285,25 @@ const fieldUpdates = [
   },
 ];
 
+const manyToManyRepairs = [
+  {
+    ownerCollection: 'plays',
+    aliasField: aliasM2mField('genres'),
+    junctionCollection: 'plays_genres',
+    ownerField: 'plays_id',
+    relatedCollection: 'genres',
+    relatedField: 'genres_id',
+  },
+  {
+    ownerCollection: 'plays',
+    aliasField: aliasM2mField('tags'),
+    junctionCollection: 'plays_tags',
+    ownerField: 'plays_id',
+    relatedCollection: 'tags',
+    relatedField: 'tags_id',
+  },
+];
+
 for (const definition of collectionDefinitions) {
   await ensureCollection(definition);
 }
@@ -291,6 +324,10 @@ for (const item of fieldUpdates) {
 
 for (const item of relations) {
   await ensureRelation(item);
+}
+
+for (const item of manyToManyRepairs) {
+  await repairManyToMany(item);
 }
 
 console.log('Directus schema setup complete.');
@@ -384,15 +421,47 @@ async function ensureRelation(item) {
     (relationItem) =>
       relationItem.collection === item.collection && relationItem.field === item.field,
   );
+  const body = relationApiPayload(item);
 
   if (found) {
-    await request('PATCH', `/relations/${item.collection}/${item.field}`, item);
+    try {
+      await request('PATCH', `/relations/${found.id}`, body);
+    } catch (error) {
+      if (error.status !== 400 && error.status !== 404) throw error;
+      await request('PATCH', `/relations/${item.collection}/${item.field}`, item);
+    }
     console.log(`relation updated: ${item.collection}.${item.field}`);
     return;
   }
 
-  await request('POST', '/relations', item);
+  try {
+    await request('POST', '/relations', body);
+  } catch (error) {
+    if (error.status !== 400) throw error;
+    await request('POST', '/relations', item);
+  }
   console.log(`relation created: ${item.collection}.${item.field}`);
+}
+
+async function repairManyToMany({
+  ownerCollection,
+  aliasField,
+  junctionCollection,
+  ownerField,
+  relatedCollection,
+  relatedField,
+}) {
+  await updateField(ownerCollection, aliasField);
+
+  await ensureRelation(
+    relation(junctionCollection, ownerField, ownerCollection, {
+      one_field: aliasField.field,
+      junction_field: relatedField,
+      one_deselect_action: 'delete',
+    }),
+  );
+  await ensureRelation(relation(junctionCollection, relatedField, relatedCollection));
+  console.log(`m2m repaired: ${ownerCollection}.${aliasField.field}`);
 }
 
 function primaryKeyField() {
@@ -545,6 +614,10 @@ function aliasM2mField(field) {
     meta: {
       interface: 'list-m2m',
       special: ['m2m'],
+      options: {
+        enableCreate: true,
+        enableSelect: true,
+      },
       width: 'full',
     },
   };
@@ -576,5 +649,16 @@ function relation(collection, field, related_collection, meta = {}) {
     schema: {
       on_delete: meta.one_deselect_action === 'delete' ? 'CASCADE' : 'SET NULL',
     },
+  };
+}
+
+function relationApiPayload(item) {
+  return {
+    collection_many: item.collection,
+    field_many: item.field,
+    collection_one: item.related_collection,
+    field_one: item.meta?.one_field ?? null,
+    junction_field: item.meta?.junction_field ?? null,
+    one_deselect_action: item.meta?.one_deselect_action ?? 'nullify',
   };
 }

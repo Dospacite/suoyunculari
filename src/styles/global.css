@@ -218,7 +218,7 @@ img {
 
 .hero-title h1 {
   font-size: clamp(3.7rem, 12vw, 9.8rem);
-  line-height: 0.88;
+  line-height: 0.98;
   margin: 0;
   text-transform: uppercase;
 }
@@ -832,6 +832,10 @@ textarea:focus {
   text-transform: uppercase;
 }
 
+.idea-row h2 {
+  margin-bottom: 4px;
+}
+
 .play-thumbnail-grid .play-row h2 {
   color: var(--ink);
   font-size: clamp(1.28rem, 2.3vw, 1.7rem);
@@ -884,7 +888,9 @@ dd {
 }
 
 dt {
+  align-items: center;
   color: var(--muted);
+  display: inline-flex;
   font-size: 0.72rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -911,6 +917,21 @@ dd {
   padding: 7px 10px;
 }
 
+.text-bank-taxonomy {
+  margin-top: 14px;
+}
+
+.meta-icon {
+  fill: none;
+  height: 15px;
+  margin-right: 6px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 15px;
+}
+
 .row-kicker {
   align-items: center;
   display: flex;
@@ -934,6 +955,62 @@ dd {
   margin-top: 8px;
 }
 
+.resource-groups,
+.resource-group {
+  display: grid;
+  gap: 30px;
+}
+
+.resource-group h2,
+.text-detail-section h2 {
+  border-bottom: 1px solid var(--line);
+  font-size: clamp(1.3rem, 3vw, 2rem);
+  margin: 0;
+  padding-bottom: 12px;
+}
+
+.resource-list {
+  border-top: 2px solid var(--ink);
+}
+
+.resource-row {
+  align-items: start;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 22px;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 24px 14px;
+}
+
+.resource-row h3,
+.text-detail-section h3 {
+  font-size: clamp(1.1rem, 2vw, 1.45rem);
+  line-height: 1.1;
+  margin: 0 0 10px;
+}
+
+.resource-preview {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: start;
+}
+
+.resource-preview img {
+  max-height: 110px;
+  object-fit: contain;
+  width: min(180px, 100%);
+}
+
+.color-swatch {
+  background: var(--swatch-color);
+  border: 1px solid var(--line);
+  display: inline-block;
+  height: 56px;
+  width: 96px;
+}
+
 .disabled-link {
   cursor: not-allowed;
   opacity: 0.45;
@@ -946,6 +1023,101 @@ dd {
 
 .compact-list h2 {
   font-size: clamp(1.35rem, 4vw, 2.5rem);
+}
+
+.text-detail {
+  display: grid;
+  gap: 34px;
+}
+
+.text-detail-hero {
+  align-items: start;
+  display: grid;
+  gap: 26px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.text-detail-copy {
+  min-width: 0;
+}
+
+.text-detail h1 {
+  font-size: clamp(2.25rem, 7vw, 5.2rem);
+  line-height: 0.98;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.text-detail-byline {
+  color: var(--ink);
+  font-size: 1.1rem;
+  font-weight: 750;
+  margin: 14px 0 0;
+}
+
+.text-detail-lead {
+  color: var(--muted);
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  line-height: 1.55;
+  margin: 22px 0 0;
+  max-width: 780px;
+}
+
+.text-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.text-detail-image {
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--line);
+  object-fit: cover;
+  width: min(260px, 100%);
+}
+
+.text-detail-facts {
+  border-bottom: 1px solid var(--line);
+  border-top: 2px solid var(--ink);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  padding: 22px 0;
+}
+
+.text-detail-jump {
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  padding: 14px 0;
+}
+
+.text-detail-jump a {
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.text-detail-section {
+  display: grid;
+  gap: 24px;
+}
+
+.text-detail-section section {
+  display: grid;
+  gap: 8px;
+}
+
+.text-detail-mini-facts {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.text-detail-mini-facts dd {
+  display: grid;
+  gap: 6px;
 }
 
 .staging-row {
@@ -1760,7 +1932,7 @@ dd {
   }
 
   .browser-tools {
-    grid-template-columns: minmax(0, 1fr) repeat(4, minmax(0, 150px));
+    grid-template-columns: minmax(0, 1fr) repeat(3, minmax(0, 150px));
   }
 
   .advanced-grid {
@@ -1813,6 +1985,19 @@ dd {
   }
 
   .play-detail-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .resource-row {
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 0.32fr);
+    padding: 28px 18px;
+  }
+
+  .resource-preview {
+    justify-content: end;
+  }
+
+  .text-detail-hero {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 

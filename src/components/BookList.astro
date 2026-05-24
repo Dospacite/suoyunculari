@@ -1,5 +1,6 @@
 ---
 import type { Book } from '@/lib/directus';
+import { renderMarkdown } from '@/lib/markdown';
 
 type Props = {
   books: Book[];
@@ -21,11 +22,13 @@ type BookMetaRow = {
 };
 
 function getBookMetaRows(book: Book): BookMetaRow[] {
-  return [
-    book.publisher ? { label: 'Yayınevi', value: book.publisher } : undefined,
-    book.publication_year ? { label: 'Yıl', value: String(book.publication_year) } : undefined,
-    book.location ? { label: 'Konum', value: book.location } : undefined,
-  ].filter((row): row is BookMetaRow => Boolean(row));
+  return [book.location ? { label: 'Konum', value: book.location } : undefined].filter(
+    (row): row is BookMetaRow => Boolean(row),
+  );
+}
+
+function getBookKicker(book: Book): string {
+  return [book.category, book.author].filter(Boolean).join(' / ') || book.language || '';
 }
 ---
 
@@ -33,7 +36,7 @@ function getBookMetaRows(book: Book): BookMetaRow[] {
   <div class="browser-tools">
     <label>
       <span>Arama</span>
-      <input id="book-search" type="search" placeholder="Başlık, yazar, yayınevi, etiket" />
+      <input id="book-search" type="search" placeholder="Başlık, yazar, etiket" />
     </label>
     <label>
       <span>Kategori</span>
@@ -49,27 +52,19 @@ function getBookMetaRows(book: Book): BookMetaRow[] {
         {languages.map((language) => <option value={language.toLowerCase()}>{language}</option>)}
       </select>
     </label>
-    <label>
-      <span>Durum</span>
-      <select id="book-availability-filter">
-        <option value="">Tümü</option>
-        <option value="available">Rafta</option>
-        <option value="borrowed">Ödünçte</option>
-      </select>
-    </label>
   </div>
 
   <div class="idea-list" id="book-list">
     {
       books.map((book) => {
         const tags = Array.isArray(book.tags) ? book.tags : [];
-        const status = book.is_available === false ? 'borrowed' : 'available';
         const metaRows = getBookMetaRows(book);
+        const notesHtml = renderMarkdown(book.notes);
+        const kicker = getBookKicker(book);
         const searchable = [
           book.title,
           book.author,
           book.translator,
-          book.publisher,
           book.category,
           book.language,
           book.location,
@@ -86,16 +81,13 @@ function getBookMetaRows(book: Book): BookMetaRow[] {
             data-search={searchable}
             data-category={book.category?.toLowerCase() || ''}
             data-language={book.language?.toLowerCase() || ''}
-            data-availability={status}
           >
             <div>
-              <p class="kicker row-kicker">
-                {book.category}
-                <span class="played-badge">{status === 'available' ? 'Rafta' : 'Ödünçte'}</span>
-              </p>
+              {kicker && <p class="kicker row-kicker">{kicker}</p>}
               <h2>{book.title}</h2>
-              {[book.author, book.translator && `Çev. ${book.translator}`].filter(Boolean).length > 0 && (
-                <p>{[book.author, book.translator && `Çev. ${book.translator}`].filter(Boolean).join(' / ')}</p>
+              {book.translator && <p>{`Çev. ${book.translator}`}</p>}
+              {notesHtml && (
+                <div class="markdown-content" set:html={notesHtml} />
               )}
               <div class="taxonomy">
                 {tags.map((tag) => <span>{tag}</span>)}
@@ -123,7 +115,6 @@ function getBookMetaRows(book: Book): BookMetaRow[] {
   const bookSearch = document.querySelector<HTMLInputElement>('#book-search');
   const bookCategory = document.querySelector<HTMLSelectElement>('#book-category-filter');
   const bookLanguage = document.querySelector<HTMLSelectElement>('#book-language-filter');
-  const bookAvailability = document.querySelector<HTMLSelectElement>('#book-availability-filter');
   const bookRows = Array.from(document.querySelectorAll<HTMLElement>('#book-list .idea-row'));
   const bookEmpty = document.querySelector<HTMLElement>('#book-empty');
 
@@ -131,16 +122,13 @@ function getBookMetaRows(book: Book): BookMetaRow[] {
     const query = bookSearch?.value.trim().toLowerCase() || '';
     const selectedCategory = bookCategory?.value || '';
     const selectedLanguage = bookLanguage?.value || '';
-    const selectedAvailability = bookAvailability?.value || '';
     let visibleCount = 0;
 
     for (const row of bookRows) {
       const matchesSearch = row.dataset.search?.includes(query) ?? true;
       const matchesCategory = selectedCategory === '' || row.dataset.category === selectedCategory;
       const matchesLanguage = selectedLanguage === '' || row.dataset.language === selectedLanguage;
-      const matchesAvailability =
-        selectedAvailability === '' || row.dataset.availability === selectedAvailability;
-      const isVisible = matchesSearch && matchesCategory && matchesLanguage && matchesAvailability;
+      const isVisible = matchesSearch && matchesCategory && matchesLanguage;
       row.hidden = !isVisible;
       if (isVisible) visibleCount += 1;
     }
@@ -151,5 +139,4 @@ function getBookMetaRows(book: Book): BookMetaRow[] {
   bookSearch?.addEventListener('input', updateBookRows);
   bookCategory?.addEventListener('change', updateBookRows);
   bookLanguage?.addEventListener('change', updateBookRows);
-  bookAvailability?.addEventListener('change', updateBookRows);
 </script>

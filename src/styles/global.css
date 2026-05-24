@@ -727,42 +727,41 @@ textarea:focus {
   border-top: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 26px 22px;
+  gap: 34px 24px;
   justify-content: center;
 }
 
 .play-thumbnail-grid .play-row {
-  border: 1px solid var(--line);
+  border: 0;
   display: flex;
   flex: 0 1 100%;
   min-width: 0;
 }
 
 .play-thumbnail-grid .play-row:hover {
-  background: #fff;
-  border-color: rgba(196, 20, 34, 0.45);
+  background: transparent;
 }
 
 .play-thumbnail-grid .play-row a {
   align-content: start;
   display: grid;
-  gap: 0;
+  gap: 10px;
   padding: 0;
   width: 100%;
 }
 
 .play-card-year {
   color: var(--accent);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 950;
   letter-spacing: 0;
-  padding: 14px 16px 10px;
+  padding: 0;
   text-transform: uppercase;
 }
 
 .play-thumbnail-grid img,
 .play-card-fallback {
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 9;
   object-fit: cover;
   width: 100%;
 }
@@ -775,15 +774,17 @@ textarea:focus {
 
 .play-card-copy {
   display: grid;
-  gap: 10px;
+  gap: 7px;
   min-width: 0;
-  padding: 18px 16px 20px;
+  padding: 0;
+  text-align: start;
 }
 
 .play-card-copy .play-card-author {
   color: var(--ink);
   font-size: 0.9rem;
-  font-weight: 850;
+  font-weight: 400;
+  line-height: 1.35;
 }
 
 .play-row h2,
@@ -797,9 +798,12 @@ textarea:focus {
 }
 
 .play-thumbnail-grid .play-row h2 {
-  font-size: clamp(1.28rem, 3vw, 1.9rem);
-  line-height: 1;
+  color: var(--ink);
+  font-size: clamp(1.28rem, 2.3vw, 1.7rem);
+  font-weight: 950;
+  line-height: 1.08;
   margin: 0;
+  text-transform: none;
 }
 
 .play-row p,
@@ -811,14 +815,16 @@ textarea:focus {
   overflow-wrap: anywhere;
 }
 
-.play-thumbnail-grid .play-row p {
+.play-thumbnail-grid .play-row .play-card-description {
   display: -webkit-box;
-  font-size: 0.92rem;
-  line-height: 1.55;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 400;
+  line-height: 1.45;
   margin: 0;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
 }
 
 .play-row a > div,
@@ -1538,6 +1544,11 @@ dd {
     flex-basis: calc((100% - 22px) / 2);
   }
 
+  .play-thumbnail-grid .play-row a {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0;
+  }
+
   .tool-tile span {
     font-size: clamp(2.4rem, 5.2vw, 4rem);
   }
@@ -1582,7 +1593,7 @@ dd {
   }
 
   .play-thumbnail-grid .play-row {
-    flex-basis: calc((100% - 44px) / 3);
+    flex-basis: calc((100% - 48px) / 3);
   }
 
   .section {

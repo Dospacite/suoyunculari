@@ -49,31 +49,46 @@ const imageUrl = new URL(image, canonicalUrl);
       sameAs: [
         'https://www.instagram.com/suoyunculari/',
         'https://www.youtube.com/@suo-yunculari',
+        'https://www.tiktok.com/@suoyuncularii',
       ],
     })} />
   </head>
   <body>
-    <header class="site-header">
+    <header class="site-header" data-site-header>
       <a class="brand" href="/" aria-label="SUOyuncuları ana sayfa">
         <img class="brand-logo" src="/Logo.svg" alt="" />
       </a>
       <nav class="site-nav" aria-label="Primary navigation">
-        <a href="/oyunlarimiz">Oyunlarımız</a>
-        <a href="/metin-bankasi">Metin Bankası</a>
-        <a href="/kutuphane">Kütüphane</a>
-        <a href="/prova-defteri">Prova Defteri</a>
-        <a href="/blog">Blog</a>
-        <a class="social-link" href="https://www.instagram.com/suoyunculari/" target="_blank" rel="noreferrer" aria-label="Instagram">
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M7.8 2h8.4A5.8 5.8 0 0 1 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8A5.8 5.8 0 0 1 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2Zm0 2A3.8 3.8 0 0 0 4 7.8v8.4A3.8 3.8 0 0 0 7.8 20h8.4a3.8 3.8 0 0 0 3.8-3.8V7.8A3.8 3.8 0 0 0 16.2 4H7.8Zm8.7 2.2a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6ZM12 7.2a4.8 4.8 0 1 1 0 9.6 4.8 4.8 0 0 1 0-9.6Zm0 2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Z" />
-          </svg>
-        </a>
-        <a class="social-link" href="https://www.youtube.com/@suo-yunculari" target="_blank" rel="noreferrer" aria-label="YouTube">
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.6 4.6 12 4.6 12 4.6s-5.6 0-7.5.5a3 3 0 0 0-2.1 2.1A31.2 31.2 0 0 0 2 12a31.2 31.2 0 0 0 .4 4.8 3 3 0 0 0 2.1 2.1c1.9.5 7.5.5 7.5.5s5.6 0 7.5-.5a3 3 0 0 0 2.1-2.1A31.2 31.2 0 0 0 22 12a31.2 31.2 0 0 0-.4-4.8ZM10 15.5v-7l6 3.5-6 3.5Z" />
-          </svg>
-        </a>
+        <div class="site-nav-links" id="site-nav-links">
+          <a href="/oyunlarimiz">Oyunlarımız</a>
+          <a href="/metin-bankasi">Metin Bankası</a>
+          <a href="/kutuphane">Kütüphane</a>
+          <a href="/prova-defteri">Prova Defteri</a>
+          <a href="/blog">Blog</a>
+        </div>
+        <div class="site-socials" aria-label="Social links">
+          <a class="social-link" href="https://www.instagram.com/suoyunculari/" target="_blank" rel="noreferrer" aria-label="Instagram">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M7.8 2h8.4A5.8 5.8 0 0 1 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8A5.8 5.8 0 0 1 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2Zm0 2A3.8 3.8 0 0 0 4 7.8v8.4A3.8 3.8 0 0 0 7.8 20h8.4a3.8 3.8 0 0 0 3.8-3.8V7.8A3.8 3.8 0 0 0 16.2 4H7.8Zm8.7 2.2a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6ZM12 7.2a4.8 4.8 0 1 1 0 9.6 4.8 4.8 0 0 1 0-9.6Zm0 2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Z" />
+            </svg>
+          </a>
+          <a class="social-link" href="https://www.youtube.com/@suo-yunculari" target="_blank" rel="noreferrer" aria-label="YouTube">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.6 4.6 12 4.6 12 4.6s-5.6 0-7.5.5a3 3 0 0 0-2.1 2.1A31.2 31.2 0 0 0 2 12a31.2 31.2 0 0 0 .4 4.8 3 3 0 0 0 2.1 2.1c1.9.5 7.5.5 7.5.5s5.6 0 7.5-.5a3 3 0 0 0 2.1-2.1A31.2 31.2 0 0 0 22 12a31.2 31.2 0 0 0-.4-4.8ZM10 15.5v-7l6 3.5-6 3.5Z" />
+            </svg>
+          </a>
+          <a class="social-link" href="https://www.tiktok.com/@suoyuncularii" target="_blank" rel="noreferrer" aria-label="TikTok">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M16.7 2c.3 2.4 1.6 3.9 3.9 4.1v3.4a7.7 7.7 0 0 1-3.8-1v6.6c0 4.2-2.7 6.9-6.7 6.9-3.5 0-6.4-2.4-6.4-5.9 0-3.8 2.9-6.1 6.8-5.9v3.5c-1.7-.2-3 .6-3 2.2 0 1.4 1.1 2.3 2.5 2.3 1.6 0 2.7-.9 2.7-3V2h4Z" />
+            </svg>
+          </a>
+        </div>
       </nav>
+      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav-links" aria-label="Menüyü aç">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
     </header>
     <slot />
     <footer class="site-footer">
@@ -93,5 +108,14 @@ const imageUrl = new URL(image, canonicalUrl);
         <a href="/sitemap-index.xml">Sitemap</a>
       </div>
     </footer>
+    <script is:inline>
+      const header = document.querySelector('[data-site-header]');
+      const toggle = header?.querySelector('.menu-toggle');
+      toggle?.addEventListener('click', () => {
+        const open = header.classList.toggle('menu-open');
+        toggle.setAttribute('aria-expanded', String(open));
+        toggle.setAttribute('aria-label', open ? 'Menüyü kapat' : 'Menüyü aç');
+      });
+    </script>
   </body>
 </html>

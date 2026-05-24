@@ -15,12 +15,11 @@ const stagings = play ? await getStagingsForPlay(play.slug, play) : [];
 const relatedPosts = play ? await getRelatedBlogPostsForPlay(play.slug) : [];
 if (!play) Astro.response.status = 404;
 
-const genres = play?.genres?.map((genre) => genre.name) ?? [];
-const tags = play?.tags?.map((tag) => tag.name) ?? [];
 const nextStaging = stagings.find((staging) => staging.date && new Date(staging.date) >= new Date()) ?? stagings[0];
 const textBankReference = getTextBankReference(play);
 const directorText = play?.director || nextStaging?.director;
 const castText = play?.cast || nextStaging?.cast_notes;
+const posterImage = assetUrl(play?.poster_image || play?.cover_image);
 const scriptHref =
   textBankReference?.source && textBankReference.source_id
     ? `/metin-bankasi/${encodeURIComponent(textBankReference.source)}/${encodeURIComponent(
@@ -35,6 +34,12 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
   hour: '2-digit',
   minute: '2-digit',
 });
+
+const shortDateFormatter = new Intl.DateTimeFormat('tr-TR', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
 ---
 
 <BaseLayout title={play?.title ?? 'Oyun bulunamadı'} description={play?.summary}>
@@ -42,92 +47,68 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
     {
       play ? (
         <article class="section-inner">
-          <div class="section-heading">
-            <h1>{play.title}</h1>
-            <div class="button-row">
-              {scriptHref && (
-                <a class="button detail-source-button" href={scriptHref}>
+          <header class="play-detail-hero">
+            <div class="play-detail-title">
+              <h1>{play.title}</h1>
+              <p>{play.author?.name || 'Yazar belirsiz'}</p>
+            </div>
+            <div class="play-detail-actions">
+                <a class:list={['button', !scriptHref && 'disabled-link']} href={scriptHref || '#'} aria-disabled={!scriptHref}>
                   Metin Detayı
                 </a>
-              )}
-              {nextStaging && (
                 <a
-                  class="button secondary-button detail-source-button"
-                  href={`/plays/${play.slug}/stagings/${nextStaging.slug}`}
+                  class:list={['button', 'secondary-button', !nextStaging && 'disabled-link']}
+                  href={nextStaging ? `/plays/${play.slug}/stagings/${nextStaging.slug}` : '#'}
+                  aria-disabled={!nextStaging}
                 >
                   Sahneleme Detayı
                 </a>
-              )}
             </div>
-          </div>
+          </header>
 
-          <div class="detail-meta">
-            <div>
-              <dt>Yazar</dt>
-              <dd>{play.author?.name || 'Belirsiz'}</dd>
-            </div>
-            <div>
-              <dt>Yönetmen</dt>
-              <dd>{directorText || 'Belirsiz'}</dd>
-            </div>
-            <div>
-              <dt>Sahneleme</dt>
-              <dd>{stagings.length || 'Yakında'}</dd>
-            </div>
-            <div>
-              <dt>Sıradaki Tarih</dt>
-              <dd>{nextStaging?.date ? dateFormatter.format(new Date(nextStaging.date)) : 'Yakında'}</dd>
-            </div>
-            <div>
-              <dt>Mekan</dt>
-              <dd>{nextStaging?.venue || play.event_venue || 'Yakında'}</dd>
-            </div>
-          </div>
+          <div class="detail-divider"></div>
 
-          <section class="related-section" aria-labelledby="cast-heading">
-            <div class="split">
+          <section class="play-production-layout" aria-label="Oyun üretim bilgileri">
+            <div class="play-cast-panel">
               <div>
-                <p class="kicker" id="cast-heading">Kadro</p>
-                <p class="prose">
-                  {castText || 'Kadro bilgisi Directus oyun kaydından eklenebilir.'}
-                </p>
+                <h2>Kadro</h2>
+                <p>{castText || 'Kadro bilgisi Directus oyun kaydından eklenebilir.'}</p>
               </div>
               <div>
-                <p class="kicker">Yönetmen</p>
-                <p class="prose">{directorText || 'Yönetmen bilgisi Directus oyun kaydından eklenebilir.'}</p>
+                <h2>Yönetmen</h2>
+                <p>{directorText || 'Yönetmen bilgisi Directus oyun kaydından eklenebilir.'}</p>
               </div>
+            </div>
+            <div>
+              <figure class="play-poster">
+                {posterImage ? <img src={posterImage} alt="" loading="lazy" /> : <div class="play-card-fallback" aria-hidden="true"></div>}
+                <figcaption>
+                  <strong>{play.title}</strong>
+                  <span>
+                    {play.event_date ? `Prömiyer: ${shortDateFormatter.format(new Date(play.event_date))}` : 'Prömiyer: Yakında'}
+                  </span>
+                  <span>{play.event_venue || 'Mekan yakında'}</span>
+                </figcaption>
+              </figure>
             </div>
           </section>
 
-          <section class="related-section" aria-labelledby="stagings-heading">
-            <div class="section-heading small-heading">
-              <h2>Gösterim ve Üretim Notları</h2>
-            </div>
+          <p class="play-description">{play.summary}</p>
 
+          <section class="related-section" aria-label="Sahnelemeler">
             {stagings.length > 0 ? (
-              <div class="article-list compact-list">
+              <div class="staging-card-grid">
                 {stagings.map((staging) => {
                   const image = assetUrl(staging.cover_image || play.cover_image);
                   return (
-                    <a class="staging-row" href={`/plays/${play.slug}/stagings/${staging.slug}`}>
-                      {image && <img src={image} alt="" loading="lazy" />}
-                      <div>
-                        <p class="kicker">
-                          {staging.date ? dateFormatter.format(new Date(staging.date)) : 'Tarih yakında'}
-                        </p>
+                    <a class="staging-card" href={`/plays/${play.slug}/stagings/${staging.slug}`}>
+                      <span class="play-card-year">{staging.date ? dateFormatter.format(new Date(staging.date)) : 'Tarih yakında'}</span>
+                      {image ? <img src={image} alt="" loading="lazy" /> : <div class="play-card-fallback" aria-hidden="true"></div>}
+                      <div class="play-card-copy">
                         <h2>{staging.title}</h2>
-                        <p>{staging.summary || staging.production_notes || 'Sahneleme ayrıntıları yakında.'}</p>
+                        <p class="play-card-author">{staging.venue || 'Mekan yakında'}</p>
+                        <p class="play-card-description">{staging.summary || staging.production_notes || 'Sahneleme ayrıntıları yakında.'}</p>
                       </div>
-                      <dl>
-                        <div>
-                          <dt>Mekan</dt>
-                          <dd>{staging.venue || 'Belirsiz'}</dd>
-                        </div>
-                        <div>
-                          <dt>Tarih / Saat</dt>
-                          <dd>{staging.date ? dateFormatter.format(new Date(staging.date)) : 'Yakında'}</dd>
-                        </div>
-                      </dl>
                     </a>
                   );
                 })}
@@ -135,33 +116,6 @@ const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
             ) : (
               <p class="empty-state">Bu oyun için yayınlanmış sahneleme kaydı henüz yok.</p>
             )}
-          </section>
-
-          <section class="related-section" aria-labelledby="production-notes-heading">
-            <div class="split">
-              <div>
-                <p class="kicker" id="production-notes-heading">Üretim</p>
-                <p class="prose">
-                  {play.setting ||
-                    play.themes ||
-                    'Bu alanda oyunun sahneleme yaklaşımı, prova notları ve üretim bağlamı gösterilir.'}
-                </p>
-                <div class="taxonomy">
-                  {[...genres, ...tags].map((item) => <span>{item}</span>)}
-                </div>
-              </div>
-              <div>
-                <p class="kicker">Metin</p>
-                <p class="prose">
-                  Metin bilgileri, hak notları ve kaynak bağlantıları ayrı metin detayında tutulur.
-                </p>
-                {scriptHref && (
-                  <a class="button compact-button detail-source-button" href={scriptHref}>
-                    Metin Detayına Git
-                  </a>
-                )}
-              </div>
-            </div>
           </section>
 
           {relatedPosts.length > 0 && (

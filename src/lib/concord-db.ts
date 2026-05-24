@@ -51,6 +51,10 @@ type TextBankWhereClause = {
   orderSql: string;
 };
 
+type TextBankBuildOptions = SearchOptions & {
+  exactOnly?: boolean;
+};
+
 const globalForPg = globalThis as typeof globalThis & {
   concordPool?: pg.Pool;
 };
@@ -87,7 +91,7 @@ export async function searchConcordPlays({
   const safePage = clampInteger(page, 1, 10_000);
   const safePageSize = clampInteger(pageSize, 1, 100);
   const offset = (safePage - 1) * safePageSize;
-  const { whereSql, params, rankExpression, orderSql } = buildTextBankWhereClause({
+  const { whereSql, params, rankExpression, orderSql } = await buildTextBankWhereClauseWithExactFallback(pool, {
     query,
     source,
     playType,
@@ -226,7 +230,7 @@ export async function searchTextBankForAssistant({
   if (!pool) return [];
 
   const safePageSize = clampInteger(pageSize, 1, 6);
-  const { whereSql, params, rankExpression, orderSql } = buildTextBankWhereClause({
+  const { whereSql, params, rankExpression, orderSql } = await buildTextBankWhereClauseWithExactFallback(pool, {
     ...options,
     playedReferences,
   });
@@ -479,6 +483,22 @@ function splitReferenceKey(key: string): { source: string; sourceId: string } {
   return { source, sourceId };
 }
 
+async function buildTextBankWhereClauseWithExactFallback(
+  pool: pg.Pool,
+  options: SearchOptions,
+): Promise<TextBankWhereClause> {
+  const cleanedQuery = options.query?.trim() ?? '';
+  if (!cleanedQuery) return buildTextBankWhereClause(options);
+
+  const exactClause = buildTextBankWhereClause({ ...options, exactOnly: true });
+  const count = await pool.query<{ count: string }>(
+    `SELECT count(*)::int AS count FROM concord_plays ${exactClause.whereSql}`,
+    exactClause.params,
+  );
+
+  return Number(count.rows[0]?.count ?? 0) > 0 ? exactClause : buildTextBankWhereClause(options);
+}
+
 function buildTextBankWhereClause({
   query = '',
   source = '',
@@ -502,7 +522,8 @@ function buildTextBankWhereClause({
   maxCast = '',
   reference = '',
   playedReferences = [],
-}: SearchOptions): TextBankWhereClause {
+  exactOnly = false,
+}: TextBankBuildOptions): TextBankWhereClause {
   const params: unknown[] = [];
   const where: string[] = [displayableTextBankSql()];
   const cleanedQuery = query.trim();
@@ -511,10 +532,15 @@ function buildTextBankWhereClause({
   if (cleanedQuery) {
     params.push(cleanedQuery);
     const searchParam = `$${params.length}`;
-    const vector = "to_tsvector('english', search_text)";
-    const tsQuery = `websearch_to_tsquery('english', ${searchParam})`;
-    where.push(`${vector} @@ ${tsQuery}`);
-    rankExpression = `ts_rank_cd(${vector}, ${tsQuery}) AS rank`;
+    if (exactOnly) {
+      where.push(exactTextBankMatchSql(searchParam));
+      rankExpression = exactTextBankRankSql(searchParam);
+    } else {
+      const vector = "to_tsvector('english', search_text)";
+      const tsQuery = `websearch_to_tsquery('english', ${searchParam})`;
+      where.push(`${vector} @@ ${tsQuery}`);
+      rankExpression = `ts_rank_cd(${vector}, ${tsQuery}) AS rank`;
+    }
   }
 
   if (genre) addArrayFilter(where, params, 'genres', genre);
@@ -568,8 +594,32 @@ function buildTextBankWhereClause({
     whereSql: where.length > 0 ? `WHERE ${where.join(' AND ')}` : '',
     params,
     rankExpression,
-    orderSql: cleanedQuery ? 'rank DESC, title ASC' : 'title ASC',
+    orderSql: cleanedQuery ? 'rank DESC, lower(title) ASC' : 'title ASC',
   };
+}
+
+function exactTextBankMatchSql(searchParam: string): string {
+  return `(
+    lower(title) = lower(${searchParam})
+    OR lower(title) LIKE lower(${searchParam}) || '%'
+    OR lower(title) LIKE '%' || lower(${searchParam}) || '%'
+    OR source_id = ${searchParam}
+    OR EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(CASE WHEN jsonb_typeof(authors::jsonb) = 'array' THEN authors::jsonb ELSE '[]'::jsonb END) AS author
+      WHERE lower(author->>'name') LIKE '%' || lower(${searchParam}) || '%'
+    )
+  )`;
+}
+
+function exactTextBankRankSql(searchParam: string): string {
+  return `CASE
+    WHEN lower(title) = lower(${searchParam}) THEN 100
+    WHEN lower(title) LIKE lower(${searchParam}) || '%' THEN 80
+    WHEN lower(title) LIKE '%' || lower(${searchParam}) || '%' THEN 60
+    WHEN source_id = ${searchParam} THEN 50
+    ELSE 20
+  END::real AS rank`;
 }
 
 function emptySearchResult(page: number, pageSize: number, databaseReady: boolean): ConcordSearchResult {

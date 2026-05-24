@@ -20,7 +20,7 @@ type DirectusList<T> = {
 };
 
 const playFields =
-  '*,author.*,language.*,period.*,genres.genres_id.*,tags.tags_id.*,cover_image,home_card_image';
+  '*,author.*,language.*,period.*,genres.genres_id.*,tags.tags_id.*,cover_image,poster_image,home_card_image';
 const stagingFields = '*,play.*,cover_image,photos.*,photos.image';
 const blogPostFields =
   '*,cover_image,related_plays.plays_id.*,related_plays.plays_id.author.*,related_plays.plays_id.genres.genres_id.*,related_plays.plays_id.tags.tags_id.*,related_books.books_id.*,text_bank_references.*';
@@ -47,6 +47,7 @@ export type Play = {
   original_title?: string;
   summary?: string;
   cover_image?: string | { id: string };
+  poster_image?: string | { id: string };
   author?: Author;
   year_written?: number;
   language?: Taxonomy;
@@ -73,6 +74,7 @@ export type Play = {
   script_url?: string;
   is_published?: boolean;
   display_on_home?: boolean;
+  is_newcomer_play?: boolean;
   home_sort_order?: number;
   event_date?: string;
   event_venue?: string;
@@ -140,6 +142,7 @@ export type Staging = {
   cast_notes?: string;
   production_notes?: string;
   ticket_url?: string;
+  video_url?: string;
   cover_image?: string | { id: string };
   photos?: StagingPhoto[];
   sort_order?: number;
@@ -155,7 +158,7 @@ export type Page = {
 export type ContactItem = {
   label: string;
   value: string;
-  type?: 'email' | 'phone' | 'address' | 'map' | 'instagram' | 'youtube' | 'website' | 'other';
+  type?: 'email' | 'phone' | 'address' | 'map' | 'instagram' | 'youtube' | 'tiktok' | 'website' | 'other';
   href?: string;
   sort_order?: number;
   is_visible?: boolean;
@@ -212,10 +215,10 @@ export async function getPlays(): Promise<Play[]> {
   const items = await fetchItems<Play>('plays', {
     fields: playFields,
     'filter[is_published][_eq]': 'true',
-    sort: 'title',
+    sort: '-event_date,title',
   });
 
-  return items ? items.map(normalizePlay) : fallbackPlays;
+  return sortPlaysChronologically(items ? items.map(normalizePlay) : fallbackPlays);
 }
 
 export async function getPlayBySlug(slug: string): Promise<Play | undefined> {
@@ -464,6 +467,20 @@ function normalizeStaging(staging: Staging): Staging {
     play: staging.play ? normalizePlay(staging.play) : undefined,
     photos: normalizeStagingPhotos(staging.photos),
   };
+}
+
+function sortPlaysChronologically(plays: Play[]): Play[] {
+  return [...plays].sort((first, second) => {
+    const firstTime = first.event_date ? new Date(first.event_date).getTime() : Number.NEGATIVE_INFINITY;
+    const secondTime = second.event_date ? new Date(second.event_date).getTime() : Number.NEGATIVE_INFINITY;
+    if (Number.isFinite(firstTime) && Number.isFinite(secondTime) && firstTime !== secondTime) {
+      return secondTime - firstTime;
+    }
+    if (Number.isFinite(firstTime) !== Number.isFinite(secondTime)) {
+      return Number.isFinite(secondTime) ? 1 : -1;
+    }
+    return first.title.localeCompare(second.title, 'tr');
+  });
 }
 
 function normalizeRehearsalIdea(idea: RehearsalIdea): RehearsalIdea {

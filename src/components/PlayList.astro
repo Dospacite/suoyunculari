@@ -16,6 +16,11 @@ function formatPlayYear(value?: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'Yıl belirsiz' : String(date.getFullYear());
 }
+
+function formatArchiveLabel(play: Play): string {
+  const year = formatPlayYear(play.event_date);
+  return play.is_newcomer_play ? `${year} - Yeniler` : year;
+}
 ---
 
 <section class="play-browser" aria-label="Play browser">
@@ -60,7 +65,7 @@ function formatPlayYear(value?: string): string {
             data-genre={genreSearch}
           >
             <a href={`/plays/${play.slug}`}>
-              <div class="play-card-year">{formatPlayYear(play.event_date)}</div>
+              <div class="play-card-year">{formatArchiveLabel(play)}</div>
               {
                 thumbnail ? (
                   <img src={thumbnail} alt="" loading="lazy" />

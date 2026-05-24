@@ -38,6 +38,7 @@ const publicFields = {
     'original_title',
     'summary',
     'cover_image',
+    'poster_image',
     'author',
     'year_written',
     'language',
@@ -59,6 +60,7 @@ const publicFields = {
     'script_url',
     'is_published',
     'display_on_home',
+    'is_newcomer_play',
     'home_sort_order',
     'event_date',
     'event_venue',
@@ -81,6 +83,7 @@ const publicFields = {
     'cast_notes',
     'production_notes',
     'ticket_url',
+    'video_url',
     'cover_image',
     'photos',
     'sort_order',
@@ -215,6 +218,9 @@ await ensurePermission(publicPolicy.id, 'homepage_sections', 'read', {
 await ensurePermission(publicPolicy.id, 'contact_items', 'read', {
   permissions: { is_visible: { _eq: true } },
   fields: publicFields.contact_items,
+});
+await ensurePermission(publicPolicy.id, 'directus_files', 'read', {
+  fields: ['id', 'title', 'filename_disk', 'filename_download', 'type', 'modified_on'],
 });
 
 for (const collection of ['authors', 'genres', 'tags', 'languages', 'periods', 'pages']) {

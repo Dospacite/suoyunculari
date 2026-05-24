@@ -26,6 +26,27 @@ const timeFormatter = new Intl.DateTimeFormat('tr-TR', {
   minute: '2-digit',
 });
 const castText = play?.cast || staging?.cast_notes;
+const videoEmbedUrl = getYouTubeEmbedUrl(staging?.video_url);
+
+function getYouTubeEmbedUrl(value?: string): string | undefined {
+  if (!value) return undefined;
+
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.replace(/^www\./, '');
+    let id = '';
+
+    if (hostname === 'youtu.be') {
+      id = url.pathname.slice(1);
+    } else if (hostname === 'youtube.com' || hostname === 'm.youtube.com') {
+      id = url.searchParams.get('v') || url.pathname.match(/\/shorts\/([^/]+)/)?.[1] || url.pathname.match(/\/embed\/([^/]+)/)?.[1] || '';
+    }
+
+    return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}` : undefined;
+  } catch {
+    return undefined;
+  }
+}
 ---
 
 <BaseLayout title={staging?.title ?? 'Sahneleme bulunamadı'} description={staging?.summary || play?.summary}>
@@ -48,6 +69,22 @@ const castText = play?.cast || staging?.cast_notes;
           </div>
 
           {coverImage && <img class="staging-cover" src={coverImage} alt="" />}
+
+          {videoEmbedUrl ? (
+            <div class="staging-video">
+              <iframe
+                title={`${staging.title} video`}
+                src={videoEmbedUrl}
+                loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowfullscreen
+              ></iframe>
+            </div>
+          ) : staging.video_url ? (
+            <a class="button detail-source-button" href={staging.video_url} target="_blank" rel="noreferrer">
+              Video
+            </a>
+          ) : null}
 
           <div class="detail-meta">
             <div>

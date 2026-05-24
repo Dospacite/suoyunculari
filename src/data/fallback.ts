@@ -256,6 +256,14 @@ export const fallbackContactItems: ContactItem[] = [
     sort_order: 4,
     is_visible: true,
   },
+  {
+    label: 'TikTok',
+    value: '@suoyuncularii',
+    type: 'tiktok',
+    href: 'https://www.tiktok.com/@suoyuncularii',
+    sort_order: 5,
+    is_visible: true,
+  },
 ];
 
 export const fallbackHomepageSections: HomepageSection[] = [

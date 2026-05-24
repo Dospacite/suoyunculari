@@ -150,7 +150,7 @@ img {
   color: #fff;
   display: grid;
   gap: 34px;
-  grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr);
   justify-content: space-between;
   padding: 54px clamp(20px, 4vw, 44px);
   flex-shrink: 0;
@@ -171,7 +171,6 @@ img {
   display: grid;
   gap: 12px 22px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  justify-self: end;
   min-width: 0;
 }
 
@@ -187,6 +186,89 @@ img {
 .site-footer span,
 .muted {
   color: rgba(255, 255, 255, 0.62);
+}
+
+.footer-resources {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.footer-resources h2 {
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 950;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.footer-resources > div {
+  display: grid;
+  gap: 10px;
+}
+
+.footer-resources a {
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  min-width: 0;
+  padding-bottom: 10px;
+}
+
+.footer-resources img {
+  background: #fff;
+  height: 34px;
+  object-fit: contain;
+  padding: 4px;
+  width: 34px;
+}
+
+.footer-resource-swatch,
+.footer-resource-dot {
+  background: var(--swatch-color, var(--accent));
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  display: inline-block;
+  height: 34px;
+  width: 34px;
+}
+
+.footer-resource-dot {
+  border-radius: 50%;
+}
+
+.footer-resources strong,
+.footer-resources em {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.footer-resources strong {
+  color: #fff;
+  font-size: 0.84rem;
+  line-height: 1.2;
+}
+
+.footer-resources em {
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.75rem;
+  font-style: normal;
+  margin-top: 3px;
+}
+
+.footer-resources .footer-resources-all {
+  border-bottom-color: rgba(255, 255, 255, 0.28);
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-weight: 900;
+  gap: 0;
+  justify-self: start;
+  min-height: 30px;
+  padding-bottom: 7px;
+  text-transform: uppercase;
 }
 
 .home-hero {
@@ -1929,6 +2011,14 @@ dd {
   .home-play-grid.centered {
     grid-template-columns: repeat(var(--home-play-count), minmax(0, 360px));
     justify-content: center;
+  }
+
+  .site-footer {
+    grid-template-columns: minmax(0, 0.9fr) minmax(260px, 0.8fr) minmax(220px, 0.7fr);
+  }
+
+  .footer-links {
+    justify-self: end;
   }
 
   .browser-tools {

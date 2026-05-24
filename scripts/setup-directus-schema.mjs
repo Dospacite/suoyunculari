@@ -239,25 +239,33 @@ const relations = [
     junction_field: 'genres_id',
     one_deselect_action: 'delete',
   }),
-  relation('plays_genres', 'genres_id', 'genres'),
+  relation('plays_genres', 'genres_id', 'genres', {
+    junction_field: 'plays_id',
+  }),
   relation('plays_tags', 'plays_id', 'plays', {
     one_field: 'tags',
     junction_field: 'tags_id',
     one_deselect_action: 'delete',
   }),
-  relation('plays_tags', 'tags_id', 'tags'),
+  relation('plays_tags', 'tags_id', 'tags', {
+    junction_field: 'plays_id',
+  }),
   relation('blog_posts_plays', 'blog_posts_id', 'blog_posts', {
     one_field: 'related_plays',
     junction_field: 'plays_id',
     one_deselect_action: 'delete',
   }),
-  relation('blog_posts_plays', 'plays_id', 'plays'),
+  relation('blog_posts_plays', 'plays_id', 'plays', {
+    junction_field: 'blog_posts_id',
+  }),
   relation('blog_posts_books', 'blog_posts_id', 'blog_posts', {
     one_field: 'related_books',
     junction_field: 'books_id',
     one_deselect_action: 'delete',
   }),
-  relation('blog_posts_books', 'books_id', 'books'),
+  relation('blog_posts_books', 'books_id', 'books', {
+    junction_field: 'blog_posts_id',
+  }),
   relation('blog_posts_text_bank_references', 'blog_posts_id', 'blog_posts', {
     one_field: 'text_bank_references',
     one_deselect_action: 'delete',
@@ -460,7 +468,11 @@ async function repairManyToMany({
       one_deselect_action: 'delete',
     }),
   );
-  await ensureRelation(relation(junctionCollection, relatedField, relatedCollection));
+  await ensureRelation(
+    relation(junctionCollection, relatedField, relatedCollection, {
+      junction_field: ownerField,
+    }),
+  );
   console.log(`m2m repaired: ${ownerCollection}.${aliasField.field}`);
 }
 

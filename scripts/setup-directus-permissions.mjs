@@ -37,6 +37,7 @@ const publicFields = {
     'slug',
     'original_title',
     'summary',
+    'short_description',
     'cover_image',
     'poster_image',
     'author',

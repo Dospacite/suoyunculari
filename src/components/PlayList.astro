@@ -44,11 +44,13 @@ function formatArchiveLabel(play: Play): string {
         const originalTitle = play.original_title || play.title;
         const authorName = play.author?.name || 'Yazar belirsiz';
         const thumbnail = assetUrl(play.home_card_image || play.cover_image);
+        const description = play.short_description || play.summary || originalTitle;
         const genreSearch = play.genres?.map((genre) => genre.name.toLowerCase()).join(' ') ?? '';
         const searchable = [
           play.title,
           play.original_title,
           play.author?.name,
+          play.short_description,
           play.cast,
           genres,
           play.tags?.map((tag) => tag.name).join(' '),
@@ -75,7 +77,7 @@ function formatArchiveLabel(play: Play): string {
               <div class="play-card-copy">
                 <h2>{play.title}</h2>
                 <p class="play-card-author">{authorName}</p>
-                <p class="play-card-description">{play.summary || originalTitle}</p>
+                <p class="play-card-description">{description}</p>
               </div>
             </a>
           </article>

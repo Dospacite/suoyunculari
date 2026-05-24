@@ -62,6 +62,7 @@ const fields = {
     stringField('slug', { required: true, unique: true }),
     stringField('original_title'),
     textField('summary', { interfaceName: 'input-rich-text-md' }),
+    textField('short_description'),
     fileField('cover_image'),
     fileField('poster_image', {
       note: 'A3 portrait poster used on play detail pages. This is separate from cover and home card images.',

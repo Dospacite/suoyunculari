@@ -36,6 +36,7 @@ export const fallbackPlays: Play[] = [
     original_title: "A Midsummer Night's Dream",
     summary:
       'A fast, playful ensemble comedy where mistaken identities, rehearsal chaos, and dream logic collide.',
+    short_description: 'A playful ensemble comedy of mistaken identities, rehearsal chaos, and dream logic.',
     author: fallbackAuthors[0],
     year_written: 1595,
     duration_minutes: 120,
@@ -61,6 +62,7 @@ export const fallbackPlays: Play[] = [
     original_title: 'Chayka',
     summary:
       'A quiet, demanding character study for actors interested in subtext, rhythm, and emotional restraint.',
+    short_description: 'A quiet character study built around subtext, rhythm, and emotional restraint.',
     author: fallbackAuthors[1],
     year_written: 1895,
     duration_minutes: 135,
@@ -85,6 +87,7 @@ export const fallbackPlays: Play[] = [
     slug: 'waiting-for-godot',
     summary:
       'A minimal two-act play built around repetition, silence, timing, and the weight of waiting.',
+    short_description: 'A minimal two-act play about repetition, silence, timing, and waiting.',
     author: { name: 'Samuel Beckett', slug: 'samuel-beckett', country: 'Ireland' },
     year_written: 1949,
     duration_minutes: 110,

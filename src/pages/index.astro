@@ -62,6 +62,7 @@ const postDateFormatter = new Intl.DateTimeFormat('tr-TR', {
           {homePlays.map((play) => {
             const image = assetUrl(play.home_card_image || play.cover_image);
             const date = play.event_date ? dateFormatter.format(new Date(play.event_date)) : 'Tarih yakında';
+            const description = play.short_description || play.summary;
 
             return (
               <article class="home-play-card">
@@ -73,7 +74,7 @@ const postDateFormatter = new Intl.DateTimeFormat('tr-TR', {
                 <div>
                   <p class="kicker">{date}</p>
                   <h3>{play.title}</h3>
-                  <p>{play.summary}</p>
+                  {description && <p class="home-card-description">{description}</p>}
                   <div class="home-card-meta">
                     <span>{play.event_venue || 'Mekan yakında'}</span>
                     <a class="button compact-button" href={`/plays/${play.slug}`}>DETAY</a>

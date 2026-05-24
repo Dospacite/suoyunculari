@@ -443,6 +443,13 @@ img {
   margin: 0;
 }
 
+.home-play-card .home-card-description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
 .home-card-meta {
   align-items: center;
   display: flex;

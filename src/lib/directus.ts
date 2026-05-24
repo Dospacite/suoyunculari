@@ -46,6 +46,7 @@ export type Play = {
   slug: string;
   original_title?: string;
   summary?: string;
+  short_description?: string;
   cover_image?: string | { id: string };
   poster_image?: string | { id: string };
   author?: Author;

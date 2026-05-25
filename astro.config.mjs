@@ -3,7 +3,7 @@ import node from '@astrojs/node';
 import sitemap from '@astrojs/sitemap';
 
 export default defineConfig({
-  site: 'https://suoyunculari.com',
+  site: 'https://yk.suoyunculari.com',
   output: 'server',
   adapter: node({
     mode: 'standalone',

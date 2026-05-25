@@ -1,0 +1,238 @@
+---
+import YkLayout from '@/layouts/YkLayout.astro';
+import { getRollCallData, listSheets } from '@/lib/yk';
+
+const user = Astro.locals.user!;
+const sheets = await listSheets();
+const selectedId = Astro.url.searchParams.get('sheet') || sheets[0]?.id || '';
+const data = selectedId ? await getRollCallData(selectedId) : null;
+const entryMap = new Map((data?.entries || []).map((entry) => [`${entry.member_id}:${entry.rehearsal_id}`, entry]));
+---
+
+<YkLayout title="Yoklama" user={user}>
+  <header class="page-head">
+    <div>
+      <h1>Yoklama</h1>
+      {data?.sheet.description && <p>{data.sheet.description}</p>}
+    </div>
+    {data && <a class="button" href={`/api/roll-call/${data.sheet.id}/export.xlsx`}>Excel</a>}
+  </header>
+
+  <section class="toolbar">
+    {
+      sheets.length > 0 && (
+        <label>
+          Çizelge
+          <select id="sheet-select">
+            {sheets.map((sheet) => (
+              <option value={sheet.id} selected={sheet.id === selectedId}>
+                {sheet.name}{sheet.archived ? ' (arşiv)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+      )
+    }
+    <form class="form-row" data-create-sheet>
+      <label>
+        Yeni çizelge
+        <input name="name" placeholder="2026 Bahar" required />
+      </label>
+      <button type="submit">+ Çizelge</button>
+    </form>
+    {
+      data && (
+        <>
+          <form class="form-row" data-rename-sheet data-id={data.sheet.id}>
+            <label>
+              Ad
+              <input name="name" value={data.sheet.name} required />
+            </label>
+            <button class="secondary" type="submit">Yeniden adlandır</button>
+          </form>
+          <button class="secondary" type="button" data-archive-sheet data-id={data.sheet.id} data-archived={String(!data.sheet.archived)}>
+            {data.sheet.archived ? 'Arşivden çıkar' : 'Arşivle'}
+          </button>
+          <button class="danger" type="button" data-delete-sheet data-id={data.sheet.id}>Sil</button>
+        </>
+      )
+    }
+  </section>
+
+  {
+    !data ? (
+      <section class="panel">
+        <h2>Çizelge yok</h2>
+        <p>İlk yoklama çizelgesini oluşturmak için yukarıdaki alanı kullan.</p>
+      </section>
+    ) : (
+      <>
+        <section class="toolbar">
+          <form class="form-row" data-add-rehearsal data-sheet={data.sheet.id}>
+            <label>
+              Prova tarihi
+              <input name="date" type="date" required />
+            </label>
+            <label>
+              Başlık
+              <input name="title" placeholder="Genel prova" />
+            </label>
+            <button type="submit">+ Tarih</button>
+          </form>
+        </section>
+
+        <section class="table-wrap" aria-label="Yoklama tablosu">
+          <table>
+            <thead>
+              <tr>
+                <th class="sticky-col">Üye</th>
+                {data.rehearsals.map((rehearsal) => (
+                  <th>
+                    <div class="date-head">
+                      <strong>{new Date(`${rehearsal.rehearsal_date}T00:00:00`).toLocaleDateString('tr-TR')}</strong>
+                      {rehearsal.title && <span>{rehearsal.title}</span>}
+                      <button class="secondary" type="button" data-delete-rehearsal data-id={rehearsal.id}>Sil</button>
+                    </div>
+                  </th>
+                ))}
+                <th>Toplam</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.members.map((member) => (
+                <tr>
+                  <td class="sticky-col">
+                    <strong>{member.display_name}</strong>
+                    {member.notes && <div class="member-sub">{member.notes}</div>}
+                  </td>
+                  {data.rehearsals.map((rehearsal) => {
+                    const entry = entryMap.get(`${member.id}:${rehearsal.id}`);
+                    return (
+                      <td>
+                        <select
+                          class="attendance-select"
+                          data-attendance
+                          data-member={member.id}
+                          data-rehearsal={rehearsal.id}
+                        >
+                          <option value="" selected={!entry?.state_id}>-</option>
+                          {data.states.filter((state) => state.active).map((state) => (
+                            <option value={state.id} selected={entry?.state_id === state.id}>
+                              {state.label} ({state.points})
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    );
+                  })}
+                  <td class="total-cell">{data.totals[member.id] ?? 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+        <form class="inline-add" data-add-member data-sheet={data.sheet.id}>
+          <div class="form-row">
+            <label>
+              Ad
+              <input name="firstName" required />
+            </label>
+            <label>
+              Soyad
+              <input name="lastName" required />
+            </label>
+            <label>
+              Not
+              <input name="notes" />
+            </label>
+            <button type="submit">+ Üye</button>
+          </div>
+        </form>
+        <div class="summary-bar">
+          <span>Ortalama puan</span>
+          <strong>{data.average.toFixed(2)}</strong>
+        </div>
+      </>
+    )
+  }
+
+  <script>
+    // @ts-nocheck
+    const postJson = async (url, method, body = undefined) => {
+      const response = await fetch(url, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'İşlem başarısız');
+      }
+      return response.json().catch(() => ({}));
+    };
+
+    document.querySelector('#sheet-select')?.addEventListener('change', (event) => {
+      const value = event.currentTarget.value;
+      window.location.href = `/roll-call?sheet=${encodeURIComponent(value)}`;
+    });
+
+    document.querySelector('[data-create-sheet]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const body = Object.fromEntries(new FormData(form).entries());
+      const data = await postJson('/api/roll-call/sheets', 'POST', body);
+      window.location.href = `/roll-call?sheet=${data.sheet.id}`;
+    });
+
+    document.querySelector('[data-rename-sheet]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      await postJson(`/api/roll-call/sheets/${form.dataset.id}`, 'PATCH', Object.fromEntries(new FormData(form).entries()));
+      window.location.reload();
+    });
+
+    document.querySelector('[data-archive-sheet]')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      await postJson(`/api/roll-call/sheets/${button.dataset.id}`, 'PATCH', { archived: button.dataset.archived === 'true' });
+      window.location.reload();
+    });
+
+    document.querySelector('[data-delete-sheet]')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      if (!confirm('Bu çizelge silinsin mi?')) return;
+      await postJson(`/api/roll-call/sheets/${button.dataset.id}`, 'DELETE');
+      window.location.href = '/roll-call';
+    });
+
+    document.querySelector('[data-add-rehearsal]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      await postJson(`/api/roll-call/sheets/${form.dataset.sheet}/rehearsals`, 'POST', Object.fromEntries(new FormData(form).entries()));
+      window.location.reload();
+    });
+
+    document.querySelectorAll('[data-delete-rehearsal]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!confirm('Bu tarih silinsin mi?')) return;
+        await postJson(`/api/roll-call/rehearsals/${button.dataset.id}`, 'DELETE');
+        window.location.reload();
+      });
+    });
+
+    document.querySelector('[data-add-member]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      await postJson(`/api/roll-call/sheets/${form.dataset.sheet}/members`, 'POST', Object.fromEntries(new FormData(form).entries()));
+      window.location.reload();
+    });
+
+    document.querySelectorAll('[data-attendance]').forEach((select) => {
+      select.addEventListener('change', async () => {
+        await postJson(`/api/roll-call/attendance/${select.dataset.member}/${select.dataset.rehearsal}`, 'PATCH', {
+          stateId: select.value || null,
+        });
+        window.location.reload();
+      });
+    });
+  </script>
+</YkLayout>

@@ -1,0 +1,55 @@
+---
+import '@/styles/yk.css';
+import { roleLabel, type YkUser } from '@/lib/yk';
+
+type Props = {
+  title?: string;
+  user?: YkUser | null;
+};
+
+const { title = 'YK', user = null } = Astro.props;
+const pageTitle = `${title} | SUOyuncuları YK`;
+---
+
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#0d0d0f" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{pageTitle}</title>
+  </head>
+  <body>
+    <div class="yk-shell">
+      {
+        user && (
+          <aside class="yk-sidebar">
+            <a class="yk-brand" href="/roll-call">
+              <img src="/Logo.svg" alt="" />
+              <span>YK</span>
+            </a>
+            <nav class="yk-nav" aria-label="YK navigasyon">
+              <a href="/roll-call">Yoklama</a>
+              <a href="/members">Üyeler</a>
+              {user.role === 'admin' && <a href="/users">Kullanıcılar</a>}
+              <a href="/settings">Ayarlar</a>
+              <a href="/logs">Loglar</a>
+            </nav>
+            <div class="yk-user">
+              <strong>{user.display_name || user.email}</strong>
+              <span>{roleLabel(user.role)}</span>
+              <form method="post" action="/api/auth/logout">
+                <button type="submit">Çıkış</button>
+              </form>
+            </div>
+          </aside>
+        )
+      }
+      <main class={user ? 'yk-main' : 'yk-auth-main'}>
+        <slot />
+      </main>
+    </div>
+  </body>
+</html>

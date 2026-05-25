@@ -1,0 +1,48 @@
+---
+import YkLayout from '@/layouts/YkLayout.astro';
+import { listLogs } from '@/lib/yk';
+
+const user = Astro.locals.user!;
+const filters = {
+  actor: Astro.url.searchParams.get('actor') || undefined,
+  action: Astro.url.searchParams.get('action') || undefined,
+  entity: Astro.url.searchParams.get('entity') || undefined,
+};
+const logs = await listLogs(filters);
+---
+
+<YkLayout title="Loglar" user={user}>
+  <header class="page-head">
+    <h1>Loglar</h1>
+  </header>
+
+  <form class="toolbar" method="get">
+    <label>
+      Kullanıcı
+      <input name="actor" value={filters.actor || ''} />
+    </label>
+    <label>
+      Aksiyon
+      <input name="action" value={filters.action || ''} />
+    </label>
+    <label>
+      Varlık
+      <input name="entity" value={filters.entity || ''} />
+    </label>
+    <button type="submit">Filtrele</button>
+    <a class="button secondary" href="/logs">Temizle</a>
+  </form>
+
+  <section class="log-list">
+    {
+      logs.map((log: any) => (
+        <article class="log-row">
+          <strong>{log.actor_email || 'Sistem'}</strong>
+          <span class="pill">{log.action}</span>
+          <span>{log.entity_type}{log.entity_id ? ` / ${log.entity_id}` : ''}</span>
+          <span class="log-meta">{new Date(log.created_at).toLocaleString('tr-TR')}</span>
+        </article>
+      ))
+    }
+  </section>
+</YkLayout>

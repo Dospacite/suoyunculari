@@ -1,24 +1,22 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: suoyunculari-postgres
+    container_name: suoyunculari-yk-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-suoyunculari}
-      POSTGRES_USER: ${POSTGRES_USER:-suo}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-suo_password}
+      POSTGRES_DB: ${YK_POSTGRES_DB:-suoyunculari_yk}
+      POSTGRES_USER: ${YK_POSTGRES_USER:-suo_yk}
+      POSTGRES_PASSWORD: ${YK_POSTGRES_PASSWORD:-suo_yk_password}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-suo} -d ${POSTGRES_DB:-suoyunculari}"]
+      test: ["CMD-SHELL", "pg_isready -U ${YK_POSTGRES_USER:-suo_yk} -d ${YK_POSTGRES_DB:-suoyunculari_yk}"]
       interval: 5s
       timeout: 5s
       retries: 10
-    ports:
-      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - yk_postgres_data:/var/lib/postgresql/data
 
   app:
-    container_name: suoyunculari-app
+    container_name: suoyunculari-yk-app
     restart: unless-stopped
     build: .
     depends_on:
@@ -27,17 +25,14 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 4321
-      DATABASE_URL: postgres://${POSTGRES_USER:-suo}:${POSTGRES_PASSWORD:-suo_password}@postgres:5432/${POSTGRES_DB:-suoyunculari}
-      PUBLIC_DIRECTUS_URL: ${PUBLIC_DIRECTUS_URL:-https://cms.suoyunculari.com}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-    ports:
-      - "4321:4321"
+      YK_DATABASE_URL: postgres://${YK_POSTGRES_USER:-suo_yk}:${YK_POSTGRES_PASSWORD:-suo_yk_password}@postgres:5432/${YK_POSTGRES_DB:-suoyunculari_yk}
+      YK_SESSION_SECRET: ${YK_SESSION_SECRET:-}
     networks:
       - default
       - web
 
 volumes:
-  postgres_data:
+  yk_postgres_data:
 
 networks:
   web:

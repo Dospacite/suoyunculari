@@ -1,0 +1,78 @@
+---
+import YkLayout from '@/layouts/YkLayout.astro';
+import { getRollCallData, listSheets } from '@/lib/yk';
+
+const user = Astro.locals.user!;
+const sheets = await listSheets();
+const selectedId = Astro.url.searchParams.get('sheet') || sheets[0]?.id || '';
+const data = selectedId ? await getRollCallData(selectedId) : null;
+---
+
+<YkLayout title="Ayarlar" user={user}>
+  <header class="page-head">
+    <h1>Ayarlar</h1>
+  </header>
+
+  {
+    data ? (
+      <section class="panel">
+        <div class="toolbar">
+          <label>
+            Çizelge
+            <select id="sheet-select">
+              {sheets.map((sheet) => <option value={sheet.id} selected={sheet.id === selectedId}>{sheet.name}</option>)}
+            </select>
+          </label>
+        </div>
+        <h2>Yoklama durumları</h2>
+        <div class="state-list">
+          {data.states.map((state) => (
+            <form class="state-row" data-state-form data-id={state.id}>
+              <label>
+                Etiket
+                <input name="label" value={state.label} required />
+              </label>
+              <label>
+                Puan
+                <input name="points" type="number" min="0" max="100" value={state.points} required />
+              </label>
+              <label>
+                Renk
+                <input name="color" type="color" value={state.color || '#101013'} />
+              </label>
+              <button type="submit">Kaydet</button>
+            </form>
+          ))}
+        </div>
+      </section>
+    ) : (
+      <section class="panel"><p>Önce bir yoklama çizelgesi oluştur.</p></section>
+    )
+  }
+
+  <script>
+    // @ts-nocheck
+    const postJson = async (url, method, body) => {
+      const response = await fetch(url, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error('İşlem başarısız');
+    };
+
+    document.querySelector('#sheet-select')?.addEventListener('change', (event) => {
+      window.location.href = `/settings?sheet=${encodeURIComponent(event.currentTarget.value)}`;
+    });
+
+    document.querySelectorAll('[data-state-form]').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const body = Object.fromEntries(new FormData(form).entries());
+        body.points = Number(body.points);
+        await postJson(`/api/roll-call/states/${form.dataset.id}`, 'PATCH', body);
+        window.location.reload();
+      });
+    });
+  </script>
+</YkLayout>

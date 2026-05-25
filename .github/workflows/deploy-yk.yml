@@ -1,0 +1,91 @@
+name: Deploy YK admin
+
+on:
+  push:
+    branches:
+      - yk-admin
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          YK_DATABASE_URL: postgres://suo_yk:${{ secrets.YK_POSTGRES_PASSWORD }}@localhost:5432/suoyunculari_yk
+
+      - name: Check
+        run: npm run check
+
+      - name: Sync app to VPS
+        uses: easingthemes/ssh-deploy@v5.1.0
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
+          REMOTE_HOST: ${{ secrets.VPS_HOST }}
+          REMOTE_USER: ${{ secrets.VPS_USER }}
+          SOURCE: "./"
+          TARGET: "/opt/suoyunculari-yk/"
+          ARGS: "-rlDzvc --delete --chmod=D775,F664"
+          EXCLUDE: "/node_modules/, /dist/, /.astro/, /.git/, /.env, /.env.*"
+
+      - name: Restart YK stack
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /opt/suoyunculari-yk
+
+            existing_value() {
+              if [ -f .env ]; then
+                sed -n "s/^$1=//p" .env | tail -n 1
+              fi
+            }
+
+            YK_POSTGRES_PASSWORD_VALUE='${{ secrets.YK_POSTGRES_PASSWORD }}'
+            YK_SESSION_SECRET_VALUE='${{ secrets.YK_SESSION_SECRET }}'
+            YK_ADMIN_EMAIL_VALUE='${{ secrets.YK_ADMIN_EMAIL }}'
+            YK_ADMIN_INITIAL_PASSWORD_VALUE='${{ secrets.YK_ADMIN_INITIAL_PASSWORD }}'
+
+            YK_POSTGRES_PASSWORD_VALUE="${YK_POSTGRES_PASSWORD_VALUE:-$(existing_value YK_POSTGRES_PASSWORD)}"
+            YK_SESSION_SECRET_VALUE="${YK_SESSION_SECRET_VALUE:-$(existing_value YK_SESSION_SECRET)}"
+            YK_ADMIN_EMAIL_VALUE="${YK_ADMIN_EMAIL_VALUE:-$(existing_value YK_ADMIN_EMAIL)}"
+            YK_ADMIN_INITIAL_PASSWORD_VALUE="${YK_ADMIN_INITIAL_PASSWORD_VALUE:-$(existing_value YK_ADMIN_INITIAL_PASSWORD)}"
+
+            tmp_env="$(mktemp)"
+            cat > "$tmp_env" <<EOF
+            YK_POSTGRES_DB=suoyunculari_yk
+            YK_POSTGRES_USER=suo_yk
+            YK_POSTGRES_PASSWORD=${YK_POSTGRES_PASSWORD_VALUE:-suo_yk_password}
+            YK_SESSION_SECRET=${YK_SESSION_SECRET_VALUE:-}
+            YK_ADMIN_EMAIL=${YK_ADMIN_EMAIL_VALUE:-ege.ertan@sabanciuniv.edu}
+            YK_ADMIN_INITIAL_PASSWORD=${YK_ADMIN_INITIAL_PASSWORD_VALUE:-}
+            EOF
+            install -m 600 "$tmp_env" .env
+            rm -f "$tmp_env"
+
+            docker compose up -d --build --force-recreate
+            docker compose exec -T app npm run yk:migrate
+            if [ -n "${YK_ADMIN_INITIAL_PASSWORD_VALUE:-}" ]; then
+              docker compose exec -T app npm run yk:seed-admin
+            else
+              echo "YK admin seed skipped because YK_ADMIN_INITIAL_PASSWORD is not configured."
+            fi
+            docker image prune -f

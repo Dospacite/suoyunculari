@@ -40,7 +40,7 @@ jobs:
           SOURCE: "./"
           TARGET: "/opt/suoyunculari-yk/"
           ARGS: "-rlDzvc --delete --chmod=D775,F664"
-          EXCLUDE: "/node_modules/, /dist/, /.astro/, /.git/, /.env, /.env.*, /scripts/scraped/"
+          EXCLUDE: "/node_modules/, /dist/, /.astro/, /.git/, /.github/, /.env, /.env.*, /scripts/scraped/"
 
       - name: Restart YK stack
         uses: appleboy/ssh-action@v1.2.0

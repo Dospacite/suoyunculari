@@ -25,7 +25,10 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 4321
-      YK_DATABASE_URL: postgres://${YK_POSTGRES_USER:-suo_yk}:${YK_POSTGRES_PASSWORD:-suo_yk_password}@postgres:5432/${YK_POSTGRES_DB:-suoyunculari_yk}
+      YK_DB_HOST: postgres
+      YK_POSTGRES_DB: ${YK_POSTGRES_DB:-suoyunculari_yk}
+      YK_POSTGRES_USER: ${YK_POSTGRES_USER:-suo_yk}
+      YK_POSTGRES_PASSWORD: ${YK_POSTGRES_PASSWORD:-suo_yk_password}
       YK_SESSION_SECRET: ${YK_SESSION_SECRET:-}
     networks:
       - default

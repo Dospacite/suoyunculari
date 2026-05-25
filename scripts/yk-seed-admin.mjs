@@ -4,15 +4,23 @@ import pg from 'pg';
 
 const { Pool } = pg;
 const scrypt = promisify(scryptCallback);
-const connectionString = process.env.YK_DATABASE_URL || process.env.DATABASE_URL;
 const email = process.env.YK_ADMIN_EMAIL;
 const password = process.env.YK_ADMIN_INITIAL_PASSWORD;
 
-if (!connectionString) throw new Error('YK_DATABASE_URL or DATABASE_URL is required');
 if (!email) throw new Error('YK_ADMIN_EMAIL is required');
 if (!password) throw new Error('YK_ADMIN_INITIAL_PASSWORD is required');
 
-const pool = new Pool({ connectionString });
+const pool = new Pool(
+  process.env.YK_DATABASE_URL || process.env.DATABASE_URL
+    ? { connectionString: process.env.YK_DATABASE_URL || process.env.DATABASE_URL }
+    : {
+        host: process.env.YK_DB_HOST || 'postgres',
+        port: Number(process.env.YK_DB_PORT || 5432),
+        database: process.env.YK_POSTGRES_DB || 'suoyunculari_yk',
+        user: process.env.YK_POSTGRES_USER || 'suo_yk',
+        password: process.env.YK_POSTGRES_PASSWORD || 'suo_yk_password',
+      },
+);
 
 async function hashPassword(value) {
   const salt = randomBytes(16).toString('hex');

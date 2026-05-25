@@ -30,6 +30,8 @@ services:
       YK_POSTGRES_USER: ${YK_POSTGRES_USER:-suo_yk}
       YK_POSTGRES_PASSWORD: ${YK_POSTGRES_PASSWORD:-suo_yk_password}
       YK_SESSION_SECRET: ${YK_SESSION_SECRET:-}
+      YK_ADMIN_EMAIL: ${YK_ADMIN_EMAIL:-}
+      YK_ADMIN_INITIAL_PASSWORD: ${YK_ADMIN_INITIAL_PASSWORD:-}
     networks:
       - default
       - web

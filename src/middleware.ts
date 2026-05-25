@@ -20,6 +20,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
     const origin = context.request.headers.get('origin');
     const forwardedHost = context.request.headers.get('x-forwarded-host');
     const requestHost = forwardedHost || context.request.headers.get('host') || context.url.host;
+    const allowedHosts = new Set([
+      requestHost,
+      context.url.host,
+      process.env.YK_PUBLIC_HOST || 'yk.suoyunculari.com',
+    ]);
     if (origin) {
       let originHost = '';
       try {
@@ -27,7 +32,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
       } catch {
         return new Response('Forbidden', { status: 403 });
       }
-      if (originHost !== requestHost) {
+      if (!allowedHosts.has(originHost)) {
         return new Response('Cross-site POST form submissions are forbidden', { status: 403 });
       }
     }

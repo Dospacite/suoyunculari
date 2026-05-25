@@ -21,6 +21,13 @@ const typeLabels: Record<string, string> = {
   file: 'Dosyalar',
   other: 'Diğer',
 };
+
+const imageExtensions = /\.(?:avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/i;
+
+function isEmbeddableImage(url: string | undefined, type: string | undefined): url is string {
+  if (!url) return false;
+  return ['logo', 'image'].includes(type || '') || imageExtensions.test(url);
+}
 ---
 
 <BaseLayout title="Kulüp Kaynakları" description="SUOyuncuları kulüp logo, renk, bağlantı ve görsel kaynakları.">
@@ -38,7 +45,9 @@ const typeLabels: Record<string, string> = {
               <div class="resource-list">
                 {items.map((resource) => {
                   const fileUrl = assetUrl(resource.file);
-                  const resourceHref = resource.href || fileUrl;
+                  const candidateUrl = fileUrl || resource.href;
+                  const imageSrc = isEmbeddableImage(candidateUrl, resource.resource_type) ? candidateUrl : undefined;
+                  const resourceHref = imageSrc ? undefined : resource.href || fileUrl;
                   const descriptionHtml = renderMarkdown(resource.description);
 
                   return (
@@ -57,8 +66,8 @@ const typeLabels: Record<string, string> = {
                             aria-label={`Renk: ${resource.color_value}`}
                           />
                         )}
-                        {fileUrl && ['logo', 'image'].includes(resource.resource_type || '') && (
-                          <img src={fileUrl} alt={resource.title} loading="lazy" />
+                        {imageSrc && (
+                          <img src={imageSrc} alt={resource.title} loading="lazy" />
                         )}
                         {resourceHref && (
                           <a class="button secondary" href={resourceHref} target={resourceHref.startsWith('/') ? undefined : '_blank'} rel={resourceHref.startsWith('/') ? undefined : 'noreferrer'}>

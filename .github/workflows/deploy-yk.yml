@@ -78,7 +78,8 @@ jobs:
             YK_ADMIN_EMAIL=${YK_ADMIN_EMAIL_VALUE:-ege.ertan@sabanciuniv.edu}
             YK_ADMIN_INITIAL_PASSWORD=${YK_ADMIN_INITIAL_PASSWORD_VALUE:-}
             EOF
-            install -m 600 "$tmp_env" .env
+            rm -f .env || sudo rm -f .env
+            install -m 600 "$tmp_env" .env || sudo install -m 600 -o "$(id -un)" -g "$(id -gn)" "$tmp_env" .env
             rm -f "$tmp_env"
 
             docker compose up -d --build --force-recreate

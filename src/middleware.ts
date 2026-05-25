@@ -18,8 +18,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
   if (!['GET', 'HEAD', 'OPTIONS'].includes(context.request.method)) {
     const origin = context.request.headers.get('origin');
-    if (origin && new URL(origin).host !== context.url.host) {
-      return new Response('Forbidden', { status: 403 });
+    const forwardedHost = context.request.headers.get('x-forwarded-host');
+    const requestHost = forwardedHost || context.request.headers.get('host') || context.url.host;
+    if (origin) {
+      let originHost = '';
+      try {
+        originHost = new URL(origin).host;
+      } catch {
+        return new Response('Forbidden', { status: 403 });
+      }
+      if (originHost !== requestHost) {
+        return new Response('Cross-site POST form submissions are forbidden', { status: 403 });
+      }
     }
   }
 

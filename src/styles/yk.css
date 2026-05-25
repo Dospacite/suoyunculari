@@ -92,6 +92,10 @@ label {
   min-height: 100svh;
 }
 
+.yk-auth-shell {
+  grid-template-columns: 1fr;
+}
+
 .yk-sidebar {
   background: var(--ink);
   color: #fff;
@@ -171,6 +175,7 @@ label {
 .yk-auth-main {
   align-items: center;
   display: grid;
+  justify-items: center;
   min-height: 100svh;
 }
 
@@ -178,8 +183,13 @@ label {
   display: grid;
   gap: 22px;
   margin: 0 auto;
-  max-width: 430px;
+  max-width: min(560px, calc(100vw - 32px));
   width: 100%;
+}
+
+.auth-panel .panel {
+  gap: 18px;
+  padding: clamp(22px, 5vw, 34px);
 }
 
 .page-head {

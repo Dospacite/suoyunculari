@@ -22,7 +22,7 @@ const pageTitle = `${title} | SUOyuncuları YK`;
     <title>{pageTitle}</title>
   </head>
   <body>
-    <div class="yk-shell">
+    <div class:list={['yk-shell', !user && 'yk-auth-shell']}>
       {
         user && (
           <aside class="yk-sidebar">

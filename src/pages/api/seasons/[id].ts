@@ -1,17 +1,22 @@
 import type { APIRoute } from 'astro';
-import { addRehearsal } from '@/lib/yk';
+import { updateSeason } from '@/lib/yk';
 import { handleError, json, readJson, requireEditor } from '@/lib/yk-api';
 
-export const POST: APIRoute = async (context) => {
+export const PATCH: APIRoute = async (context) => {
   try {
     const user = requireEditor(context);
     const body = await readJson(context);
-    const rehearsal = await addRehearsal(
+    const season = await updateSeason(
       String(context.params.id),
-      { date: body.date, notes: body.notes },
+      {
+        name: body.name,
+        start_date: body.startDate ?? body.start_date,
+        end_date: body.endDate ?? body.end_date,
+        archived: body.archived,
+      },
       { user, request: context.request },
     );
-    return json({ rehearsal }, 201);
+    return json({ season });
   } catch (error) {
     return handleError(error);
   }

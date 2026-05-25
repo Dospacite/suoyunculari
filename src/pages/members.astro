@@ -1,11 +1,11 @@
 ---
 import YkLayout from '@/layouts/YkLayout.astro';
-import { getRollCallData, listSheets } from '@/lib/yk';
+import { listMembers, listSeasons } from '@/lib/yk';
 
 const user = Astro.locals.user!;
-const sheets = await listSheets();
-const selectedId = Astro.url.searchParams.get('sheet') || sheets[0]?.id || '';
-const data = selectedId ? await getRollCallData(selectedId) : null;
+const seasons = await listSeasons();
+const selectedSeasonId = Astro.url.searchParams.get('season') || seasons.find((season) => !season.archived)?.id || seasons[0]?.id || '';
+const members = selectedSeasonId ? await listMembers(selectedSeasonId) : [];
 ---
 
 <YkLayout title="Üyeler" user={user}>
@@ -14,20 +14,25 @@ const data = selectedId ? await getRollCallData(selectedId) : null;
   </header>
 
   {
-    data ? (
+    seasons.length === 0 ? (
+      <section class="panel">
+        <h2>Sezon yok</h2>
+        <p>Üye eklemek için önce Sezonlar ekranından sezon oluştur.</p>
+      </section>
+    ) : (
       <section class="split">
         <div class="panel">
           <div class="toolbar">
             <label>
-              Çizelge
-              <select id="sheet-select">
-                {sheets.map((sheet) => <option value={sheet.id} selected={sheet.id === selectedId}>{sheet.name}</option>)}
+              Sezon
+              <select id="season-select">
+                {seasons.map((season) => <option value={season.id} selected={season.id === selectedSeasonId}>{season.name}</option>)}
               </select>
             </label>
           </div>
-          <div class="user-list">
-            {data.members.map((member) => (
-              <form class="user-row" data-member-form data-id={member.id}>
+          <div class="member-list">
+            {members.map((member) => (
+              <form class="member-row" data-member-form data-id={member.id}>
                 <label>
                   Ad
                   <input name="first_name" value={member.first_name} required />
@@ -48,7 +53,7 @@ const data = selectedId ? await getRollCallData(selectedId) : null;
             ))}
           </div>
         </div>
-        <form class="panel" data-add-member data-sheet={data.sheet.id}>
+        <form class="panel" data-add-member data-season={selectedSeasonId}>
           <h2>Üye ekle</h2>
           <label>
             Ad
@@ -65,8 +70,6 @@ const data = selectedId ? await getRollCallData(selectedId) : null;
           <button type="submit">Ekle</button>
         </form>
       </section>
-    ) : (
-      <section class="panel"><p>Önce bir yoklama çizelgesi oluştur.</p></section>
     )
   }
 
@@ -82,8 +85,8 @@ const data = selectedId ? await getRollCallData(selectedId) : null;
       return response.json().catch(() => ({}));
     };
 
-    document.querySelector('#sheet-select')?.addEventListener('change', (event) => {
-      window.location.href = `/members?sheet=${encodeURIComponent(event.currentTarget.value)}`;
+    document.querySelector('#season-select')?.addEventListener('change', (event) => {
+      window.location.href = `/members?season=${encodeURIComponent(event.currentTarget.value)}`;
     });
 
     document.querySelectorAll('[data-member-form]').forEach((form) => {
@@ -105,7 +108,7 @@ const data = selectedId ? await getRollCallData(selectedId) : null;
     document.querySelector('[data-add-member]')?.addEventListener('submit', async (event) => {
       event.preventDefault();
       const form = event.currentTarget;
-      await postJson(`/api/roll-call/sheets/${form.dataset.sheet}/members`, 'POST', Object.fromEntries(new FormData(form).entries()));
+      await postJson(`/api/seasons/${form.dataset.season}/members`, 'POST', Object.fromEntries(new FormData(form).entries()));
       window.location.reload();
     });
   </script>

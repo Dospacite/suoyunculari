@@ -9,9 +9,11 @@ const appPrefixes = [
   '/users',
   '/settings',
   '/logs',
+  '/seasons',
   '/api/auth',
   '/api/roll-call',
   '/api/users',
+  '/api/seasons',
 ];
 
 export const onRequest = defineMiddleware(async (context, next) => {

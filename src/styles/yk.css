@@ -349,6 +349,7 @@ th.sticky-col {
 
 .state-list,
 .user-list,
+.member-list,
 .log-list {
   display: grid;
   gap: 10px;
@@ -356,6 +357,8 @@ th.sticky-col {
 
 .state-row,
 .user-row,
+.member-row,
+.season-row,
 .log-row {
   align-items: center;
   background: #fff;
@@ -370,8 +373,110 @@ th.sticky-col {
   grid-template-columns: minmax(180px, 1fr) 190px 92px auto;
 }
 
+.member-row {
+  grid-template-columns: minmax(130px, 0.8fr) minmax(130px, 0.8fr) minmax(180px, 1fr) auto;
+}
+
+.season-row {
+  grid-template-columns: minmax(180px, 1fr) 150px 150px 120px auto;
+}
+
 .log-row {
   grid-template-columns: 180px 160px minmax(170px, 1fr) 180px;
+}
+
+.sheet-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.sheet-tile {
+  align-content: start;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  display: grid;
+  gap: 8px;
+  min-height: 178px;
+  padding: 18px;
+  text-decoration: none;
+}
+
+.sheet-tile:hover {
+  border-color: var(--accent);
+}
+
+.sheet-tile strong {
+  font-size: 1.15rem;
+  line-height: 1.1;
+}
+
+.sheet-tile span,
+.sheet-tile em,
+.sheet-tile small {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-style: normal;
+}
+
+.sheet-icon {
+  align-items: center;
+  background: var(--ink);
+  color: #fff !important;
+  display: inline-flex;
+  font-size: 1.5rem !important;
+  font-weight: 950;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.sheet-add {
+  cursor: pointer;
+  text-align: left;
+}
+
+.modal {
+  border: 0;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 0;
+  width: 100%;
+}
+
+.modal::backdrop {
+  background: rgba(16, 16, 19, 0.42);
+}
+
+.weekday-picker {
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 14px;
+}
+
+.weekday-picker legend {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 0 6px;
+  text-transform: uppercase;
+}
+
+.weekday-picker label {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  font-size: 0.9rem;
+  gap: 8px;
+  text-transform: none;
+}
+
+.weekday-picker input {
+  min-height: 0;
+  width: auto;
 }
 
 .pill {
@@ -417,6 +522,8 @@ th.sticky-col {
 
   .state-row,
   .user-row,
+  .member-row,
+  .season-row,
   .log-row {
     grid-template-columns: 1fr;
   }

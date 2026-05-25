@@ -1,84 +1,76 @@
 ---
 import YkLayout from '@/layouts/YkLayout.astro';
-import { getRollCallData, listSheets } from '@/lib/yk';
+import { getRollCallData, listSeasons, listSheetSummaries } from '@/lib/yk';
 
 const user = Astro.locals.user!;
-const sheets = await listSheets();
-const selectedId = Astro.url.searchParams.get('sheet') || sheets[0]?.id || '';
+const selectedId = Astro.url.searchParams.get('sheet') || '';
+const seasons = await listSeasons();
+const sheets = await listSheetSummaries();
 const data = selectedId ? await getRollCallData(selectedId) : null;
 const entryMap = new Map((data?.entries || []).map((entry) => [`${entry.member_id}:${entry.rehearsal_id}`, entry]));
+const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
 ---
 
 <YkLayout title="Yoklama" user={user}>
-  <header class="page-head">
-    <div>
-      <h1>Yoklama</h1>
-      {data?.sheet.description && <p>{data.sheet.description}</p>}
-    </div>
-    {data && <a class="button" href={`/api/roll-call/${data.sheet.id}/export.xlsx`}>Excel</a>}
-  </header>
+  {
+    !data ? (
+      <>
+        <header class="page-head">
+          <h1>Yoklama</h1>
+          <button type="button" data-open-sheet-modal>+ Çizelge</button>
+        </header>
 
-  <section class="toolbar">
-    {
-      sheets.length > 0 && (
-        <label>
-          Çizelge
-          <select id="sheet-select">
-            {sheets.map((sheet) => (
-              <option value={sheet.id} selected={sheet.id === selectedId}>
-                {sheet.name}{sheet.archived ? ' (arşiv)' : ''}
-              </option>
+        {sheets.length === 0 ? (
+          <section class="panel">
+            <h2>Çizelge yok</h2>
+            <p>İlk sezonu ve üyeleri ekledikten sonra buradan çizelge oluştur.</p>
+          </section>
+        ) : (
+          <section class="sheet-grid" aria-label="Yoklama çizelgeleri">
+            {sheets.map((sheet: any) => (
+              <a class="sheet-tile" href={`/roll-call?sheet=${sheet.id}`}>
+                <span class="sheet-icon" aria-hidden="true">▦</span>
+                <strong>{sheet.name}</strong>
+                <span>{sheet.season_name}</span>
+                <em>{sheet.rehearsal_count} prova · {sheet.member_count} üye</em>
+                {(sheet.start_date || sheet.end_date) && (
+                  <small>{sheet.start_date || ''}{sheet.end_date ? ` / ${sheet.end_date}` : ''}</small>
+                )}
+              </a>
             ))}
-          </select>
-        </label>
-      )
-    }
-    <form class="form-row" data-create-sheet>
-      <label>
-        Yeni çizelge
-        <input name="name" placeholder="2026 Bahar" required />
-      </label>
-      <button type="submit">+ Çizelge</button>
-    </form>
-    {
-      data && (
-        <>
+            <button class="sheet-tile sheet-add" type="button" data-open-sheet-modal>
+              <span class="sheet-icon" aria-hidden="true">+</span>
+              <strong>Yeni çizelge</strong>
+              <span>Sezon, tarih aralığı ve günleri seç</span>
+            </button>
+          </section>
+        )}
+      </>
+    ) : (
+      <>
+        <header class="page-head">
+          <div>
+            <h1>{data.sheet.name}</h1>
+            <p>{data.season.name} · {data.rehearsals.length} prova · {data.members.length} üye</p>
+          </div>
+          <div class="form-row">
+            <a class="button secondary" href="/roll-call">Çizelgeler</a>
+            <a class="button" href={`/api/roll-call/${data.sheet.id}/export.xlsx`}>Excel</a>
+          </div>
+        </header>
+
+        <section class="toolbar">
           <form class="form-row" data-rename-sheet data-id={data.sheet.id}>
             <label>
-              Ad
+              Çizelge adı
               <input name="name" value={data.sheet.name} required />
             </label>
-            <button class="secondary" type="submit">Yeniden adlandır</button>
+            <button class="secondary" type="submit">Kaydet</button>
           </form>
           <button class="secondary" type="button" data-archive-sheet data-id={data.sheet.id} data-archived={String(!data.sheet.archived)}>
             {data.sheet.archived ? 'Arşivden çıkar' : 'Arşivle'}
           </button>
           <button class="danger" type="button" data-delete-sheet data-id={data.sheet.id}>Sil</button>
-        </>
-      )
-    }
-  </section>
-
-  {
-    !data ? (
-      <section class="panel">
-        <h2>Çizelge yok</h2>
-        <p>İlk yoklama çizelgesini oluşturmak için yukarıdaki alanı kullan.</p>
-      </section>
-    ) : (
-      <>
-        <section class="toolbar">
-          <form class="form-row" data-add-rehearsal data-sheet={data.sheet.id}>
-            <label>
-              Prova tarihi
-              <input name="date" type="date" required />
-            </label>
-            <label>
-              Başlık
-              <input name="title" placeholder="Genel prova" />
-            </label>
-            <button type="submit">+ Tarih</button>
-          </form>
         </section>
 
         <section class="table-wrap" aria-label="Yoklama tablosu">
@@ -90,7 +82,7 @@ const entryMap = new Map((data?.entries || []).map((entry) => [`${entry.member_i
                   <th>
                     <div class="date-head">
                       <strong>{new Date(`${rehearsal.rehearsal_date}T00:00:00`).toLocaleDateString('tr-TR')}</strong>
-                      {rehearsal.title && <span>{rehearsal.title}</span>}
+                      <span>{weekdayLabels[new Date(`${rehearsal.rehearsal_date}T00:00:00`).getDay()]}</span>
                       <button class="secondary" type="button" data-delete-rehearsal data-id={rehearsal.id}>Sil</button>
                     </div>
                   </th>
@@ -109,12 +101,7 @@ const entryMap = new Map((data?.entries || []).map((entry) => [`${entry.member_i
                     const entry = entryMap.get(`${member.id}:${rehearsal.id}`);
                     return (
                       <td>
-                        <select
-                          class="attendance-select"
-                          data-attendance
-                          data-member={member.id}
-                          data-rehearsal={rehearsal.id}
-                        >
+                        <select class="attendance-select" data-attendance data-member={member.id} data-rehearsal={rehearsal.id}>
                           <option value="" selected={!entry?.state_id}>-</option>
                           {data.states.filter((state) => state.active).map((state) => (
                             <option value={state.id} selected={entry?.state_id === state.id}>
@@ -131,23 +118,6 @@ const entryMap = new Map((data?.entries || []).map((entry) => [`${entry.member_i
             </tbody>
           </table>
         </section>
-        <form class="inline-add" data-add-member data-sheet={data.sheet.id}>
-          <div class="form-row">
-            <label>
-              Ad
-              <input name="firstName" required />
-            </label>
-            <label>
-              Soyad
-              <input name="lastName" required />
-            </label>
-            <label>
-              Not
-              <input name="notes" />
-            </label>
-            <button type="submit">+ Üye</button>
-          </div>
-        </form>
         <div class="summary-bar">
           <span>Ortalama puan</span>
           <strong>{data.average.toFixed(2)}</strong>
@@ -155,6 +125,46 @@ const entryMap = new Map((data?.entries || []).map((entry) => [`${entry.member_i
       </>
     )
   }
+
+  <dialog class="modal" data-sheet-modal>
+    <form class="panel" data-create-sheet method="dialog">
+      <div class="page-head">
+        <h2>Çizelge oluştur</h2>
+        <button class="secondary" type="button" data-close-sheet-modal>Kapat</button>
+      </div>
+      <label>
+        Sezon
+        <select name="seasonId" required>
+          <option value="">Seç</option>
+          {seasons.filter((season) => !season.archived).map((season) => <option value={season.id}>{season.name}</option>)}
+        </select>
+      </label>
+      <label>
+        Çizelge adı
+        <input name="name" required />
+      </label>
+      <div class="form-row">
+        <label>
+          Başlangıç
+          <input name="startDate" type="date" required />
+        </label>
+        <label>
+          Bitiş
+          <input name="endDate" type="date" required />
+        </label>
+      </div>
+      <fieldset class="weekday-picker">
+        <legend>Prova günleri</legend>
+        {weekdayLabels.map((label, index) => (
+          <label>
+            <input type="checkbox" name="weekdays" value={index} />
+            {label}
+          </label>
+        ))}
+      </fieldset>
+      <button type="submit">Oluştur</button>
+    </form>
+  </dialog>
 
   <script>
     // @ts-nocheck
@@ -171,15 +181,16 @@ const entryMap = new Map((data?.entries || []).map((entry) => [`${entry.member_i
       return response.json().catch(() => ({}));
     };
 
-    document.querySelector('#sheet-select')?.addEventListener('change', (event) => {
-      const value = event.currentTarget.value;
-      window.location.href = `/roll-call?sheet=${encodeURIComponent(value)}`;
-    });
+    const modal = document.querySelector('[data-sheet-modal]');
+    document.querySelectorAll('[data-open-sheet-modal]').forEach((button) => button.addEventListener('click', () => modal?.showModal()));
+    document.querySelector('[data-close-sheet-modal]')?.addEventListener('click', () => modal?.close());
 
     document.querySelector('[data-create-sheet]')?.addEventListener('submit', async (event) => {
       event.preventDefault();
       const form = event.currentTarget;
-      const body = Object.fromEntries(new FormData(form).entries());
+      const formData = new FormData(form);
+      const body = Object.fromEntries(formData.entries());
+      body.weekdays = formData.getAll('weekdays').map(Number);
       const data = await postJson('/api/roll-call/sheets', 'POST', body);
       window.location.href = `/roll-call?sheet=${data.sheet.id}`;
     });
@@ -194,7 +205,7 @@ const entryMap = new Map((data?.entries || []).map((entry) => [`${entry.member_i
     document.querySelector('[data-archive-sheet]')?.addEventListener('click', async (event) => {
       const button = event.currentTarget;
       await postJson(`/api/roll-call/sheets/${button.dataset.id}`, 'PATCH', { archived: button.dataset.archived === 'true' });
-      window.location.reload();
+      window.location.href = '/roll-call';
     });
 
     document.querySelector('[data-delete-sheet]')?.addEventListener('click', async (event) => {
@@ -204,26 +215,12 @@ const entryMap = new Map((data?.entries || []).map((entry) => [`${entry.member_i
       window.location.href = '/roll-call';
     });
 
-    document.querySelector('[data-add-rehearsal]')?.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      await postJson(`/api/roll-call/sheets/${form.dataset.sheet}/rehearsals`, 'POST', Object.fromEntries(new FormData(form).entries()));
-      window.location.reload();
-    });
-
     document.querySelectorAll('[data-delete-rehearsal]').forEach((button) => {
       button.addEventListener('click', async () => {
         if (!confirm('Bu tarih silinsin mi?')) return;
         await postJson(`/api/roll-call/rehearsals/${button.dataset.id}`, 'DELETE');
         window.location.reload();
       });
-    });
-
-    document.querySelector('[data-add-member]')?.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      await postJson(`/api/roll-call/sheets/${form.dataset.sheet}/members`, 'POST', Object.fromEntries(new FormData(form).entries()));
-      window.location.reload();
     });
 
     document.querySelectorAll('[data-attendance]').forEach((select) => {

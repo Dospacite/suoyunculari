@@ -2,11 +2,18 @@
 import type { Book } from '@/lib/directus';
 import { renderMarkdown } from '@/lib/markdown';
 
-type Props = {
-  books: Book[];
+type RelatedPostSummary = {
+  title: string;
+  slug: string;
+  excerpt?: string;
 };
 
-const { books } = Astro.props;
+type Props = {
+  books: Book[];
+  relatedPostsByBookSlug?: Record<string, RelatedPostSummary[]>;
+};
+
+const { books, relatedPostsByBookSlug = {} } = Astro.props;
 
 const categories = Array.from(
   new Set(books.map((book) => book.category).filter((item): item is string => Boolean(item))),
@@ -57,10 +64,14 @@ function getBookKicker(book: Book): string {
   <div class="idea-list" id="book-list">
     {
       books.map((book) => {
-        const tags = Array.isArray(book.tags) ? book.tags : [];
+        const tags = Array.isArray(book.tags)
+          ? book.tags.map((tag) => (typeof tag === 'string' ? tag : tag.name)).filter(Boolean)
+          : [];
         const metaRows = getBookMetaRows(book);
         const notesHtml = renderMarkdown(book.notes);
         const kicker = getBookKicker(book);
+        const relatedPosts = relatedPostsByBookSlug[book.slug] ?? [];
+        const modalId = `book-written-${book.slug}`;
         const searchable = [
           book.title,
           book.author,
@@ -92,6 +103,13 @@ function getBookKicker(book: Book): string {
               <div class="taxonomy">
                 {tags.map((tag) => <span>{tag}</span>)}
               </div>
+              {relatedPosts.length > 0 && (
+                <div class="reference-actions">
+                  <button class="button compact-button secondary-button reference-modal-trigger" type="button" data-modal-target={modalId}>
+                    Hakkında Yazılanlar
+                  </button>
+                </div>
+              )}
             </div>
             {metaRows.length > 0 && (
               <dl>
@@ -102,6 +120,23 @@ function getBookKicker(book: Book): string {
                   </div>
                 ))}
               </dl>
+            )}
+            {relatedPosts.length > 0 && (
+              <dialog class="reference-modal" id={modalId}>
+                <div>
+                  <button class="reference-modal-close" type="button" aria-label="Kapat" data-modal-close>&times;</button>
+                  <p class="kicker">Hakkında Yazılanlar</p>
+                  <h3>{book.title}</h3>
+                  <div class="article-list compact-list">
+                    {relatedPosts.map((relatedPost) => (
+                      <a href={`/blog/${relatedPost.slug}`}>
+                        <h2>{relatedPost.title}</h2>
+                        {relatedPost.excerpt && <p>{relatedPost.excerpt}</p>}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </dialog>
             )}
           </article>
         );
@@ -139,4 +174,21 @@ function getBookKicker(book: Book): string {
   bookSearch?.addEventListener('input', updateBookRows);
   bookCategory?.addEventListener('change', updateBookRows);
   bookLanguage?.addEventListener('change', updateBookRows);
+
+  document.querySelectorAll<HTMLButtonElement>('[data-modal-target]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const modalId = button.dataset.modalTarget;
+      const modal = modalId ? document.getElementById(modalId) : null;
+      if (modal instanceof HTMLDialogElement) modal.showModal();
+    });
+  });
+
+  document.querySelectorAll<HTMLDialogElement>('.reference-modal').forEach((modal) => {
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) modal.close();
+    });
+    modal.querySelectorAll<HTMLButtonElement>('[data-modal-close]').forEach((button) => {
+      button.addEventListener('click', () => modal.close());
+    });
+  });
 </script>

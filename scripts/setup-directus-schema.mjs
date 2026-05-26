@@ -11,7 +11,9 @@ if (!DIRECTUS_URL || !DIRECTUS_TOKEN) {
 const collectionDefinitions = [
   { collection: 'authors', icon: 'person', display: '{{name}}' },
   { collection: 'genres', icon: 'category', display: '{{name}}' },
+  { collection: 'tag_categories', icon: 'label', display: '{{name}}' },
   { collection: 'tags', icon: 'sell', display: '{{name}}' },
+  { collection: 'book_categories', icon: 'category', display: '{{name}}' },
   { collection: 'languages', icon: 'translate', display: '{{name}}' },
   { collection: 'periods', icon: 'history_edu', display: '{{name}}' },
   { collection: 'plays', icon: 'theater_comedy', display: '{{title}}' },
@@ -25,8 +27,11 @@ const collectionDefinitions = [
   { collection: 'club_resources', icon: 'folder_shared', display: '{{title}}' },
   { collection: 'plays_genres', icon: 'link', hidden: true },
   { collection: 'plays_tags', icon: 'link', hidden: true },
+  { collection: 'books_tags', icon: 'link', hidden: true },
+  { collection: 'blog_posts_blog_posts', icon: 'link', hidden: true },
   { collection: 'blog_posts_plays', icon: 'link', hidden: true },
   { collection: 'blog_posts_books', icon: 'link', hidden: true },
+  { collection: 'blog_posts_rehearsal_ideas', icon: 'link', hidden: true },
   { collection: 'blog_posts_text_bank_references', icon: 'link', display: '{{title}}' },
   { collection: 'staging_photos', icon: 'photo_library', display: '{{caption}}' },
 ];
@@ -48,6 +53,17 @@ const fields = {
   tags: [
     stringField('name', { required: true }),
     stringField('slug', { required: true, unique: true }),
+    m2oField('category'),
+  ],
+  tag_categories: [
+    stringField('name', { required: true }),
+    stringField('slug', { required: true, unique: true }),
+    selectField('scope', ['plays', 'books', 'rehearsal_ideas', 'blog_posts', 'global'], 'global'),
+  ],
+  book_categories: [
+    stringField('name', { required: true }),
+    stringField('slug', { required: true, unique: true }),
+    textField('description'),
   ],
   languages: [
     stringField('name', { required: true }),
@@ -79,7 +95,7 @@ const fields = {
     integerField('male_roles'),
     integerField('neutral_roles'),
     aliasM2mField('genres'),
-    aliasM2mField('tags'),
+    aliasM2mField('tags', tagScopeFilter(['plays', 'global'])),
     m2oField('period'),
     textField('setting'),
     textField('themes'),
@@ -129,10 +145,12 @@ const fields = {
     stringField('publisher'),
     integerField('publication_year'),
     stringField('category'),
+    m2oField('category_ref'),
     stringField('language'),
     stringField('location'),
     textField('notes', { interfaceName: 'input-rich-text-md' }),
     textField('tags'),
+    aliasM2mField('tag_refs', tagScopeFilter(['books', 'global'])),
     fileField('cover_image'),
     booleanField('is_available', true),
     booleanField('is_published', false),
@@ -158,6 +176,8 @@ const fields = {
     dateTimeField('published_at'),
     aliasM2mField('related_plays'),
     aliasM2mField('related_books'),
+    aliasM2mField('related_blog_posts'),
+    aliasM2mField('related_rehearsal_ideas'),
     aliasO2mField('text_bank_references'),
     booleanField('is_published', false),
   ],
@@ -199,8 +219,11 @@ const fields = {
   ],
   plays_genres: [m2oField('plays_id'), m2oField('genres_id')],
   plays_tags: [m2oField('plays_id'), m2oField('tags_id')],
+  books_tags: [m2oField('books_id'), m2oField('tags_id')],
+  blog_posts_blog_posts: [m2oField('blog_posts_id'), m2oField('related_blog_posts_id')],
   blog_posts_plays: [m2oField('blog_posts_id'), m2oField('plays_id')],
   blog_posts_books: [m2oField('blog_posts_id'), m2oField('books_id')],
+  blog_posts_rehearsal_ideas: [m2oField('blog_posts_id'), m2oField('rehearsal_ideas_id')],
   blog_posts_text_bank_references: [
     m2oField('blog_posts_id'),
     stringField('source', { required: true }),
@@ -219,6 +242,7 @@ const fields = {
 
 const relations = [
   relation('plays', 'author', 'authors'),
+  relation('tags', 'category', 'tag_categories'),
   relation('plays', 'language', 'languages'),
   relation('plays', 'period', 'periods'),
   relation('plays', 'cover_image', 'directus_files'),
@@ -230,6 +254,7 @@ const relations = [
     one_deselect_action: 'nullify',
   }),
   relation('stagings', 'cover_image', 'directus_files'),
+  relation('books', 'category_ref', 'book_categories'),
   relation('books', 'cover_image', 'directus_files'),
   relation('blog_posts', 'cover_image', 'directus_files'),
   relation('homepage_sections', 'image', 'directus_files'),
@@ -250,6 +275,22 @@ const relations = [
   relation('plays_tags', 'tags_id', 'tags', {
     junction_field: 'plays_id',
   }),
+  relation('books_tags', 'books_id', 'books', {
+    one_field: 'tag_refs',
+    junction_field: 'tags_id',
+    one_deselect_action: 'delete',
+  }),
+  relation('books_tags', 'tags_id', 'tags', {
+    junction_field: 'books_id',
+  }),
+  relation('blog_posts_blog_posts', 'blog_posts_id', 'blog_posts', {
+    one_field: 'related_blog_posts',
+    junction_field: 'related_blog_posts_id',
+    one_deselect_action: 'delete',
+  }),
+  relation('blog_posts_blog_posts', 'related_blog_posts_id', 'blog_posts', {
+    junction_field: 'blog_posts_id',
+  }),
   relation('blog_posts_plays', 'blog_posts_id', 'blog_posts', {
     one_field: 'related_plays',
     junction_field: 'plays_id',
@@ -264,6 +305,14 @@ const relations = [
     one_deselect_action: 'delete',
   }),
   relation('blog_posts_books', 'books_id', 'books', {
+    junction_field: 'blog_posts_id',
+  }),
+  relation('blog_posts_rehearsal_ideas', 'blog_posts_id', 'blog_posts', {
+    one_field: 'related_rehearsal_ideas',
+    junction_field: 'rehearsal_ideas_id',
+    one_deselect_action: 'delete',
+  }),
+  relation('blog_posts_rehearsal_ideas', 'rehearsal_ideas_id', 'rehearsal_ideas', {
     junction_field: 'blog_posts_id',
   }),
   relation('blog_posts_text_bank_references', 'blog_posts_id', 'blog_posts', {
@@ -283,7 +332,7 @@ const fieldsToDelete = [
 
 const fieldUpdates = [
   { collection: 'plays', field: aliasM2mField('genres') },
-  { collection: 'plays', field: aliasM2mField('tags') },
+  { collection: 'plays', field: aliasM2mField('tags', tagScopeFilter(['plays', 'global'])) },
   { collection: 'plays', field: textField('short_description', { interfaceName: 'input-rich-text-md' }) },
   {
     collection: 'plays',
@@ -304,11 +353,35 @@ const manyToManyRepairs = [
   },
   {
     ownerCollection: 'plays',
-    aliasField: aliasM2mField('tags'),
+    aliasField: aliasM2mField('tags', tagScopeFilter(['plays', 'global'])),
     junctionCollection: 'plays_tags',
     ownerField: 'plays_id',
     relatedCollection: 'tags',
     relatedField: 'tags_id',
+  },
+  {
+    ownerCollection: 'books',
+    aliasField: aliasM2mField('tag_refs', tagScopeFilter(['books', 'global'])),
+    junctionCollection: 'books_tags',
+    ownerField: 'books_id',
+    relatedCollection: 'tags',
+    relatedField: 'tags_id',
+  },
+  {
+    ownerCollection: 'blog_posts',
+    aliasField: aliasM2mField('related_blog_posts'),
+    junctionCollection: 'blog_posts_blog_posts',
+    ownerField: 'blog_posts_id',
+    relatedCollection: 'blog_posts',
+    relatedField: 'related_blog_posts_id',
+  },
+  {
+    ownerCollection: 'blog_posts',
+    aliasField: aliasM2mField('related_rehearsal_ideas'),
+    junctionCollection: 'blog_posts_rehearsal_ideas',
+    ownerField: 'blog_posts_id',
+    relatedCollection: 'rehearsal_ideas',
+    relatedField: 'rehearsal_ideas_id',
   },
 ];
 
@@ -619,7 +692,7 @@ function m2oField(field) {
   };
 }
 
-function aliasM2mField(field) {
+function aliasM2mField(field, options = {}) {
   return {
     field,
     type: 'alias',
@@ -629,8 +702,21 @@ function aliasM2mField(field) {
       options: {
         enableCreate: true,
         enableSelect: true,
+        ...options,
       },
       width: 'full',
+    },
+  };
+}
+
+function tagScopeFilter(scopes) {
+  return {
+    filter: {
+      category: {
+        scope: {
+          _in: scopes,
+        },
+      },
     },
   };
 }

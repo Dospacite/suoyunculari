@@ -1,6 +1,5 @@
 ---
 import '@/styles/global.css';
-import { assetUrl, getClubResources } from '@/lib/directus';
 
 type Props = {
   title?: string;
@@ -18,7 +17,6 @@ const siteName = 'SUOyuncuları';
 const pageTitle = title === siteName ? title : `${title} | ${siteName}`;
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? 'https://suoyunculari.com');
 const imageUrl = new URL(image, canonicalUrl);
-const footerResources = (await getClubResources()).slice(0, 6);
 ---
 
 <!doctype html>
@@ -99,40 +97,6 @@ const footerResources = (await getClubResources()).slice(0, 6);
         <span>Tiyatro kulübü arşivi, prova notları ve duyuruları.</span>
         <span>Made by Ege with {'<3'}</span>
       </div>
-      {
-        footerResources.length > 0 && (
-          <section class="footer-resources" aria-labelledby="footer-resources-heading">
-            <h2 id="footer-resources-heading">Kulüp Kaynakları</h2>
-            <div>
-              {footerResources.map((resource) => {
-                const fileUrl = assetUrl(resource.file);
-                const href = resource.href || fileUrl || '/kulup-kaynaklari';
-
-                return (
-                  <a href={href} target={href.startsWith('/') ? undefined : '_blank'} rel={href.startsWith('/') ? undefined : 'noreferrer'}>
-                    {resource.color_value ? (
-                      <span
-                        class="footer-resource-swatch"
-                        style={`--swatch-color: ${resource.color_value}`}
-                        aria-hidden="true"
-                      />
-                    ) : fileUrl && ['logo', 'image'].includes(resource.resource_type || '') ? (
-                      <img src={fileUrl} alt="" loading="lazy" />
-                    ) : (
-                      <span class="footer-resource-dot" aria-hidden="true" />
-                    )}
-                    <span>
-                      <strong>{resource.title}</strong>
-                      {(resource.value || resource.resource_type) && <em>{resource.value || resource.resource_type}</em>}
-                    </span>
-                  </a>
-                );
-              })}
-            </div>
-            <a class="footer-resources-all" href="/kulup-kaynaklari">Tüm kaynaklar</a>
-          </section>
-        )
-      }
       <div class="footer-links" aria-label="Sitemap">
         <a href="/oyunlarimiz">Oyunlarımız</a>
         <a href="/metin-bankasi">Metin Bankası</a>

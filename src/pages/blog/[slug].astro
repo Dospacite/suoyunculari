@@ -1,13 +1,66 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { getBlogPostBySlug } from '@/lib/directus';
+import {
+  getBlogPostBySlug,
+  getRelatedBlogPostsForBlog,
+  type BlogPost,
+  type TextBankReference,
+} from '@/lib/directus';
 import { renderMarkdown } from '@/lib/markdown';
 
 export const prerender = false;
 
 const post = Astro.params.slug ? await getBlogPostBySlug(Astro.params.slug) : undefined;
 if (!post) Astro.response.status = 404;
-const postBodyHtml = renderMarkdown(post?.body);
+const referenceePosts = post ? await getRelatedBlogPostsForBlog(post.slug) : [];
+const postBodyHtml = renderMarkdown(post ? replaceInlineReferences(post) : undefined);
+
+function replaceInlineReferences(post: BlogPost): string | undefined {
+  const body = post.body;
+  if (!body) return undefined;
+
+  const blogLookup = new Map((post.related_blog_posts ?? []).map((item) => [item.slug, item.title]));
+  const playLookup = new Map((post.related_plays ?? []).map((item) => [item.slug, item.title]));
+  const bookLookup = new Map((post.related_books ?? []).map((item) => [item.slug, item.title]));
+  const ideaLookup = new Map((post.related_rehearsal_ideas ?? []).map((item) => [item.slug, item.title]));
+  const textBankLookup = new Map(
+    (post.text_bank_references ?? []).map((item) => [textBankKey(item), item.title || item.source_id || 'Metin']),
+  );
+
+  return body.replace(/\[\[(blog|play|book|prova|rehearsal|text-bank|metin):([^\]]+)\]\]/gi, (match, type: string, rawId: string) => {
+    const id = rawId.trim();
+    const normalizedType = type.toLowerCase();
+
+    if (normalizedType === 'blog') return markdownLink(blogLookup.get(id) || id, `/blog/${id}`);
+    if (normalizedType === 'play') return markdownLink(playLookup.get(id) || id, `/plays/${id}`);
+    if (normalizedType === 'book') return markdownLink(bookLookup.get(id) || id, '#related-books-heading');
+    if (normalizedType === 'prova' || normalizedType === 'rehearsal') {
+      return markdownLink(ideaLookup.get(id) || id, '#related-rehearsal-heading');
+    }
+
+    const parsed = parseTextBankShortcodeId(id);
+    if (!parsed) return match;
+    return markdownLink(
+      textBankLookup.get(textBankKey(parsed)) || parsed.source_id,
+      `/metin-bankasi/${encodeURIComponent(parsed.source)}/${encodeURIComponent(parsed.source_id)}`,
+    );
+  });
+}
+
+function markdownLink(label: string, href: string): string {
+  return `[${label.replaceAll('[', '').replaceAll(']', '')}](${href})`;
+}
+
+function parseTextBankShortcodeId(value: string): Required<Pick<TextBankReference, 'source' | 'source_id'>> | undefined {
+  const [source, ...rest] = value.split(':');
+  const sourceId = rest.join(':').trim();
+  if (!source || !sourceId) return undefined;
+  return { source: source.trim(), source_id: sourceId };
+}
+
+function textBankKey(reference: TextBankReference): string {
+  return `${reference.source || ''}:${reference.source_id || ''}`;
+}
 ---
 
 <BaseLayout title={post?.title ?? 'Post not found'} description={post?.excerpt}>
@@ -29,6 +82,21 @@ const postBodyHtml = renderMarkdown(post?.body);
                     {play.author?.name && <p class="kicker">{play.author.name}</p>}
                     <h2>{play.title}</h2>
                     {play.summary && <p>{play.summary}</p>}
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {post.related_blog_posts && post.related_blog_posts.length > 0 && (
+            <section class="related-section" aria-labelledby="related-blogs-heading">
+              <p class="kicker" id="related-blogs-heading">Blog</p>
+              <div class="article-list compact-list">
+                {post.related_blog_posts.map((relatedPost) => (
+                  <a href={`/blog/${relatedPost.slug}`}>
+                    {relatedPost.published_at && <p class="kicker">{new Date(relatedPost.published_at).getFullYear()}</p>}
+                    <h2>{relatedPost.title}</h2>
+                    {relatedPost.excerpt && <p>{relatedPost.excerpt}</p>}
                   </a>
                 ))}
               </div>
@@ -65,6 +133,34 @@ const postBodyHtml = renderMarkdown(post?.body);
                     <h2>{book.title}</h2>
                     {book.notes && <p>{book.notes}</p>}
                   </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {post.related_rehearsal_ideas && post.related_rehearsal_ideas.length > 0 && (
+            <section class="related-section" aria-labelledby="related-rehearsal-heading">
+              <p class="kicker" id="related-rehearsal-heading">Prova Defteri</p>
+              <div class="article-list compact-list">
+                {post.related_rehearsal_ideas.map((idea) => (
+                  <article>
+                    <h2>{idea.title}</h2>
+                    {idea.summary && <p>{idea.summary}</p>}
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {referenceePosts.length > 0 && (
+            <section class="related-section" aria-labelledby="referencee-blogs-heading">
+              <p class="kicker" id="referencee-blogs-heading">Hakkında Yazılanlar</p>
+              <div class="article-list compact-list">
+                {referenceePosts.map((relatedPost) => (
+                  <a href={`/blog/${relatedPost.slug}`}>
+                    <h2>{relatedPost.title}</h2>
+                    {relatedPost.excerpt && <p>{relatedPost.excerpt}</p>}
+                  </a>
                 ))}
               </div>
             </section>

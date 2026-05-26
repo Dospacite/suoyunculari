@@ -2,11 +2,18 @@
 import type { RehearsalIdea } from '@/lib/directus';
 import { renderMarkdown } from '@/lib/markdown';
 
-type Props = {
-  ideas: RehearsalIdea[];
+type RelatedPostSummary = {
+  title: string;
+  slug: string;
+  excerpt?: string;
 };
 
-const { ideas } = Astro.props;
+type Props = {
+  ideas: RehearsalIdea[];
+  relatedPostsByIdeaSlug?: Record<string, RelatedPostSummary[]>;
+};
+
+const { ideas, relatedPostsByIdeaSlug = {} } = Astro.props;
 
 const difficultyLabels = {
   easy: 'Kolay',
@@ -55,6 +62,8 @@ const tags = Array.from(
           : [];
         const difficultyLabel = idea.difficulty && idea.difficulty !== 'unknown' ? difficultyLabels[idea.difficulty] : undefined;
         const bodyHtml = renderMarkdown(idea.body);
+        const relatedPosts = relatedPostsByIdeaSlug[idea.slug] ?? [];
+        const modalId = `idea-written-${idea.slug}`;
         const searchable = [idea.title, idea.summary, idea.body, ideaTags.join(' ')]
           .filter(Boolean)
           .join(' ')
@@ -74,8 +83,32 @@ const tags = Array.from(
               <div class="taxonomy">
                 {ideaTags.map((tag) => <span>{tag}</span>)}
               </div>
+              {relatedPosts.length > 0 && (
+                <div class="reference-actions">
+                  <button class="button compact-button secondary-button reference-modal-trigger" type="button" data-modal-target={modalId}>
+                    Hakkında Yazılanlar
+                  </button>
+                </div>
+              )}
             </div>
             {bodyHtml && <div class="markdown-content" set:html={bodyHtml} />}
+            {relatedPosts.length > 0 && (
+              <dialog class="reference-modal" id={modalId}>
+                <div>
+                  <button class="reference-modal-close" type="button" aria-label="Kapat" data-modal-close>&times;</button>
+                  <p class="kicker">Hakkında Yazılanlar</p>
+                  <h3>{idea.title}</h3>
+                  <div class="article-list compact-list">
+                    {relatedPosts.map((relatedPost) => (
+                      <a href={`/blog/${relatedPost.slug}`}>
+                        <h2>{relatedPost.title}</h2>
+                        {relatedPost.excerpt && <p>{relatedPost.excerpt}</p>}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </dialog>
+            )}
           </article>
         );
       })
@@ -113,4 +146,21 @@ const tags = Array.from(
   ideaSearch?.addEventListener('input', updateIdeaRows);
   ideaDifficulty?.addEventListener('change', updateIdeaRows);
   ideaTag?.addEventListener('change', updateIdeaRows);
+
+  document.querySelectorAll<HTMLButtonElement>('[data-modal-target]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const modalId = button.dataset.modalTarget;
+      const modal = modalId ? document.getElementById(modalId) : null;
+      if (modal instanceof HTMLDialogElement) modal.showModal();
+    });
+  });
+
+  document.querySelectorAll<HTMLDialogElement>('.reference-modal').forEach((modal) => {
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) modal.close();
+    });
+    modal.querySelectorAll<HTMLButtonElement>('[data-modal-close]').forEach((button) => {
+      button.addEventListener('click', () => modal.close());
+    });
+  });
 </script>

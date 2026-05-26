@@ -188,89 +188,6 @@ img {
   color: rgba(255, 255, 255, 0.62);
 }
 
-.footer-resources {
-  display: grid;
-  gap: 14px;
-  min-width: 0;
-}
-
-.footer-resources h2 {
-  color: #fff;
-  font-size: 0.82rem;
-  font-weight: 950;
-  line-height: 1;
-  margin: 0;
-  text-transform: uppercase;
-}
-
-.footer-resources > div {
-  display: grid;
-  gap: 10px;
-}
-
-.footer-resources a {
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-  display: grid;
-  gap: 10px;
-  grid-template-columns: 34px minmax(0, 1fr);
-  min-width: 0;
-  padding-bottom: 10px;
-}
-
-.footer-resources img {
-  background: #fff;
-  height: 34px;
-  object-fit: contain;
-  padding: 4px;
-  width: 34px;
-}
-
-.footer-resource-swatch,
-.footer-resource-dot {
-  background: var(--swatch-color, var(--accent));
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  display: inline-block;
-  height: 34px;
-  width: 34px;
-}
-
-.footer-resource-dot {
-  border-radius: 50%;
-}
-
-.footer-resources strong,
-.footer-resources em {
-  display: block;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.footer-resources strong {
-  color: #fff;
-  font-size: 0.84rem;
-  line-height: 1.2;
-}
-
-.footer-resources em {
-  color: rgba(255, 255, 255, 0.56);
-  font-size: 0.75rem;
-  font-style: normal;
-  margin-top: 3px;
-}
-
-.footer-resources .footer-resources-all {
-  border-bottom-color: rgba(255, 255, 255, 0.28);
-  display: inline-flex;
-  font-size: 0.76rem;
-  font-weight: 900;
-  gap: 0;
-  justify-self: start;
-  min-height: 30px;
-  padding-bottom: 7px;
-  text-transform: uppercase;
-}
-
 .home-hero {
   align-items: center;
   background:
@@ -999,6 +916,52 @@ dd {
   padding: 7px 10px;
 }
 
+.reference-actions {
+  margin-top: 18px;
+}
+
+.reference-modal {
+  border: 1px solid var(--line);
+  color: var(--ink);
+  max-height: min(680px, calc(100svh - 48px));
+  max-width: min(680px, calc(100vw - 32px));
+  padding: 0;
+  width: 100%;
+}
+
+.reference-modal::backdrop {
+  background: rgba(13, 13, 15, 0.54);
+}
+
+.reference-modal > div {
+  display: grid;
+  gap: 18px;
+  padding: 28px;
+  position: relative;
+}
+
+.reference-modal h3 {
+  font-size: clamp(1.4rem, 4vw, 2.4rem);
+  line-height: 1;
+  margin: 0;
+}
+
+.reference-modal-close {
+  align-items: center;
+  background: var(--ink);
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 1.3rem;
+  height: 36px;
+  justify-content: center;
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 36px;
+}
+
 .text-bank-taxonomy {
   margin-top: 14px;
 }
@@ -1127,8 +1090,9 @@ dd {
   font-size: clamp(2.25rem, 7vw, 5.2rem);
   line-height: 0.98;
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   text-transform: uppercase;
+  word-break: normal;
 }
 
 .text-detail-byline {
@@ -1156,6 +1120,7 @@ dd {
 .text-detail-image {
   aspect-ratio: 3 / 4;
   border: 1px solid var(--line);
+  justify-self: center;
   object-fit: cover;
   width: min(260px, 100%);
 }
@@ -2014,7 +1979,7 @@ dd {
   }
 
   .site-footer {
-    grid-template-columns: minmax(0, 0.9fr) minmax(260px, 0.8fr) minmax(220px, 0.7fr);
+    grid-template-columns: minmax(0, 0.9fr) minmax(260px, 0.8fr);
   }
 
   .footer-links {
@@ -2087,10 +2052,6 @@ dd {
     justify-content: end;
   }
 
-  .text-detail-hero {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
   .play-production-layout {
     grid-template-columns: minmax(0, 1fr) minmax(220px, 0.36fr);
   }
@@ -2101,6 +2062,16 @@ dd {
 
   .photo-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 960px) {
+  .text-detail-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .text-detail-image {
+    justify-self: end;
   }
 }
 

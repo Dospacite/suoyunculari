@@ -24,13 +24,24 @@ const playFields =
   '*,author.*,language.*,period.*,genres.genres_id.*,tags.tags_id.*,cover_image,poster_image,home_card_image';
 const stagingFields = '*,play.*,cover_image,photos.*,photos.image';
 const blogPostFields =
-  '*,cover_image,related_plays.plays_id.*,related_plays.plays_id.author.*,related_plays.plays_id.genres.genres_id.*,related_plays.plays_id.tags.tags_id.*,related_books.books_id.*,text_bank_references.*';
+  '*,cover_image,related_plays.plays_id.*,related_plays.plays_id.author.*,related_plays.plays_id.genres.genres_id.*,related_plays.plays_id.tags.tags_id.*,related_plays.plays_id.tags.tags_id.category.*,related_books.books_id.*,related_books.books_id.category_ref.*,related_books.books_id.tag_refs.tags_id.*,related_books.books_id.tag_refs.tags_id.category.*,related_blog_posts.related_blog_posts_id.*,related_rehearsal_ideas.rehearsal_ideas_id.*,text_bank_references.*';
+const bookFields = '*,cover_image,category_ref.*,tag_refs.tags_id.*,tag_refs.tags_id.category.*';
 
 export type Taxonomy = {
   name: string;
   slug?: string;
   description?: string;
   code?: string;
+  scope?: TagScope;
+  category?: TagCategory;
+};
+
+export type TagScope = 'plays' | 'books' | 'rehearsal_ideas' | 'blog_posts' | 'global';
+
+export type TagCategory = {
+  name: string;
+  slug?: string;
+  scope?: TagScope;
 };
 
 export type Author = {
@@ -97,7 +108,15 @@ export type BlogPost = {
   is_published?: boolean;
   related_plays?: Play[];
   related_books?: Book[];
+  related_blog_posts?: BlogPost[];
+  related_rehearsal_ideas?: RehearsalIdea[];
   text_bank_references?: TextBankReference[];
+};
+
+export type BookCategory = {
+  name: string;
+  slug?: string;
+  description?: string;
 };
 
 export type Book = {
@@ -108,10 +127,12 @@ export type Book = {
   publisher?: string;
   publication_year?: number;
   category?: string;
+  category_ref?: BookCategory;
   language?: string;
   location?: string;
   notes?: string;
-  tags?: string | string[];
+  tags?: string | string[] | Taxonomy[];
+  tag_refs?: Taxonomy[];
   cover_image?: string | { id: string };
   is_available?: boolean;
   is_published?: boolean;
@@ -320,7 +341,7 @@ export async function getBlogPosts(): Promise<BlogPost[]> {
 
 export async function getBooks(): Promise<Book[]> {
   const items = await fetchItems<Book>('books', {
-    fields: '*',
+    fields: bookFields,
     'filter[is_published][_eq]': 'true',
     sort: 'title',
   });
@@ -347,6 +368,18 @@ export async function getRelatedBlogPostsForPlay(playSlug: string): Promise<Blog
 export async function getRelatedBlogPostsForBook(bookSlug: string): Promise<BlogPost[]> {
   const posts = await getBlogPosts();
   return posts.filter((post) => post.related_books?.some((book) => book.slug === bookSlug));
+}
+
+export async function getRelatedBlogPostsForBlog(blogSlug: string): Promise<BlogPost[]> {
+  const posts = await getBlogPosts();
+  return posts.filter((post) => post.related_blog_posts?.some((blog) => blog.slug === blogSlug));
+}
+
+export async function getRelatedBlogPostsForRehearsalIdea(ideaSlug: string): Promise<BlogPost[]> {
+  const posts = await getBlogPosts();
+  return posts.filter((post) =>
+    post.related_rehearsal_ideas?.some((idea) => idea.slug === ideaSlug),
+  );
 }
 
 export async function getRelatedBlogPostsForTextBank(
@@ -464,7 +497,10 @@ function normalizePlay(play: Play): Play {
   return {
     ...play,
     genres: normalizeManyToMany(play.genres, 'genres_id'),
-    tags: normalizeManyToMany(play.tags, 'tags_id'),
+    tags: normalizeScopedTaxonomies(normalizeManyToMany<Taxonomy>(play.tags, 'tags_id'), [
+      'plays',
+      'global',
+    ]),
     text_bank_reference: getTextBankReference(play),
   };
 }
@@ -474,14 +510,30 @@ function normalizeBlogPost(post: BlogPost): BlogPost {
     ...post,
     related_plays: normalizeManyToMany<Play>(post.related_plays, 'plays_id').map(normalizePlay),
     related_books: normalizeManyToMany<Book>(post.related_books, 'books_id').map(normalizeBook),
+    related_blog_posts: normalizeManyToMany<BlogPost>(
+      post.related_blog_posts,
+      'related_blog_posts_id',
+    ),
+    related_rehearsal_ideas: normalizeManyToMany<RehearsalIdea>(
+      post.related_rehearsal_ideas,
+      'rehearsal_ideas_id',
+    ).map(normalizeRehearsalIdea),
     text_bank_references: normalizeTextBankReferences(post.text_bank_references),
   };
 }
 
 function normalizeBook(book: Book): Book {
+  const relationTags = normalizeScopedTaxonomies(normalizeManyToMany<Taxonomy>(book.tag_refs, 'tags_id'), [
+    'books',
+    'global',
+  ]);
+  const legacyTags = normalizeStringTags(book.tags).map((name) => ({ name }));
+
   return {
     ...book,
-    tags: normalizeStringTags(book.tags),
+    category: book.category_ref?.name || book.category,
+    tag_refs: relationTags,
+    tags: relationTags.length > 0 ? relationTags : legacyTags,
   };
 }
 
@@ -510,13 +562,19 @@ function sortPlaysChronologically(plays: Play[]): Play[] {
 function normalizeRehearsalIdea(idea: RehearsalIdea): RehearsalIdea {
   return {
     ...idea,
-    tags: normalizeTags(idea.tags),
+    tags: normalizeScopedTaxonomies(normalizeTags(idea.tags), ['rehearsal_ideas', 'global']),
   };
 }
 
 function normalizeManyToMany<T extends object>(
   value: unknown,
-  relationKey: 'genres_id' | 'tags_id' | 'plays_id' | 'books_id',
+  relationKey:
+    | 'genres_id'
+    | 'tags_id'
+    | 'plays_id'
+    | 'books_id'
+    | 'related_blog_posts_id'
+    | 'rehearsal_ideas_id',
 ): T[] {
   if (!Array.isArray(value)) return [];
 
@@ -532,7 +590,12 @@ function normalizeManyToMany<T extends object>(
 
 function normalizeStringTags(value: Book['tags']): string[] {
   if (!value) return [];
-  if (Array.isArray(value)) return value.map((tag) => String(tag).trim()).filter(Boolean);
+  if (Array.isArray(value)) {
+    return value
+      .map((tag) => (typeof tag === 'string' ? tag : tag.name))
+      .map((tag) => String(tag || '').trim())
+      .filter(Boolean);
+  }
 
   return value
     .split(',')
@@ -669,19 +732,27 @@ function legacyStagingFromPlay(play: Play): Staging[] {
   ];
 }
 
-function normalizeTags(value: RehearsalIdea['tags']): string[] {
+function normalizeTags(value: RehearsalIdea['tags']): Taxonomy[] {
   if (!value) return [];
   if (Array.isArray(value)) {
     return value
       .map((item) => {
-        if (typeof item === 'string') return item;
-        return item?.name;
+        if (typeof item === 'string') return { name: item };
+        return item;
       })
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Taxonomy[];
   }
 
   return value
     .split(',')
     .map((tag) => tag.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((name) => ({ name }));
+}
+
+function normalizeScopedTaxonomies(items: Taxonomy[], allowedScopes: TagScope[]): Taxonomy[] {
+  return items.filter((item) => {
+    const scope = item.category?.scope || item.scope;
+    return !scope || allowedScopes.includes(scope);
+  });
 }

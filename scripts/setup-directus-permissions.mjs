@@ -16,7 +16,9 @@ const contentCollections = [
   'blog_posts',
   'authors',
   'genres',
+  'tag_categories',
   'tags',
+  'book_categories',
   'languages',
   'periods',
   'pages',
@@ -25,8 +27,11 @@ const contentCollections = [
   'club_resources',
   'plays_genres',
   'plays_tags',
+  'books_tags',
+  'blog_posts_blog_posts',
   'blog_posts_plays',
   'blog_posts_books',
+  'blog_posts_rehearsal_ideas',
   'blog_posts_text_bank_references',
   'staging_photos',
 ];
@@ -107,10 +112,12 @@ const publicFields = {
     'publisher',
     'publication_year',
     'category',
+    'category_ref',
     'language',
     'location',
     'notes',
     'tags',
+    'tag_refs',
     'cover_image',
     'is_available',
     'is_published',
@@ -138,6 +145,8 @@ const publicFields = {
     'published_at',
     'related_plays',
     'related_books',
+    'related_blog_posts',
+    'related_rehearsal_ideas',
     'text_bank_references',
     'is_published',
   ],
@@ -242,7 +251,7 @@ await ensurePermission(publicPolicy.id, 'directus_files', 'read', {
   fields: ['id', 'title', 'filename_disk', 'filename_download', 'type', 'modified_on'],
 });
 
-for (const collection of ['authors', 'genres', 'tags', 'languages', 'periods', 'pages']) {
+for (const collection of ['authors', 'genres', 'tag_categories', 'tags', 'book_categories', 'languages', 'periods', 'pages']) {
   await ensurePermission(publicPolicy.id, collection, 'read', { fields: ['*'] });
 }
 
@@ -252,12 +261,24 @@ for (const collection of ['plays_genres', 'plays_tags']) {
     fields: ['*'],
   });
 }
+await ensurePermission(publicPolicy.id, 'books_tags', 'read', {
+  permissions: { books_id: { is_published: { _eq: true } } },
+  fields: ['*'],
+});
 
 await ensurePermission(publicPolicy.id, 'blog_posts_plays', 'read', {
   permissions: { blog_posts_id: { is_published: { _eq: true } } },
   fields: ['*'],
 });
 await ensurePermission(publicPolicy.id, 'blog_posts_books', 'read', {
+  permissions: { blog_posts_id: { is_published: { _eq: true } } },
+  fields: ['*'],
+});
+await ensurePermission(publicPolicy.id, 'blog_posts_blog_posts', 'read', {
+  permissions: { blog_posts_id: { is_published: { _eq: true } } },
+  fields: ['*'],
+});
+await ensurePermission(publicPolicy.id, 'blog_posts_rehearsal_ideas', 'read', {
   permissions: { blog_posts_id: { is_published: { _eq: true } } },
   fields: ['*'],
 });
@@ -272,7 +293,7 @@ for (const collection of contentCollections) {
   await ensurePermission(contentEditorPolicy.id, collection, 'update', { fields: ['*'] });
 }
 
-for (const collection of ['plays_genres', 'plays_tags', 'blog_posts_plays', 'blog_posts_books', 'blog_posts_text_bank_references', 'staging_photos']) {
+for (const collection of ['plays_genres', 'plays_tags', 'books_tags', 'blog_posts_blog_posts', 'blog_posts_plays', 'blog_posts_books', 'blog_posts_rehearsal_ideas', 'blog_posts_text_bank_references', 'staging_photos']) {
   await ensurePermission(contentEditorPolicy.id, collection, 'delete', { fields: ['*'] });
 }
 
@@ -289,11 +310,11 @@ for (const collection of ['plays', 'stagings', 'staging_photos', 'books', 'blog_
   await ensurePermission(contributorPolicy.id, collection, 'update', { fields });
 }
 
-for (const collection of ['genres', 'tags']) {
+for (const collection of ['genres', 'tag_categories', 'tags', 'book_categories']) {
   await ensurePermission(contributorPolicy.id, collection, 'read', { fields: ['*'] });
 }
 
-for (const collection of ['plays_genres', 'plays_tags']) {
+for (const collection of ['plays_genres', 'plays_tags', 'books_tags', 'blog_posts_blog_posts', 'blog_posts_plays', 'blog_posts_books', 'blog_posts_rehearsal_ideas']) {
   await ensurePermission(contributorPolicy.id, collection, 'read', { fields: ['*'] });
   await ensurePermission(contributorPolicy.id, collection, 'create', { fields: ['*'] });
   await ensurePermission(contributorPolicy.id, collection, 'update', { fields: ['*'] });

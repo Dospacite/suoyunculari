@@ -1,11 +1,20 @@
 ---
 import BookList from '@/components/BookList.astro';
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { getBooks } from '@/lib/directus';
+import { getBlogPosts, getBooks } from '@/lib/directus';
 
 export const prerender = false;
 
 const books = await getBooks();
+const posts = await getBlogPosts();
+const relatedPostsByBookSlug = Object.fromEntries(
+  books.map((book) => [
+    book.slug,
+    posts
+      .filter((post) => post.related_books?.some((relatedBook) => relatedBook.slug === book.slug))
+      .map((post) => ({ title: post.title, slug: post.slug, excerpt: post.excerpt })),
+  ]),
+);
 ---
 
 <BaseLayout title="Kütüphane" description="SUOyuncuları fiziksel kitap arşivi.">
@@ -14,7 +23,7 @@ const books = await getBooks();
       <div class="section-heading">
         <h1>Kütüphane</h1>
       </div>
-      <BookList books={books} />
+      <BookList books={books} relatedPostsByBookSlug={relatedPostsByBookSlug} />
     </div>
   </main>
 </BaseLayout>

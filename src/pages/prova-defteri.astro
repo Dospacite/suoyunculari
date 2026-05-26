@@ -1,11 +1,20 @@
 ---
 import RehearsalIdeaList from '@/components/RehearsalIdeaList.astro';
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { getRehearsalIdeas } from '@/lib/directus';
+import { getBlogPosts, getRehearsalIdeas } from '@/lib/directus';
 
 export const prerender = false;
 
 const ideas = await getRehearsalIdeas();
+const posts = await getBlogPosts();
+const relatedPostsByIdeaSlug = Object.fromEntries(
+  ideas.map((idea) => [
+    idea.slug,
+    posts
+      .filter((post) => post.related_rehearsal_ideas?.some((relatedIdea) => relatedIdea.slug === idea.slug))
+      .map((post) => ({ title: post.title, slug: post.slug, excerpt: post.excerpt })),
+  ]),
+);
 ---
 
 <BaseLayout title="Prova Defteri" description="SUO Tiyatro Kulübü prova fikri ve egzersiz arşivi.">
@@ -14,7 +23,7 @@ const ideas = await getRehearsalIdeas();
       <div class="section-heading">
         <h1>Prova Defteri</h1>
       </div>
-      <RehearsalIdeaList ideas={ideas} />
+      <RehearsalIdeaList ideas={ideas} relatedPostsByIdeaSlug={relatedPostsByIdeaSlug} />
     </div>
   </main>
 </BaseLayout>

@@ -31,6 +31,10 @@ const details = await getMemberDetails(String(Astro.params.id));
             <span>Prova sayısı</span>
             <strong>{details.stats.rehearsalCount}</strong>
           </div>
+          <div>
+            <span>Rol</span>
+            <strong>{details.member_role_label}</strong>
+          </div>
         </section>
 
         <section class="panel">

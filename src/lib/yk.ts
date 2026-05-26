@@ -7,6 +7,7 @@ const { Pool } = pg;
 const scrypt = promisify(scryptCallback);
 
 export type YkRole = 'admin' | 'yonetim_kurulu' | 'merkezi_yonetim_kurulu';
+export type MemberRole = 'new_member' | 'old_member' | 'yk' | 'myk';
 
 export type YkUser = {
   id: string;
@@ -46,6 +47,7 @@ export type Member = {
   first_name: string;
   last_name: string;
   display_name: string;
+  member_role: MemberRole;
   active: boolean;
   notes: string | null;
   sort_order: number | null;
@@ -96,6 +98,7 @@ export type MemberPoints = {
 
 export type MemberDetails = {
   member: Member;
+  member_role_label: string;
   season: Season;
   stats: MemberPoints;
   sheets: Array<{ id: string; name: string; total: number; average: number; rehearsalCount: number }>;
@@ -151,6 +154,13 @@ export function roleLabel(role: YkRole): string {
   if (role === 'admin') return 'Admin';
   if (role === 'merkezi_yonetim_kurulu') return 'Merkezi Yönetim Kurulu';
   return 'Yönetim Kurulu';
+}
+
+export function memberRoleLabel(role?: MemberRole | null): string {
+  if (role === 'old_member') return 'Old Member';
+  if (role === 'yk') return 'YK';
+  if (role === 'myk') return 'MYK';
+  return 'New Member';
 }
 
 export function canEditRollCall(user: YkUser): boolean {
@@ -412,6 +422,12 @@ function parseWeekdays(value: unknown): number[] {
   return [...new Set(raw.map((item) => Number(item)).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))].sort();
 }
 
+function normalizeMemberRole(value: unknown): MemberRole {
+  return ['new_member', 'old_member', 'yk', 'myk'].includes(String(value))
+    ? (String(value) as MemberRole)
+    : 'new_member';
+}
+
 function normalizeDateInput(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -562,7 +578,7 @@ export async function getRollCallData(sheetId: string): Promise<RollCallData | n
       [sheetId],
     ),
     query<Member>(
-      `select id, season_id, first_name, last_name, display_name, active, notes, sort_order
+      `select id, season_id, first_name, last_name, display_name, member_role, active, notes, sort_order
          from yk_members
         where season_id = $1 and active = true
         order by sort_order asc nulls last, lower(last_name) collate "C" asc, lower(first_name) collate "C" asc`,
@@ -624,6 +640,7 @@ export async function listMembers(seasonId?: string, sort: 'manual' | 'name' | '
               m.first_name,
               m.last_name,
               m.display_name,
+              m.member_role,
               m.active,
               m.notes,
               m.sort_order,
@@ -648,7 +665,7 @@ export async function listMembers(seasonId?: string, sort: 'manual' | 'name' | '
   }
 
   const result = await query<Member>(
-    `select m.id, m.season_id, y.name as season_name, m.first_name, m.last_name, m.display_name, m.active, m.notes, m.sort_order
+    `select m.id, m.season_id, y.name as season_name, m.first_name, m.last_name, m.display_name, m.member_role, m.active, m.notes, m.sort_order
        from yk_members m
        join yk_seasons y on y.id = m.season_id
       where ($1::uuid is null or m.season_id = $1)
@@ -663,22 +680,23 @@ export async function listMembers(seasonId?: string, sort: 'manual' | 'name' | '
   return result.rows;
 }
 
-export async function addMember(seasonId: string, input: { firstName: string; lastName: string }, context: AuditContext) {
+export async function addMember(seasonId: string, input: { firstName: string; lastName: string; memberRole?: MemberRole }, context: AuditContext) {
   const firstName = cleanText(input.firstName, 80);
   const lastName = cleanText(input.lastName, 80);
   if (!seasonId || !firstName || !lastName) throw new Error('Member season and name are required');
   const displayName = `${firstName} ${lastName}`.trim();
+  const memberRole = normalizeMemberRole(input.memberRole);
   const result = await query<Member>(
-    `insert into yk_members (season_id, first_name, last_name, display_name)
-     values ($1, $2, $3, $4)
-     returning id, season_id, first_name, last_name, display_name, active, notes, sort_order`,
-    [seasonId, firstName, lastName, displayName],
+    `insert into yk_members (season_id, first_name, last_name, display_name, member_role)
+     values ($1, $2, $3, $4, $5)
+     returning id, season_id, first_name, last_name, display_name, member_role, active, notes, sort_order`,
+    [seasonId, firstName, lastName, displayName, memberRole],
   );
   await audit(context, 'create', 'yk_members', result.rows[0].id, null, result.rows[0]);
   return result.rows[0];
 }
 
-export async function addSheetMember(sheetId: string, input: { firstName: string; lastName: string }, context: AuditContext) {
+export async function addSheetMember(sheetId: string, input: { firstName: string; lastName: string; memberRole?: MemberRole }, context: AuditContext) {
   const sheet = (await query<{ season_id: string }>(`select season_id from yk_roll_call_sheets where id = $1`, [sheetId])).rows[0];
   if (!sheet) throw new Error('Sheet not found');
   return addMember(sheet.season_id, input, context);
@@ -710,7 +728,7 @@ export async function listSheetSummaries() {
 
 
 export async function updateMember(id: string, input: Partial<Member>, context: AuditContext) {
-  const before = (await query<Member>(`select id, season_id, first_name, last_name, display_name, active, notes, sort_order from yk_members where id = $1`, [id])).rows[0];
+  const before = (await query<Member>(`select id, season_id, first_name, last_name, display_name, member_role, active, notes, sort_order from yk_members where id = $1`, [id])).rows[0];
   if (!before) throw new Error('Member not found');
   const firstName = input.first_name === undefined ? before.first_name : cleanText(input.first_name, 80);
   const lastName = input.last_name === undefined ? before.last_name : cleanText(input.last_name, 80);
@@ -721,9 +739,10 @@ export async function updateMember(id: string, input: Partial<Member>, context: 
             display_name = $4,
             active = coalesce($5, active),
             notes = $6,
-            sort_order = coalesce($7, sort_order)
+            sort_order = coalesce($7, sort_order),
+            member_role = coalesce($8, member_role)
       where id = $1
-      returning id, season_id, first_name, last_name, display_name, active, notes, sort_order`,
+      returning id, season_id, first_name, last_name, display_name, member_role, active, notes, sort_order`,
     [
       id,
       firstName,
@@ -732,6 +751,7 @@ export async function updateMember(id: string, input: Partial<Member>, context: 
       typeof input.active === 'boolean' ? input.active : null,
       input.notes === undefined ? before.notes : cleanText(input.notes, 500) || null,
       Number.isFinite(input.sort_order) ? input.sort_order : null,
+      input.member_role === undefined ? null : normalizeMemberRole(input.member_role),
     ],
   );
   await audit(context, 'update', 'yk_members', id, before, result.rows[0]);
@@ -763,7 +783,7 @@ export async function reorderMembers(seasonId: string, memberIds: string[], cont
 export async function getMemberDetails(id: string): Promise<MemberDetails | null> {
   const member = (
     await query<Member & { season_name: string }>(
-      `select m.id, m.season_id, y.name as season_name, m.first_name, m.last_name, m.display_name, m.active, m.notes, m.sort_order
+      `select m.id, m.season_id, y.name as season_name, m.first_name, m.last_name, m.display_name, m.member_role, m.active, m.notes, m.sort_order
          from yk_members m
          join yk_seasons y on y.id = m.season_id
         where m.id = $1`,
@@ -799,6 +819,7 @@ export async function getMemberDetails(id: string): Promise<MemberDetails | null
   const rehearsalCount = sheets.reduce((sum, sheet) => sum + Number(sheet.rehearsalcount || 0), 0);
   return {
     member,
+    member_role_label: memberRoleLabel(member.member_role),
     season,
     stats: {
       total,

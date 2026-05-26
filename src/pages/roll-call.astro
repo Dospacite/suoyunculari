@@ -1,22 +1,24 @@
 ---
 import YkLayout from '@/layouts/YkLayout.astro';
-import { getRollCallData, listSeasons, listSheetSummaries } from '@/lib/yk';
+import { getRollCallData, listSeasons, listSheetSummaries, memberRoleLabel } from '@/lib/yk';
 import { formatDate } from '@/lib/yk-format';
 
 const user = Astro.locals.user!;
 const selectedId = Astro.url.searchParams.get('sheet') || '';
-const memberSort = Astro.url.searchParams.get('sort') || 'manual';
 const seasons = await listSeasons();
 const sheets = await listSheetSummaries();
 const data = selectedId ? await getRollCallData(selectedId) : null;
-if (data && memberSort === 'name') {
-  data.members.sort((first, second) => first.display_name.localeCompare(second.display_name, 'tr'));
-}
-if (data && memberSort === 'total') {
-  data.members.sort((first, second) => (data.totals[second.id] ?? 0) - (data.totals[first.id] ?? 0) || first.display_name.localeCompare(second.display_name, 'tr'));
-}
 const entryMap = new Map((data?.entries || []).map((entry) => [`${entry.member_id}:${entry.rehearsal_id}`, entry]));
 const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+const todayParts = Object.fromEntries(
+  new Intl.DateTimeFormat('tr-TR', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date()).map((part) => [part.type, part.value]),
+);
+const todayIso = `${todayParts.year}-${todayParts.month}-${todayParts.day}`;
 const weekdayOptions = [
   { label: 'Pazartesi', value: 1 },
   { label: 'Salı', value: 2 },
@@ -73,6 +75,7 @@ const weekdayOptions = [
           <div class="form-row">
             <a class="button secondary" href="/roll-call">Çizelgeler</a>
             <button class="secondary" type="button" data-open-rehearsal-modal>Ek prova</button>
+            <button class="secondary icon-button save" type="button" data-save-member-order data-season={data.season.id} aria-label="Üye sırasını kaydet" title="Üye sırasını kaydet">Kaydet</button>
             <a class="button" href={`/api/roll-call/${data.sheet.id}/export.xlsx`}>Excel</a>
           </div>
         </header>
@@ -83,57 +86,52 @@ const weekdayOptions = [
               Çizelge adı
               <input name="name" value={data.sheet.name} required />
             </label>
-            <button class="secondary" type="submit">Kaydet</button>
+            <button class="secondary icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
           </form>
           <button class="secondary" type="button" data-archive-sheet data-id={data.sheet.id} data-archived={String(!data.sheet.archived)}>
             {data.sheet.archived ? 'Arşivden çıkar' : 'Arşivle'}
           </button>
-          <button class="danger" type="button" data-delete-sheet data-id={data.sheet.id}>Sil</button>
+          <button class="danger icon-button delete" type="button" data-delete-sheet data-id={data.sheet.id} aria-label="Sil" title="Sil">Sil</button>
         </section>
 
-        <section class="toolbar">
-          <label>
-            Üye sırası
-            <select id="member-sort">
-              <option value="manual" selected={memberSort === 'manual'}>Elle sıralama</option>
-              <option value="name" selected={memberSort === 'name'}>Ada göre</option>
-              <option value="total" selected={memberSort === 'total'}>Toplam puana göre</option>
-            </select>
-          </label>
-        </section>
-
-        <section class="table-wrap" aria-label="Yoklama tablosu">
-          <table>
+        <section class="table-wrap" aria-label="Yoklama tablosu" data-roll-call-table>
+          <table data-member-order-table data-season={data.season.id}>
             <thead>
               <tr>
                 <th class="sticky-col">Üye</th>
-                {data.rehearsals.map((rehearsal) => (
-                  <th>
+                {data.rehearsals.map((rehearsal) => {
+                  const isToday = rehearsal.rehearsal_date === todayIso;
+                  return (
+                  <th class={isToday ? 'current-rehearsal' : undefined} data-current-rehearsal={isToday ? 'true' : undefined}>
                     <div class="date-head">
                       <a href={`/roll-call/rehearsals/${rehearsal.id}`}>
                         <strong>{formatDate(rehearsal.rehearsal_date)}</strong>
                       </a>
                       <span>{weekdayLabels[new Date(`${rehearsal.rehearsal_date}T00:00:00`).getDay()]}</span>
                       {rehearsal.rehearsal_idea_title && <span>{rehearsal.rehearsal_idea_title}</span>}
-                      <button class="secondary" type="button" data-delete-rehearsal data-id={rehearsal.id}>Sil</button>
+                      <button class="secondary icon-button delete" type="button" data-delete-rehearsal data-id={rehearsal.id} aria-label="Sil" title="Sil">Sil</button>
                     </div>
                   </th>
-                ))}
+                  );
+                })}
                 <th>Toplam</th>
               </tr>
             </thead>
             <tbody>
               {data.members.map((member) => (
-                <tr data-member-row data-member={member.id}>
+                <tr data-member-row data-member={member.id} draggable="true">
                   <td class="sticky-col">
+                    <span class="drag-handle" aria-hidden="true">☰</span>
                     <button class="link-button member-name-button" type="button" data-member-details data-member={member.id}>
                       {member.display_name}
                     </button>
+                    <span class="member-sub">{memberRoleLabel(member.member_role)}</span>
                   </td>
                   {data.rehearsals.map((rehearsal) => {
                     const entry = entryMap.get(`${member.id}:${rehearsal.id}`);
+                    const isToday = rehearsal.rehearsal_date === todayIso;
                     return (
-                      <td>
+                      <td class={isToday ? 'current-rehearsal' : undefined}>
                         <select
                           class="attendance-select"
                           data-attendance
@@ -229,6 +227,10 @@ const weekdayOptions = [
           <dd data-member-modal-season></dd>
         </div>
         <div>
+          <dt>Rol</dt>
+          <dd data-member-modal-role></dd>
+        </div>
+        <div>
           <dt>Toplam puan</dt>
           <dd data-member-modal-total></dd>
         </div>
@@ -237,7 +239,7 @@ const weekdayOptions = [
           <dd data-member-modal-average></dd>
         </div>
       </dl>
-      <a class="button secondary" data-member-modal-link href="/members">Detay</a>
+      <a class="button secondary icon-button detail" data-member-modal-link href="/members" aria-label="Detay" title="Detay">Detay</a>
     </div>
   </dialog>
 
@@ -278,12 +280,6 @@ const weekdayOptions = [
       const form = event.currentTarget;
       await postJson(`/api/roll-call/sheets/${form.dataset.sheet}/rehearsals`, 'POST', Object.fromEntries(new FormData(form).entries()));
       window.location.reload();
-    });
-
-    document.querySelector('#member-sort')?.addEventListener('change', (event) => {
-      const url = new URL(window.location.href);
-      url.searchParams.set('sort', event.currentTarget.value);
-      window.location.href = url.toString();
     });
 
     document.querySelector('[data-rename-sheet]')?.addEventListener('submit', async (event) => {
@@ -334,6 +330,38 @@ const weekdayOptions = [
       });
     });
 
+    const currentRehearsal = document.querySelector('[data-current-rehearsal]');
+    currentRehearsal?.scrollIntoView({ inline: 'center', block: 'nearest' });
+
+    const memberTable = document.querySelector('[data-member-order-table]');
+    const memberBody = memberTable?.querySelector('tbody');
+    let draggedRow = null;
+    memberBody?.querySelectorAll('[data-member-row]').forEach((row) => {
+      row.addEventListener('dragstart', () => {
+        draggedRow = row;
+        row.classList.add('dragging');
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        draggedRow = null;
+      });
+      row.addEventListener('dragover', (event) => {
+        if (!draggedRow || draggedRow === row) return;
+        event.preventDefault();
+        const rect = row.getBoundingClientRect();
+        const after = event.clientY > rect.top + rect.height / 2;
+        row.parentNode.insertBefore(draggedRow, after ? row.nextSibling : row);
+      });
+    });
+
+    document.querySelector('[data-save-member-order]')?.addEventListener('click', async (event) => {
+      if (!memberBody) return;
+      const button = event.currentTarget;
+      const memberIds = Array.from(memberBody.querySelectorAll('[data-member-row]')).map((row) => row.dataset.member);
+      await postJson(`/api/seasons/${button.dataset.season}/members`, 'PATCH', { memberIds });
+      window.location.reload();
+    });
+
     const memberModal = document.querySelector('[data-member-modal]');
     document.querySelector('[data-close-member-modal]')?.addEventListener('click', () => memberModal?.close());
     document.querySelectorAll('[data-member-details]').forEach((button) => {
@@ -341,6 +369,7 @@ const weekdayOptions = [
         const details = await postJson(`/api/roll-call/members/${button.dataset.member}`, 'GET');
         document.querySelector('[data-member-modal-name]').textContent = details.member.display_name;
         document.querySelector('[data-member-modal-season]').textContent = details.season.name;
+        document.querySelector('[data-member-modal-role]').textContent = details.member_role_label || details.member.member_role;
         document.querySelector('[data-member-modal-total]').textContent = String(details.stats.total);
         document.querySelector('[data-member-modal-average]').textContent = Number(details.stats.average).toFixed(2);
         document.querySelector('[data-member-modal-link]').href = `/members/${details.member.id}`;

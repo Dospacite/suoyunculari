@@ -46,7 +46,7 @@ const ideas = await getRehearsalIdeas();
             Not
             <textarea name="notes" rows="5">{details.rehearsal.notes || ''}</textarea>
           </label>
-          <button type="submit">Kaydet</button>
+          <button class="icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
         </form>
       </>
     ) : (

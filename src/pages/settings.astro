@@ -40,7 +40,7 @@ const data = selectedId ? await getRollCallData(selectedId) : null;
                 Renk
                 <input name="color" type="color" value={state.color || '#101013'} />
               </label>
-              <button type="submit">Kaydet</button>
+              <button class="icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
             </form>
           ))}
         </div>

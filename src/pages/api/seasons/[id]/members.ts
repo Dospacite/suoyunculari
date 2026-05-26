@@ -8,7 +8,7 @@ export const POST: APIRoute = async (context) => {
     const body = await readJson(context);
     const member = await addMember(
       String(context.params.id),
-      { firstName: body.firstName, lastName: body.lastName },
+      { firstName: body.firstName, lastName: body.lastName, memberRole: body.memberRole },
       { user, request: context.request },
     );
     return json({ member }, 201);

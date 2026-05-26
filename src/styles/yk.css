@@ -49,6 +49,78 @@ button,
   text-decoration: none;
 }
 
+.icon-button {
+  flex: 0 0 40px;
+  font-size: 0;
+  min-width: 40px;
+  padding: 0;
+  position: relative;
+  width: 40px;
+}
+
+.icon-button::before,
+.icon-button::after {
+  box-sizing: border-box;
+  content: "";
+  display: block;
+  position: absolute;
+}
+
+.icon-button.save::before {
+  border: 2px solid currentColor;
+  height: 16px;
+  left: 11px;
+  top: 11px;
+  width: 18px;
+}
+
+.icon-button.save::after {
+  border-bottom: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+  height: 5px;
+  left: 15px;
+  top: 16px;
+  transform: rotate(-45deg);
+  width: 11px;
+}
+
+.icon-button.delete::before {
+  border: 2px solid currentColor;
+  border-top: 0;
+  height: 15px;
+  left: 13px;
+  top: 15px;
+  width: 14px;
+}
+
+.icon-button.delete::after {
+  border-top: 2px solid currentColor;
+  box-shadow: 4px -4px 0 -2px currentColor;
+  height: 7px;
+  left: 11px;
+  top: 10px;
+  width: 18px;
+}
+
+.icon-button.detail::before {
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  height: 18px;
+  left: 11px;
+  top: 11px;
+  width: 18px;
+}
+
+.icon-button.detail::after {
+  background: currentColor;
+  border-radius: 50%;
+  box-shadow: 0 6px 0 currentColor;
+  height: 3px;
+  left: 18px;
+  top: 16px;
+  width: 3px;
+}
+
 button:hover,
 .button:hover {
   background: var(--accent);
@@ -290,6 +362,28 @@ th.sticky-col {
   z-index: 4;
 }
 
+td.sticky-col {
+  display: grid;
+  gap: 3px 8px;
+  grid-template-columns: 22px minmax(0, 1fr);
+}
+
+td.sticky-col .member-sub {
+  grid-column: 2;
+}
+
+tr[draggable="true"] {
+  cursor: grab;
+}
+
+.current-rehearsal {
+  background: #fff6e6;
+}
+
+th.current-rehearsal {
+  background: #f7e7cf;
+}
+
 .date-head {
   display: grid;
   gap: 4px;
@@ -377,12 +471,29 @@ th.sticky-col {
   gap: 10px;
 }
 
+.panel > .state-list,
+.panel > .user-list,
+.panel > .member-list {
+  border-top: 1px solid var(--line);
+  gap: 0;
+}
+
+.panel > .state-list .state-row,
+.panel > .user-list .user-row,
+.panel > .user-list .season-row,
+.panel > .member-list .member-row {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+
 .state-row,
 .user-row,
 .member-row,
 .season-row,
 .log-row {
-  align-items: center;
+  align-items: start;
   background: #fff;
   border: 1px solid var(--line);
   display: grid;
@@ -391,12 +502,19 @@ th.sticky-col {
   padding: 12px;
 }
 
+.state-row,
+.user-row,
+.member-row,
+.season-row {
+  align-items: end;
+}
+
 .user-row {
   grid-template-columns: minmax(180px, 1fr) 190px 92px auto;
 }
 
 .member-row {
-  grid-template-columns: 28px minmax(130px, 0.8fr) minmax(130px, 0.8fr) minmax(110px, 0.4fr) auto;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(130px, 0.8fr) minmax(140px, 0.5fr) auto;
 }
 
 .season-row {
@@ -502,7 +620,7 @@ th.sticky-col {
   border: 1px solid var(--line);
   display: grid;
   gap: 0;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   margin-bottom: 18px;
   padding: 0 16px;
 }
@@ -528,7 +646,7 @@ th.sticky-col {
   color: var(--muted);
   cursor: grab;
   font-weight: 900;
-  line-height: 40px;
+  line-height: 1;
   text-align: center;
 }
 

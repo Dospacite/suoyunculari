@@ -38,8 +38,8 @@ const seasons = await listSeasons();
               </select>
             </label>
             <div class="form-row">
-              <button type="submit">Kaydet</button>
-              <button class="danger" type="button" data-delete-season data-id={season.id}>Sil</button>
+              <button class="icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
+              <button class="danger icon-button delete" type="button" data-delete-season data-id={season.id} aria-label="Sil" title="Sil">Sil</button>
             </div>
           </form>
         ))}

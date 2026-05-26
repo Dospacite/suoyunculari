@@ -1,12 +1,17 @@
 ---
 import YkLayout from '@/layouts/YkLayout.astro';
-import { listMembers, listSeasons } from '@/lib/yk';
+import { listMembers, listSeasons, memberRoleLabel, type MemberRole } from '@/lib/yk';
 
 const user = Astro.locals.user!;
 const seasons = await listSeasons();
 const selectedSeasonId = Astro.url.searchParams.get('season') || seasons.find((season) => !season.archived)?.id || seasons[0]?.id || '';
-const selectedSort = Astro.url.searchParams.get('sort') === 'total' ? 'total' : Astro.url.searchParams.get('sort') === 'name' ? 'name' : 'manual';
-const members = selectedSeasonId ? await listMembers(selectedSeasonId, selectedSort) : [];
+const members = selectedSeasonId ? await listMembers(selectedSeasonId, 'name') : [];
+const memberRoleOptions: Array<{ value: MemberRole; label: string }> = [
+  { value: 'new_member', label: memberRoleLabel('new_member') },
+  { value: 'old_member', label: memberRoleLabel('old_member') },
+  { value: 'yk', label: memberRoleLabel('yk') },
+  { value: 'myk', label: memberRoleLabel('myk') },
+];
 ---
 
 <YkLayout title="Üyeler" user={user}>
@@ -30,20 +35,10 @@ const members = selectedSeasonId ? await listMembers(selectedSeasonId, selectedS
                 {seasons.map((season) => <option value={season.id} selected={season.id === selectedSeasonId}>{season.name}</option>)}
               </select>
             </label>
-            <label>
-              Sıralama
-              <select id="sort-select">
-                <option value="manual" selected={selectedSort === 'manual'}>Elle sıralama</option>
-                <option value="name" selected={selectedSort === 'name'}>Ada göre</option>
-                <option value="total" selected={selectedSort === 'total'}>Toplam puana göre</option>
-              </select>
-            </label>
-            <button class="secondary" type="button" data-save-order disabled={selectedSort !== 'manual'}>Sırayı kaydet</button>
           </div>
           <div class="member-list" data-member-list data-season={selectedSeasonId}>
             {members.map((member) => (
-              <form class="member-row" data-member-form data-id={member.id} draggable={selectedSort === 'manual'}>
-                <span class="drag-handle" aria-hidden="true">☰</span>
+              <form class="member-row" data-member-form data-id={member.id}>
                 <label>
                   Ad
                   <input name="first_name" value={member.first_name} required />
@@ -52,11 +47,16 @@ const members = selectedSeasonId ? await listMembers(selectedSeasonId, selectedS
                   Soyad
                   <input name="last_name" value={member.last_name} required />
                 </label>
-                {'total_points' in member && <span class="member-sub">Toplam: {(member as any).total_points}</span>}
+                <label>
+                  Rol
+                  <select name="member_role">
+                    {memberRoleOptions.map((option) => <option value={option.value} selected={member.member_role === option.value}>{option.label}</option>)}
+                  </select>
+                </label>
                 <div class="form-row">
-                  <a class="button secondary" href={`/members/${member.id}`}>Detay</a>
-                  <button type="submit">Kaydet</button>
-                  <button class="danger" type="button" data-delete-member data-id={member.id}>Sil</button>
+                  <a class="button secondary icon-button detail" href={`/members/${member.id}`} aria-label="Detay" title="Detay">Detay</a>
+                  <button class="icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
+                  <button class="danger icon-button delete" type="button" data-delete-member data-id={member.id} aria-label="Sil" title="Sil">Sil</button>
                 </div>
               </form>
             ))}
@@ -71,6 +71,12 @@ const members = selectedSeasonId ? await listMembers(selectedSeasonId, selectedS
           <label>
             Soyad
             <input name="lastName" required />
+          </label>
+          <label>
+            Rol
+            <select name="memberRole">
+              {memberRoleOptions.map((option) => <option value={option.value}>{option.label}</option>)}
+            </select>
           </label>
           <button type="submit">Ekle</button>
         </form>
@@ -91,11 +97,7 @@ const members = selectedSeasonId ? await listMembers(selectedSeasonId, selectedS
     };
 
     document.querySelector('#season-select')?.addEventListener('change', (event) => {
-      window.location.href = `/members?season=${encodeURIComponent(event.currentTarget.value)}&sort=${encodeURIComponent(document.querySelector('#sort-select')?.value || 'manual')}`;
-    });
-
-    document.querySelector('#sort-select')?.addEventListener('change', (event) => {
-      window.location.href = `/members?season=${encodeURIComponent(document.querySelector('#season-select')?.value || '')}&sort=${encodeURIComponent(event.currentTarget.value)}`;
+      window.location.href = `/members?season=${encodeURIComponent(event.currentTarget.value)}`;
     });
 
     document.querySelectorAll('[data-member-form]').forEach((form) => {
@@ -121,31 +123,5 @@ const members = selectedSeasonId ? await listMembers(selectedSeasonId, selectedS
       window.location.reload();
     });
 
-    const memberList = document.querySelector('[data-member-list]');
-    let dragged = null;
-    memberList?.querySelectorAll('[data-member-form]').forEach((row) => {
-      row.addEventListener('dragstart', () => {
-        dragged = row;
-        row.classList.add('dragging');
-      });
-      row.addEventListener('dragend', () => {
-        row.classList.remove('dragging');
-        dragged = null;
-      });
-      row.addEventListener('dragover', (event) => {
-        if (!dragged || dragged === row) return;
-        event.preventDefault();
-        const rect = row.getBoundingClientRect();
-        const after = event.clientY > rect.top + rect.height / 2;
-        row.parentNode.insertBefore(dragged, after ? row.nextSibling : row);
-      });
-    });
-
-    document.querySelector('[data-save-order]')?.addEventListener('click', async () => {
-      if (!memberList) return;
-      const memberIds = Array.from(memberList.querySelectorAll('[data-member-form]')).map((row) => row.dataset.id);
-      await postJson(`/api/seasons/${memberList.dataset.season}/members`, 'PATCH', { memberIds });
-      window.location.reload();
-    });
   </script>
 </YkLayout>

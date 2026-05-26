@@ -80,10 +80,9 @@ textarea {
 label {
   color: var(--muted);
   display: grid;
-  font-size: 0.78rem;
-  font-weight: 800;
+  font-size: 0.86rem;
+  font-weight: 700;
   gap: 6px;
-  text-transform: uppercase;
 }
 
 .yk-shell {
@@ -139,7 +138,6 @@ label {
   min-height: 42px;
   padding: 12px;
   text-decoration: none;
-  text-transform: uppercase;
 }
 
 .yk-nav a:hover {
@@ -201,9 +199,9 @@ label {
 }
 
 h1 {
-  font-size: clamp(1.7rem, 3vw, 2.65rem);
+  font-size: clamp(1.45rem, 2vw, 2.1rem);
   letter-spacing: 0;
-  line-height: 1;
+  line-height: 1.1;
   margin: 0;
 }
 
@@ -271,11 +269,10 @@ td {
 
 th {
   background: #f0ede9;
-  font-size: 0.74rem;
+  font-size: 0.78rem;
   font-weight: 900;
   line-height: 1.2;
   position: sticky;
-  text-transform: uppercase;
   top: 0;
   z-index: 2;
 }
@@ -299,6 +296,10 @@ th.sticky-col {
   min-width: 132px;
 }
 
+.date-head a {
+  text-decoration: none;
+}
+
 .date-head strong {
   color: var(--accent);
 }
@@ -316,6 +317,27 @@ th.sticky-col {
   border: 0;
   min-width: 132px;
   width: 132px;
+}
+
+.link-button {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  font-weight: 900;
+  justify-content: start;
+  min-height: auto;
+  padding: 0;
+  text-align: left;
+}
+
+.link-button:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.member-name-button {
+  width: 100%;
 }
 
 .total-cell {
@@ -374,7 +396,7 @@ th.sticky-col {
 }
 
 .member-row {
-  grid-template-columns: minmax(130px, 0.8fr) minmax(130px, 0.8fr) minmax(180px, 1fr) auto;
+  grid-template-columns: 28px minmax(130px, 0.8fr) minmax(130px, 0.8fr) minmax(110px, 0.4fr) auto;
 }
 
 .season-row {
@@ -444,6 +466,76 @@ th.sticky-col {
   width: 100%;
 }
 
+.narrow-panel {
+  max-width: 720px;
+}
+
+.detail-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.detail-list div,
+.stats-line div,
+.plain-list a {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+}
+
+.detail-list dt,
+.stats-line span,
+.plain-list span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.detail-list dd {
+  font-weight: 900;
+  margin: 0;
+}
+
+.stats-line {
+  background: #fff;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 18px;
+  padding: 0 16px;
+}
+
+.stats-line strong {
+  font-size: 1.4rem;
+}
+
+.plain-list {
+  display: grid;
+}
+
+.plain-list a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.plain-list a:hover strong {
+  color: var(--accent);
+}
+
+.drag-handle {
+  color: var(--muted);
+  cursor: grab;
+  font-weight: 900;
+  line-height: 40px;
+  text-align: center;
+}
+
+.dragging {
+  opacity: 0.65;
+}
+
 .modal::backdrop {
   background: rgba(16, 16, 19, 0.42);
 }
@@ -459,10 +551,9 @@ th.sticky-col {
 
 .weekday-picker legend {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 900;
   padding: 0 6px;
-  text-transform: uppercase;
 }
 
 .weekday-picker label {
@@ -525,6 +616,10 @@ th.sticky-col {
   .member-row,
   .season-row,
   .log-row {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-line {
     grid-template-columns: 1fr;
   }
 }

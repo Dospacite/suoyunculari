@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import ExcelJS from 'exceljs';
 import { audit, getRollCallData } from '@/lib/yk';
 import { requireEditor } from '@/lib/yk-api';
+import { formatDate, formatDateTime } from '@/lib/yk-format';
 
 export const GET: APIRoute = async (context) => {
   const user = requireEditor(context);
@@ -13,7 +14,7 @@ export const GET: APIRoute = async (context) => {
   workbook.created = new Date();
   const sheet = workbook.addWorksheet(data.sheet.name.slice(0, 31) || 'Yoklama');
 
-  const headers = ['Üye', ...data.rehearsals.map((rehearsal) => rehearsal.rehearsal_date), 'Toplam'];
+  const headers = ['Üye', ...data.rehearsals.map((rehearsal) => formatDate(rehearsal.rehearsal_date)), 'Toplam'];
   sheet.addRow(headers);
   sheet.getRow(1).font = { bold: true };
 
@@ -29,7 +30,7 @@ export const GET: APIRoute = async (context) => {
   sheet.addRow([]);
   sheet.addRow(['Ortalama puan', data.average]);
   sheet.addRow(['Dışa aktaran', user.email]);
-  sheet.addRow(['Dışa aktarma zamanı', new Date().toISOString()]);
+  sheet.addRow(['Dışa aktarma zamanı', formatDateTime(new Date().toISOString())]);
   sheet.columns.forEach((column) => {
     column.width = Math.max(14, Math.min(28, column.width || 14));
   });

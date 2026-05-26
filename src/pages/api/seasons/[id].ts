@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { updateSeason } from '@/lib/yk';
+import { deleteSeason, updateSeason } from '@/lib/yk';
 import { handleError, json, readJson, requireEditor } from '@/lib/yk-api';
 
 export const PATCH: APIRoute = async (context) => {
@@ -17,6 +17,16 @@ export const PATCH: APIRoute = async (context) => {
       { user, request: context.request },
     );
     return json({ season });
+  } catch (error) {
+    return handleError(error);
+  }
+};
+
+export const DELETE: APIRoute = async (context) => {
+  try {
+    const user = requireEditor(context);
+    await deleteSeason(String(context.params.id), { user, request: context.request });
+    return json({ ok: true });
   } catch (error) {
     return handleError(error);
   }

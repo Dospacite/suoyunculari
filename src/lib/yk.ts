@@ -48,6 +48,7 @@ export type Member = {
   display_name: string;
   active: boolean;
   notes: string | null;
+  sort_order: number | null;
 };
 
 export type Rehearsal = {
@@ -55,6 +56,8 @@ export type Rehearsal = {
   rehearsal_date: string;
   notes: string | null;
   sort_order: number;
+  rehearsal_idea_slug: string | null;
+  rehearsal_idea_title: string | null;
 };
 
 export type AttendanceEntry = {
@@ -73,6 +76,7 @@ export type RollCallData = {
   rehearsals: Rehearsal[];
   entries: AttendanceEntry[];
   totals: Record<string, number>;
+  memberStats: Record<string, MemberPoints>;
   average: number;
 };
 
@@ -82,6 +86,28 @@ export type Season = {
   start_date: string | null;
   end_date: string | null;
   archived: boolean;
+};
+
+export type MemberPoints = {
+  total: number;
+  average: number;
+  rehearsalCount: number;
+};
+
+export type MemberDetails = {
+  member: Member;
+  season: Season;
+  stats: MemberPoints;
+  sheets: Array<{ id: string; name: string; total: number; average: number; rehearsalCount: number }>;
+};
+
+export type RehearsalDetails = {
+  rehearsal: Rehearsal & {
+    sheet_id: string;
+    sheet_name: string;
+    season_id: string;
+    season_name: string;
+  };
 };
 
 type AuditContext = {
@@ -275,7 +301,7 @@ export async function listSheets() {
        from yk_roll_call_sheets s
        join yk_seasons y on y.id = s.season_id
        left join yk_rehearsals r on r.sheet_id = s.id
-      group by s.id, y.name
+      group by s.id, y.name, y.start_date
       order by s.archived asc, y.start_date desc nulls last, s.updated_at desc, s.name asc`,
   );
   return result.rows;
@@ -293,14 +319,16 @@ export async function listSeasons() {
 export async function createSeason(input: { name: string; startDate?: string; endDate?: string }, context: AuditContext) {
   const name = cleanText(input.name, 120);
   if (!name) throw new Error('Season name is required');
+  const startDate = normalizeDateInput(input.startDate);
+  const endDate = normalizeDateInput(input.endDate);
   const result = await query<Season>(
     `insert into yk_seasons (name, start_date, end_date, created_by)
      values ($1, $2, $3, $4)
      returning id, name, start_date::text, end_date::text, archived`,
     [
       name,
-      input.startDate && /^\d{4}-\d{2}-\d{2}$/.test(input.startDate) ? input.startDate : null,
-      input.endDate && /^\d{4}-\d{2}-\d{2}$/.test(input.endDate) ? input.endDate : null,
+      startDate,
+      endDate,
       context.user?.id ?? null,
     ],
   );
@@ -311,6 +339,8 @@ export async function createSeason(input: { name: string; startDate?: string; en
 export async function updateSeason(id: string, input: Partial<Season>, context: AuditContext) {
   const before = (await query<Season>(`select id, name, start_date::text, end_date::text, archived from yk_seasons where id = $1`, [id])).rows[0];
   if (!before) throw new Error('Season not found');
+  const startDate = input.start_date === undefined ? before.start_date : normalizeDateInput(input.start_date);
+  const endDate = input.end_date === undefined ? before.end_date : normalizeDateInput(input.end_date);
   const result = await query<Season>(
     `update yk_seasons
         set name = coalesce($2, name),
@@ -323,13 +353,45 @@ export async function updateSeason(id: string, input: Partial<Season>, context: 
     [
       id,
       input.name === undefined ? null : cleanText(input.name, 120),
-      input.start_date === undefined ? before.start_date : input.start_date || null,
-      input.end_date === undefined ? before.end_date : input.end_date || null,
+      startDate,
+      endDate,
       typeof input.archived === 'boolean' ? input.archived : null,
     ],
   );
   await audit(context, 'update', 'yk_seasons', id, before, result.rows[0]);
   return result.rows[0];
+}
+
+export async function deleteSeason(id: string, context: AuditContext) {
+  const before = (await query<Season>(`select id, name, start_date::text, end_date::text, archived from yk_seasons where id = $1`, [id])).rows[0];
+  if (!before) return;
+
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    await client.query(
+      `delete from yk_attendance_entries
+        where member_id in (select id from yk_members where season_id = $1)
+           or rehearsal_id in (
+             select r.id
+               from yk_rehearsals r
+               join yk_roll_call_sheets s on s.id = r.sheet_id
+              where s.season_id = $1
+           )`,
+      [id],
+    );
+    await client.query(`delete from yk_members where season_id = $1`, [id]);
+    await client.query(`delete from yk_roll_call_sheets where season_id = $1`, [id]);
+    await client.query(`delete from yk_seasons where id = $1`, [id]);
+    await client.query('commit');
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  await audit(context, 'delete', 'yk_seasons', id, before, null);
 }
 
 export async function createDefaultStates(sheetId: string) {
@@ -350,8 +412,23 @@ function parseWeekdays(value: unknown): number[] {
   return [...new Set(raw.map((item) => Number(item)).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))].sort();
 }
 
-function isIsoDate(value: unknown): value is string {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+function normalizeDateInput(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+  const [, day, month, year] = match;
+  const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getUTCFullYear() !== Number(year) ||
+    date.getUTCMonth() + 1 !== Number(month) ||
+    date.getUTCDate() !== Number(day)
+  ) {
+    return null;
+  }
+  return `${year}-${month}-${day}`;
 }
 
 async function replaceGeneratedRehearsals(sheetId: string, startDate: string, endDate: string, weekdays: number[], context: AuditContext) {
@@ -379,24 +456,28 @@ async function replaceGeneratedRehearsals(sheetId: string, startDate: string, en
 }
 
 export async function createSheet(
-  input: { name: string; seasonId: string; startDate: string; endDate: string; weekdays: unknown; description?: string },
+  input: { name: string; seasonId: string; weekdays: unknown; description?: string },
   context: AuditContext,
 ) {
   const name = cleanText(input.name, 120);
   if (!name) throw new Error('Sheet name is required');
   if (!input.seasonId) throw new Error('Season is required');
-  if (!isIsoDate(input.startDate) || !isIsoDate(input.endDate)) throw new Error('Start and end dates are required');
+  const season = (
+    await query<Season>(`select id, name, start_date::text, end_date::text, archived from yk_seasons where id = $1`, [input.seasonId])
+  ).rows[0];
+  if (!season) throw new Error('Season not found');
+  if (!season.start_date || !season.end_date) throw new Error('Season start and end dates are required');
   const weekdays = parseWeekdays(input.weekdays);
   if (weekdays.length === 0) throw new Error('At least one rehearsal day is required');
   const result = await query<RollCallSheet>(
     `insert into yk_roll_call_sheets (name, season_id, description, start_date, end_date, rehearsal_weekdays, created_by)
      values ($1, $2, $3, $4, $5, $6, $7)
      returning id, season_id, name, description, start_date::text, end_date::text, rehearsal_weekdays, archived`,
-    [name, input.seasonId, cleanText(input.description, 500) || null, input.startDate, input.endDate, weekdays, context.user?.id ?? null],
+    [name, input.seasonId, cleanText(input.description, 500) || null, season.start_date, season.end_date, weekdays, context.user?.id ?? null],
   );
   const sheet = result.rows[0];
   await createDefaultStates(sheet.id);
-  await replaceGeneratedRehearsals(sheet.id, input.startDate, input.endDate, weekdays, context);
+  await replaceGeneratedRehearsals(sheet.id, season.start_date, season.end_date, weekdays, context);
   await audit(context, 'create', 'yk_roll_call_sheets', sheet.id, null, sheet);
   return sheet;
 }
@@ -425,8 +506,8 @@ export async function updateSheet(id: string, input: Partial<RollCallSheet>, con
       input.name === undefined ? null : cleanText(input.name, 120),
       input.description === undefined ? before.description : cleanText(input.description, 500) || null,
       typeof input.archived === 'boolean' ? input.archived : null,
-      input.start_date && isIsoDate(input.start_date) ? input.start_date : null,
-      input.end_date && isIsoDate(input.end_date) ? input.end_date : null,
+      input.start_date && normalizeDateInput(input.start_date) ? normalizeDateInput(input.start_date) : null,
+      input.end_date && normalizeDateInput(input.end_date) ? normalizeDateInput(input.end_date) : null,
       Array.isArray(input.rehearsal_weekdays) ? input.rehearsal_weekdays : null,
     ],
   );
@@ -481,14 +562,14 @@ export async function getRollCallData(sheetId: string): Promise<RollCallData | n
       [sheetId],
     ),
     query<Member>(
-      `select id, season_id, first_name, last_name, display_name, active, notes
+      `select id, season_id, first_name, last_name, display_name, active, notes, sort_order
          from yk_members
         where season_id = $1 and active = true
-        order by lower(last_name) collate "C" asc, lower(first_name) collate "C" asc`,
+        order by sort_order asc nulls last, lower(last_name) collate "C" asc, lower(first_name) collate "C" asc`,
       [sheet.season_id],
     ),
     query<Rehearsal>(
-      `select id, rehearsal_date::text, notes, sort_order
+      `select id, rehearsal_date::text, notes, sort_order, rehearsal_idea_slug, rehearsal_idea_title
          from yk_rehearsals
         where sheet_id = $1
         order by sort_order asc, rehearsal_date asc`,
@@ -505,9 +586,19 @@ export async function getRollCallData(sheetId: string): Promise<RollCallData | n
     ),
   ]);
   const totals: Record<string, number> = {};
+  const memberStats: Record<string, MemberPoints> = {};
   for (const member of members.rows) totals[member.id] = 0;
   for (const entry of entries.rows) {
     totals[entry.member_id] = (totals[entry.member_id] ?? 0) + (entry.points ?? 0);
+  }
+  for (const member of members.rows) {
+    const total = totals[member.id] ?? 0;
+    const rehearsalCount = rehearsals.rows.length;
+    memberStats[member.id] = {
+      total,
+      average: rehearsalCount ? total / rehearsalCount : 0,
+      rehearsalCount,
+    };
   }
   const memberTotals = Object.values(totals);
   const average = memberTotals.length ? memberTotals.reduce((sum, value) => sum + value, 0) / memberTotals.length : 0;
@@ -519,39 +610,75 @@ export async function getRollCallData(sheetId: string): Promise<RollCallData | n
     rehearsals: rehearsals.rows,
     entries: entries.rows,
     totals,
+    memberStats,
     average,
   };
 }
 
-export async function listMembers(seasonId?: string) {
+export async function listMembers(seasonId?: string, sort: 'manual' | 'name' | 'total' = 'manual') {
+  if (sort === 'total') {
+    const result = await query<Member & { total_points: number; average_points: number }>(
+      `select m.id,
+              m.season_id,
+              y.name as season_name,
+              m.first_name,
+              m.last_name,
+              m.display_name,
+              m.active,
+              m.notes,
+              m.sort_order,
+              coalesce(sum(st.points), 0)::int as total_points,
+              case
+                when count(distinct r.id) = 0 then 0
+                else coalesce(sum(st.points), 0)::numeric / count(distinct r.id)
+              end as average_points
+         from yk_members m
+         join yk_seasons y on y.id = m.season_id
+         left join yk_roll_call_sheets s on s.season_id = m.season_id
+         left join yk_rehearsals r on r.sheet_id = s.id
+         left join yk_attendance_entries e on e.member_id = m.id and e.rehearsal_id = r.id
+         left join yk_attendance_states st on st.id = e.state_id
+        where ($1::uuid is null or m.season_id = $1)
+          and m.active = true
+        group by m.id, y.name, y.start_date
+        order by total_points desc, lower(m.last_name) collate "C" asc, lower(m.first_name) collate "C" asc`,
+      [seasonId || null],
+    );
+    return result.rows;
+  }
+
   const result = await query<Member>(
-    `select m.id, m.season_id, y.name as season_name, m.first_name, m.last_name, m.display_name, m.active, m.notes
+    `select m.id, m.season_id, y.name as season_name, m.first_name, m.last_name, m.display_name, m.active, m.notes, m.sort_order
        from yk_members m
        join yk_seasons y on y.id = m.season_id
       where ($1::uuid is null or m.season_id = $1)
         and m.active = true
-      order by y.start_date desc nulls last, lower(m.last_name) collate "C" asc, lower(m.first_name) collate "C" asc`,
+      order by
+        y.start_date desc nulls last,
+        ${sort === 'name' ? '' : 'm.sort_order asc nulls last,'}
+        lower(m.last_name) collate "C" asc,
+        lower(m.first_name) collate "C" asc`,
     [seasonId || null],
   );
   return result.rows;
 }
 
-export async function addMember(seasonId: string, input: { firstName: string; lastName: string; notes?: string }, context: AuditContext) {
+export async function addMember(seasonId: string, input: { firstName: string; lastName: string }, context: AuditContext) {
   const firstName = cleanText(input.firstName, 80);
   const lastName = cleanText(input.lastName, 80);
   if (!seasonId || !firstName || !lastName) throw new Error('Member season and name are required');
   const displayName = `${firstName} ${lastName}`.trim();
   const result = await query<Member>(
-    `insert into yk_members (season_id, first_name, last_name, display_name, notes)
-     values ($1, $2, $3, $4, $5)
-     returning id, season_id, first_name, last_name, display_name, active, notes`,
-    [seasonId, firstName, lastName, displayName, cleanText(input.notes, 500) || null],
+    `insert into yk_members (season_id, first_name, last_name, display_name)
+     values ($1, $2, $3, $4)
+     returning id, season_id, first_name, last_name, display_name, active, notes, sort_order`,
+    [seasonId, firstName, lastName, displayName],
   );
   await audit(context, 'create', 'yk_members', result.rows[0].id, null, result.rows[0]);
   return result.rows[0];
 }
 
-export async function addSheetMember(sheetId: string, input: { firstName: string; lastName: string; notes?: string }, context: AuditContext) {
+export async function addSheetMember(sheetId: string, input: { firstName: string; lastName: string }, context: AuditContext) {
   const sheet = (await query<{ season_id: string }>(`select season_id from yk_roll_call_sheets where id = $1`, [sheetId])).rows[0];
   if (!sheet) throw new Error('Sheet not found');
   return addMember(sheet.season_id, input, context);
@@ -583,7 +710,7 @@ export async function listSheetSummaries() {
 
 
 export async function updateMember(id: string, input: Partial<Member>, context: AuditContext) {
-  const before = (await query<Member>(`select id, season_id, first_name, last_name, display_name, active, notes from yk_members where id = $1`, [id])).rows[0];
+  const before = (await query<Member>(`select id, season_id, first_name, last_name, display_name, active, notes, sort_order from yk_members where id = $1`, [id])).rows[0];
   if (!before) throw new Error('Member not found');
   const firstName = input.first_name === undefined ? before.first_name : cleanText(input.first_name, 80);
   const lastName = input.last_name === undefined ? before.last_name : cleanText(input.last_name, 80);
@@ -593,9 +720,10 @@ export async function updateMember(id: string, input: Partial<Member>, context: 
             last_name = $3,
             display_name = $4,
             active = coalesce($5, active),
-            notes = $6
+            notes = $6,
+            sort_order = coalesce($7, sort_order)
       where id = $1
-      returning id, season_id, first_name, last_name, display_name, active, notes`,
+      returning id, season_id, first_name, last_name, display_name, active, notes, sort_order`,
     [
       id,
       firstName,
@@ -603,6 +731,7 @@ export async function updateMember(id: string, input: Partial<Member>, context: 
       `${firstName} ${lastName}`.trim(),
       typeof input.active === 'boolean' ? input.active : null,
       input.notes === undefined ? before.notes : cleanText(input.notes, 500) || null,
+      Number.isFinite(input.sort_order) ? input.sort_order : null,
     ],
   );
   await audit(context, 'update', 'yk_members', id, before, result.rows[0]);
@@ -613,42 +742,144 @@ export async function deleteMember(id: string, context: AuditContext) {
   await updateMember(id, { active: false }, context);
 }
 
+export async function reorderMembers(seasonId: string, memberIds: string[], context: AuditContext) {
+  const ids = memberIds.filter(Boolean);
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    for (const [index, id] of ids.entries()) {
+      await client.query(`update yk_members set sort_order = $3 where id = $1 and season_id = $2`, [id, seasonId, (index + 1) * 10]);
+    }
+    await client.query('commit');
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+  await audit(context, 'reorder', 'yk_members', seasonId, null, { memberIds: ids });
+}
+
+export async function getMemberDetails(id: string): Promise<MemberDetails | null> {
+  const member = (
+    await query<Member & { season_name: string }>(
+      `select m.id, m.season_id, y.name as season_name, m.first_name, m.last_name, m.display_name, m.active, m.notes, m.sort_order
+         from yk_members m
+         join yk_seasons y on y.id = m.season_id
+        where m.id = $1`,
+      [id],
+    )
+  ).rows[0];
+  if (!member) return null;
+
+  const season = (
+    await query<Season>(`select id, name, start_date::text, end_date::text, archived from yk_seasons where id = $1`, [member.season_id])
+  ).rows[0];
+  const sheets = (
+    await query<{ id: string; name: string; total: number; average: number; rehearsalcount: number }>(
+      `select s.id,
+              s.name,
+              coalesce(sum(st.points), 0)::int as total,
+              count(distinct r.id)::int as rehearsalCount,
+              case
+                when count(distinct r.id) = 0 then 0
+                else coalesce(sum(st.points), 0)::numeric / count(distinct r.id)
+              end as average
+         from yk_roll_call_sheets s
+         left join yk_rehearsals r on r.sheet_id = s.id
+         left join yk_attendance_entries e on e.rehearsal_id = r.id and e.member_id = $1
+         left join yk_attendance_states st on st.id = e.state_id
+        where s.season_id = $2
+        group by s.id
+        order by s.start_date desc nulls last, s.name asc`,
+      [id, member.season_id],
+    )
+  ).rows;
+  const total = sheets.reduce((sum, sheet) => sum + Number(sheet.total || 0), 0);
+  const rehearsalCount = sheets.reduce((sum, sheet) => sum + Number(sheet.rehearsalcount || 0), 0);
+  return {
+    member,
+    season,
+    stats: {
+      total,
+      average: rehearsalCount ? total / rehearsalCount : 0,
+      rehearsalCount,
+    },
+    sheets: sheets.map((sheet) => ({
+      id: sheet.id,
+      name: sheet.name,
+      total: Number(sheet.total || 0),
+      average: Number(sheet.average || 0),
+      rehearsalCount: Number(sheet.rehearsalcount || 0),
+    })),
+  };
+}
+
 export async function addRehearsal(sheetId: string, input: { date: string; notes?: string }, context: AuditContext) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error('Date is required');
+  const date = normalizeDateInput(input.date);
+  if (!date) throw new Error('Date is required');
   const maxOrder = await query<{ next_order: number }>(`select coalesce(max(sort_order), 0) + 10 as next_order from yk_rehearsals where sheet_id = $1`, [sheetId]);
   const result = await query<Rehearsal>(
     `insert into yk_rehearsals (sheet_id, rehearsal_date, notes, sort_order)
      values ($1, $2, $3, $4)
-     returning id, rehearsal_date::text, notes, sort_order`,
-    [sheetId, input.date, cleanText(input.notes, 500) || null, maxOrder.rows[0].next_order],
+     returning id, rehearsal_date::text, notes, sort_order, rehearsal_idea_slug, rehearsal_idea_title`,
+    [sheetId, date, cleanText(input.notes, 500) || null, maxOrder.rows[0].next_order],
   );
   await audit(context, 'create', 'yk_rehearsals', result.rows[0].id, null, result.rows[0]);
   return result.rows[0];
 }
 
 export async function updateRehearsal(id: string, input: Partial<Rehearsal>, context: AuditContext) {
-  const before = (await query<Rehearsal>(`select id, rehearsal_date::text, notes, sort_order from yk_rehearsals where id = $1`, [id])).rows[0];
+  const before = (await query<Rehearsal>(`select id, rehearsal_date::text, notes, sort_order, rehearsal_idea_slug, rehearsal_idea_title from yk_rehearsals where id = $1`, [id])).rows[0];
   if (!before) throw new Error('Rehearsal not found');
+  const date = normalizeDateInput(input.rehearsal_date);
   const result = await query<Rehearsal>(
     `update yk_rehearsals
         set rehearsal_date = coalesce($2, rehearsal_date),
             notes = $3,
-            sort_order = coalesce($4, sort_order)
+            sort_order = coalesce($4, sort_order),
+            rehearsal_idea_slug = $5,
+            rehearsal_idea_title = $6
       where id = $1
-      returning id, rehearsal_date::text, notes, sort_order`,
+      returning id, rehearsal_date::text, notes, sort_order, rehearsal_idea_slug, rehearsal_idea_title`,
     [
       id,
-      input.rehearsal_date && /^\d{4}-\d{2}-\d{2}$/.test(input.rehearsal_date) ? input.rehearsal_date : null,
+      date,
       input.notes === undefined ? before.notes : cleanText(input.notes, 500) || null,
       Number.isFinite(input.sort_order) ? input.sort_order : null,
+      input.rehearsal_idea_slug === undefined ? before.rehearsal_idea_slug : cleanText(input.rehearsal_idea_slug, 160) || null,
+      input.rehearsal_idea_title === undefined ? before.rehearsal_idea_title : cleanText(input.rehearsal_idea_title, 240) || null,
     ],
   );
   await audit(context, 'update', 'yk_rehearsals', id, before, result.rows[0]);
   return result.rows[0];
 }
 
+export async function getRehearsalDetails(id: string): Promise<RehearsalDetails | null> {
+  const rehearsal = (
+    await query<RehearsalDetails['rehearsal']>(
+      `select r.id,
+              r.sheet_id,
+              s.name as sheet_name,
+              s.season_id,
+              y.name as season_name,
+              r.rehearsal_date::text,
+              r.notes,
+              r.sort_order,
+              r.rehearsal_idea_slug,
+              r.rehearsal_idea_title
+         from yk_rehearsals r
+         join yk_roll_call_sheets s on s.id = r.sheet_id
+         join yk_seasons y on y.id = s.season_id
+        where r.id = $1`,
+      [id],
+    )
+  ).rows[0];
+  return rehearsal ? { rehearsal } : null;
+}
+
 export async function deleteRehearsal(id: string, context: AuditContext) {
-  const before = (await query<Rehearsal>(`select id, rehearsal_date::text, notes, sort_order from yk_rehearsals where id = $1`, [id])).rows[0];
+  const before = (await query<Rehearsal>(`select id, rehearsal_date::text, notes, sort_order, rehearsal_idea_slug, rehearsal_idea_title from yk_rehearsals where id = $1`, [id])).rows[0];
   if (!before) return;
   await query(`delete from yk_rehearsals where id = $1`, [id]);
   await audit(context, 'delete', 'yk_rehearsals', id, before, null);
@@ -658,12 +889,17 @@ export async function updateAttendance(memberId: string, rehearsalId: string, st
   const before = (
     await query(`select member_id, rehearsal_id, state_id, note from yk_attendance_entries where member_id = $1 and rehearsal_id = $2`, [memberId, rehearsalId])
   ).rows[0] ?? null;
-  const result = await query<{ id: string; member_id: string; rehearsal_id: string; state_id: string | null }>(
-    `insert into yk_attendance_entries (member_id, rehearsal_id, state_id, updated_by, updated_at)
-     values ($1, $2, $3, $4, now())
-     on conflict (member_id, rehearsal_id)
-     do update set state_id = excluded.state_id, updated_by = excluded.updated_by, updated_at = now()
-     returning id, member_id, rehearsal_id, state_id`,
+  const result = await query<{ id: string; member_id: string; rehearsal_id: string; state_id: string | null; label: string | null; points: number | null }>(
+    `with upserted as (
+       insert into yk_attendance_entries (member_id, rehearsal_id, state_id, updated_by, updated_at)
+       values ($1, $2, $3, $4, now())
+       on conflict (member_id, rehearsal_id)
+       do update set state_id = excluded.state_id, updated_by = excluded.updated_by, updated_at = now()
+       returning id, member_id, rehearsal_id, state_id
+     )
+     select u.id, u.member_id, u.rehearsal_id, u.state_id, s.label, s.points
+       from upserted u
+       left join yk_attendance_states s on s.id = u.state_id`,
     [memberId, rehearsalId, stateId || null, context.user?.id ?? null],
   );
   await audit(context, 'update', 'yk_attendance_entries', result.rows[0].id, before, result.rows[0]);

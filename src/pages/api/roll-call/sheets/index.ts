@@ -12,8 +12,6 @@ export const POST: APIRoute = async (context) => {
       {
         name: body.name,
         seasonId: body.seasonId,
-        startDate: body.startDate,
-        endDate: body.endDate,
         weekdays: body.weekdays,
         description: body.description,
       },

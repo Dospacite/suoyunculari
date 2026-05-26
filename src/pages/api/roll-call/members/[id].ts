@@ -1,6 +1,17 @@
 import type { APIRoute } from 'astro';
-import { deleteMember, updateMember } from '@/lib/yk';
+import { deleteMember, getMemberDetails, updateMember } from '@/lib/yk';
 import { handleError, json, readJson, requireEditor } from '@/lib/yk-api';
+
+export const GET: APIRoute = async (context) => {
+  try {
+    requireEditor(context);
+    const details = await getMemberDetails(String(context.params.id));
+    if (!details) return json({ error: 'Üye bulunamadı' }, 404);
+    return json(details);
+  } catch (error) {
+    return handleError(error);
+  }
+};
 
 export const PATCH: APIRoute = async (context) => {
   try {

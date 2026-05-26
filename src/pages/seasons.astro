@@ -1,6 +1,7 @@
 ---
 import YkLayout from '@/layouts/YkLayout.astro';
 import { listSeasons } from '@/lib/yk';
+import { formatDate } from '@/lib/yk-format';
 
 const user = Astro.locals.user!;
 const seasons = await listSeasons();
@@ -23,11 +24,11 @@ const seasons = await listSeasons();
             </label>
             <label>
               Başlangıç
-              <input name="startDate" type="date" value={season.start_date || ''} />
+              <input name="startDate" inputmode="numeric" placeholder="gg/aa/yyyy" value={formatDate(season.start_date)} />
             </label>
             <label>
               Bitiş
-              <input name="endDate" type="date" value={season.end_date || ''} />
+              <input name="endDate" inputmode="numeric" placeholder="gg/aa/yyyy" value={formatDate(season.end_date)} />
             </label>
             <label>
               Durum
@@ -36,7 +37,10 @@ const seasons = await listSeasons();
                 <option value="true" selected={season.archived}>Arşiv</option>
               </select>
             </label>
-            <button type="submit">Kaydet</button>
+            <div class="form-row">
+              <button type="submit">Kaydet</button>
+              <button class="danger" type="button" data-delete-season data-id={season.id}>Sil</button>
+            </div>
           </form>
         ))}
       </div>
@@ -50,11 +54,11 @@ const seasons = await listSeasons();
       </label>
       <label>
         Başlangıç
-        <input name="startDate" type="date" />
+        <input name="startDate" inputmode="numeric" placeholder="gg/aa/yyyy" />
       </label>
       <label>
         Bitiş
-        <input name="endDate" type="date" />
+        <input name="endDate" inputmode="numeric" placeholder="gg/aa/yyyy" />
       </label>
       <button type="submit">Sezon oluştur</button>
     </form>
@@ -83,6 +87,14 @@ const seasons = await listSeasons();
         const body = Object.fromEntries(new FormData(form).entries());
         body.archived = body.archived === 'true';
         await postJson(`/api/seasons/${form.dataset.id}`, 'PATCH', body);
+        window.location.reload();
+      });
+    });
+
+    document.querySelectorAll('[data-delete-season]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!confirm('Sezon ve bağlı çizelgeler silinsin mi?')) return;
+        await postJson(`/api/seasons/${button.dataset.id}`, 'DELETE', {});
         window.location.reload();
       });
     });

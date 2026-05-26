@@ -1,6 +1,7 @@
 ---
 import YkLayout from '@/layouts/YkLayout.astro';
 import { listLogs } from '@/lib/yk';
+import { formatDateTime } from '@/lib/yk-format';
 
 const user = Astro.locals.user!;
 const filters = {
@@ -40,7 +41,7 @@ const logs = await listLogs(filters);
           <strong>{log.actor_email || 'Sistem'}</strong>
           <span class="pill">{log.action}</span>
           <span>{log.entity_type}{log.entity_id ? ` / ${log.entity_id}` : ''}</span>
-          <span class="log-meta">{new Date(log.created_at).toLocaleString('tr-TR')}</span>
+          <span class="log-meta">{formatDateTime(log.created_at)}</span>
         </article>
       ))
     }

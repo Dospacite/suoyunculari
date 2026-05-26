@@ -1,14 +1,31 @@
 ---
 import YkLayout from '@/layouts/YkLayout.astro';
 import { getRollCallData, listSeasons, listSheetSummaries } from '@/lib/yk';
+import { formatDate } from '@/lib/yk-format';
 
 const user = Astro.locals.user!;
 const selectedId = Astro.url.searchParams.get('sheet') || '';
+const memberSort = Astro.url.searchParams.get('sort') || 'manual';
 const seasons = await listSeasons();
 const sheets = await listSheetSummaries();
 const data = selectedId ? await getRollCallData(selectedId) : null;
+if (data && memberSort === 'name') {
+  data.members.sort((first, second) => first.display_name.localeCompare(second.display_name, 'tr'));
+}
+if (data && memberSort === 'total') {
+  data.members.sort((first, second) => (data.totals[second.id] ?? 0) - (data.totals[first.id] ?? 0) || first.display_name.localeCompare(second.display_name, 'tr'));
+}
 const entryMap = new Map((data?.entries || []).map((entry) => [`${entry.member_id}:${entry.rehearsal_id}`, entry]));
 const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+const weekdayOptions = [
+  { label: 'Pazartesi', value: 1 },
+  { label: 'Salı', value: 2 },
+  { label: 'Çarşamba', value: 3 },
+  { label: 'Perşembe', value: 4 },
+  { label: 'Cuma', value: 5 },
+  { label: 'Cumartesi', value: 6 },
+  { label: 'Pazar', value: 0 },
+];
 ---
 
 <YkLayout title="Yoklama" user={user}>
@@ -34,14 +51,14 @@ const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe',
                 <span>{sheet.season_name}</span>
                 <em>{sheet.rehearsal_count} prova · {sheet.member_count} üye</em>
                 {(sheet.start_date || sheet.end_date) && (
-                  <small>{sheet.start_date || ''}{sheet.end_date ? ` / ${sheet.end_date}` : ''}</small>
+                  <small>{formatDate(sheet.start_date)}{sheet.end_date ? ` / ${formatDate(sheet.end_date)}` : ''}</small>
                 )}
               </a>
             ))}
             <button class="sheet-tile sheet-add" type="button" data-open-sheet-modal>
               <span class="sheet-icon" aria-hidden="true">+</span>
               <strong>Yeni çizelge</strong>
-              <span>Sezon, tarih aralığı ve günleri seç</span>
+              <span>Sezon ve prova günleri seç</span>
             </button>
           </section>
         )}
@@ -55,6 +72,7 @@ const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe',
           </div>
           <div class="form-row">
             <a class="button secondary" href="/roll-call">Çizelgeler</a>
+            <button class="secondary" type="button" data-open-rehearsal-modal>Ek prova</button>
             <a class="button" href={`/api/roll-call/${data.sheet.id}/export.xlsx`}>Excel</a>
           </div>
         </header>
@@ -73,6 +91,17 @@ const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe',
           <button class="danger" type="button" data-delete-sheet data-id={data.sheet.id}>Sil</button>
         </section>
 
+        <section class="toolbar">
+          <label>
+            Üye sırası
+            <select id="member-sort">
+              <option value="manual" selected={memberSort === 'manual'}>Elle sıralama</option>
+              <option value="name" selected={memberSort === 'name'}>Ada göre</option>
+              <option value="total" selected={memberSort === 'total'}>Toplam puana göre</option>
+            </select>
+          </label>
+        </section>
+
         <section class="table-wrap" aria-label="Yoklama tablosu">
           <table>
             <thead>
@@ -81,8 +110,11 @@ const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe',
                 {data.rehearsals.map((rehearsal) => (
                   <th>
                     <div class="date-head">
-                      <strong>{new Date(`${rehearsal.rehearsal_date}T00:00:00`).toLocaleDateString('tr-TR')}</strong>
+                      <a href={`/roll-call/rehearsals/${rehearsal.id}`}>
+                        <strong>{formatDate(rehearsal.rehearsal_date)}</strong>
+                      </a>
                       <span>{weekdayLabels[new Date(`${rehearsal.rehearsal_date}T00:00:00`).getDay()]}</span>
+                      {rehearsal.rehearsal_idea_title && <span>{rehearsal.rehearsal_idea_title}</span>}
                       <button class="secondary" type="button" data-delete-rehearsal data-id={rehearsal.id}>Sil</button>
                     </div>
                   </th>
@@ -92,19 +124,26 @@ const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe',
             </thead>
             <tbody>
               {data.members.map((member) => (
-                <tr>
+                <tr data-member-row data-member={member.id}>
                   <td class="sticky-col">
-                    <strong>{member.display_name}</strong>
-                    {member.notes && <div class="member-sub">{member.notes}</div>}
+                    <button class="link-button member-name-button" type="button" data-member-details data-member={member.id}>
+                      {member.display_name}
+                    </button>
                   </td>
                   {data.rehearsals.map((rehearsal) => {
                     const entry = entryMap.get(`${member.id}:${rehearsal.id}`);
                     return (
                       <td>
-                        <select class="attendance-select" data-attendance data-member={member.id} data-rehearsal={rehearsal.id}>
+                        <select
+                          class="attendance-select"
+                          data-attendance
+                          data-member={member.id}
+                          data-rehearsal={rehearsal.id}
+                          data-current-points={entry?.points ?? 0}
+                        >
                           <option value="" selected={!entry?.state_id}>-</option>
                           {data.states.filter((state) => state.active).map((state) => (
-                            <option value={state.id} selected={entry?.state_id === state.id}>
+                            <option value={state.id} data-points={state.points} selected={entry?.state_id === state.id}>
                               {state.label} ({state.points})
                             </option>
                           ))}
@@ -112,7 +151,7 @@ const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe',
                       </td>
                     );
                   })}
-                  <td class="total-cell">{data.totals[member.id] ?? 0}</td>
+                  <td class="total-cell" data-total-cell data-member={member.id}>{data.totals[member.id] ?? 0}</td>
                 </tr>
               ))}
             </tbody>
@@ -120,7 +159,7 @@ const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe',
         </section>
         <div class="summary-bar">
           <span>Ortalama puan</span>
-          <strong>{data.average.toFixed(2)}</strong>
+          <strong data-average>{data.average.toFixed(2)}</strong>
         </div>
       </>
     )
@@ -143,27 +182,63 @@ const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe',
         Çizelge adı
         <input name="name" required />
       </label>
-      <div class="form-row">
-        <label>
-          Başlangıç
-          <input name="startDate" type="date" required />
-        </label>
-        <label>
-          Bitiş
-          <input name="endDate" type="date" required />
-        </label>
-      </div>
       <fieldset class="weekday-picker">
         <legend>Prova günleri</legend>
-        {weekdayLabels.map((label, index) => (
+        {weekdayOptions.map((option) => (
           <label>
-            <input type="checkbox" name="weekdays" value={index} />
-            {label}
+            <input type="checkbox" name="weekdays" value={option.value} />
+            {option.label}
           </label>
         ))}
       </fieldset>
       <button type="submit">Oluştur</button>
     </form>
+  </dialog>
+
+  {
+    data && (
+      <dialog class="modal" data-rehearsal-modal>
+        <form class="panel" data-create-rehearsal data-sheet={data.sheet.id} method="dialog">
+          <div class="page-head">
+            <h2>Ek prova oluştur</h2>
+            <button class="secondary" type="button" data-close-rehearsal-modal>Kapat</button>
+          </div>
+          <label>
+            Tarih
+            <input name="date" inputmode="numeric" placeholder="gg/aa/yyyy" pattern="\d{2}/\d{2}/\d{4}" required />
+          </label>
+          <label>
+            Not
+            <textarea name="notes" rows="3"></textarea>
+          </label>
+          <button type="submit">Oluştur</button>
+        </form>
+      </dialog>
+    )
+  }
+
+  <dialog class="modal" data-member-modal>
+    <div class="panel">
+      <div class="page-head">
+        <h2 data-member-modal-name>Üye</h2>
+        <button class="secondary" type="button" data-close-member-modal>Kapat</button>
+      </div>
+      <dl class="detail-list">
+        <div>
+          <dt>Sezon</dt>
+          <dd data-member-modal-season></dd>
+        </div>
+        <div>
+          <dt>Toplam puan</dt>
+          <dd data-member-modal-total></dd>
+        </div>
+        <div>
+          <dt>Ortalama puan</dt>
+          <dd data-member-modal-average></dd>
+        </div>
+      </dl>
+      <a class="button secondary" data-member-modal-link href="/members">Detay</a>
+    </div>
   </dialog>
 
   <script>
@@ -184,6 +259,9 @@ const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe',
     const modal = document.querySelector('[data-sheet-modal]');
     document.querySelectorAll('[data-open-sheet-modal]').forEach((button) => button.addEventListener('click', () => modal?.showModal()));
     document.querySelector('[data-close-sheet-modal]')?.addEventListener('click', () => modal?.close());
+    const rehearsalModal = document.querySelector('[data-rehearsal-modal]');
+    document.querySelector('[data-open-rehearsal-modal]')?.addEventListener('click', () => rehearsalModal?.showModal());
+    document.querySelector('[data-close-rehearsal-modal]')?.addEventListener('click', () => rehearsalModal?.close());
 
     document.querySelector('[data-create-sheet]')?.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -193,6 +271,19 @@ const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe',
       body.weekdays = formData.getAll('weekdays').map(Number);
       const data = await postJson('/api/roll-call/sheets', 'POST', body);
       window.location.href = `/roll-call?sheet=${data.sheet.id}`;
+    });
+
+    document.querySelector('[data-create-rehearsal]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      await postJson(`/api/roll-call/sheets/${form.dataset.sheet}/rehearsals`, 'POST', Object.fromEntries(new FormData(form).entries()));
+      window.location.reload();
+    });
+
+    document.querySelector('#member-sort')?.addEventListener('change', (event) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('sort', event.currentTarget.value);
+      window.location.href = url.toString();
     });
 
     document.querySelector('[data-rename-sheet]')?.addEventListener('submit', async (event) => {
@@ -225,10 +316,35 @@ const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe',
 
     document.querySelectorAll('[data-attendance]').forEach((select) => {
       select.addEventListener('change', async () => {
+        const previousPoints = Number(select.dataset.currentPoints || 0);
+        const selected = select.selectedOptions[0];
+        const nextPoints = Number(selected?.dataset.points || 0);
         await postJson(`/api/roll-call/attendance/${select.dataset.member}/${select.dataset.rehearsal}`, 'PATCH', {
           stateId: select.value || null,
         });
-        window.location.reload();
+        select.dataset.currentPoints = String(nextPoints);
+        const totalCell = document.querySelector(`[data-total-cell][data-member="${select.dataset.member}"]`);
+        if (totalCell) {
+          totalCell.textContent = String(Number(totalCell.textContent || 0) - previousPoints + nextPoints);
+        }
+        const totals = Array.from(document.querySelectorAll('[data-total-cell]')).map((cell) => Number(cell.textContent || 0));
+        const average = totals.length ? totals.reduce((sum, value) => sum + value, 0) / totals.length : 0;
+        const averageEl = document.querySelector('[data-average]');
+        if (averageEl) averageEl.textContent = average.toFixed(2);
+      });
+    });
+
+    const memberModal = document.querySelector('[data-member-modal]');
+    document.querySelector('[data-close-member-modal]')?.addEventListener('click', () => memberModal?.close());
+    document.querySelectorAll('[data-member-details]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const details = await postJson(`/api/roll-call/members/${button.dataset.member}`, 'GET');
+        document.querySelector('[data-member-modal-name]').textContent = details.member.display_name;
+        document.querySelector('[data-member-modal-season]').textContent = details.season.name;
+        document.querySelector('[data-member-modal-total]').textContent = String(details.stats.total);
+        document.querySelector('[data-member-modal-average]').textContent = Number(details.stats.average).toFixed(2);
+        document.querySelector('[data-member-modal-link]').href = `/members/${details.member.id}`;
+        memberModal?.showModal();
       });
     });
   </script>

@@ -5,7 +5,8 @@ import { listMembers, listSeasons } from '@/lib/yk';
 const user = Astro.locals.user!;
 const seasons = await listSeasons();
 const selectedSeasonId = Astro.url.searchParams.get('season') || seasons.find((season) => !season.archived)?.id || seasons[0]?.id || '';
-const members = selectedSeasonId ? await listMembers(selectedSeasonId) : [];
+const selectedSort = Astro.url.searchParams.get('sort') === 'total' ? 'total' : Astro.url.searchParams.get('sort') === 'name' ? 'name' : 'manual';
+const members = selectedSeasonId ? await listMembers(selectedSeasonId, selectedSort) : [];
 ---
 
 <YkLayout title="Üyeler" user={user}>
@@ -29,10 +30,20 @@ const members = selectedSeasonId ? await listMembers(selectedSeasonId) : [];
                 {seasons.map((season) => <option value={season.id} selected={season.id === selectedSeasonId}>{season.name}</option>)}
               </select>
             </label>
+            <label>
+              Sıralama
+              <select id="sort-select">
+                <option value="manual" selected={selectedSort === 'manual'}>Elle sıralama</option>
+                <option value="name" selected={selectedSort === 'name'}>Ada göre</option>
+                <option value="total" selected={selectedSort === 'total'}>Toplam puana göre</option>
+              </select>
+            </label>
+            <button class="secondary" type="button" data-save-order disabled={selectedSort !== 'manual'}>Sırayı kaydet</button>
           </div>
-          <div class="member-list">
+          <div class="member-list" data-member-list data-season={selectedSeasonId}>
             {members.map((member) => (
-              <form class="member-row" data-member-form data-id={member.id}>
+              <form class="member-row" data-member-form data-id={member.id} draggable={selectedSort === 'manual'}>
+                <span class="drag-handle" aria-hidden="true">☰</span>
                 <label>
                   Ad
                   <input name="first_name" value={member.first_name} required />
@@ -41,11 +52,9 @@ const members = selectedSeasonId ? await listMembers(selectedSeasonId) : [];
                   Soyad
                   <input name="last_name" value={member.last_name} required />
                 </label>
-                <label>
-                  Not
-                  <input name="notes" value={member.notes || ''} />
-                </label>
+                {'total_points' in member && <span class="member-sub">Toplam: {(member as any).total_points}</span>}
                 <div class="form-row">
+                  <a class="button secondary" href={`/members/${member.id}`}>Detay</a>
                   <button type="submit">Kaydet</button>
                   <button class="danger" type="button" data-delete-member data-id={member.id}>Sil</button>
                 </div>
@@ -62,10 +71,6 @@ const members = selectedSeasonId ? await listMembers(selectedSeasonId) : [];
           <label>
             Soyad
             <input name="lastName" required />
-          </label>
-          <label>
-            Not
-            <input name="notes" />
           </label>
           <button type="submit">Ekle</button>
         </form>
@@ -86,7 +91,11 @@ const members = selectedSeasonId ? await listMembers(selectedSeasonId) : [];
     };
 
     document.querySelector('#season-select')?.addEventListener('change', (event) => {
-      window.location.href = `/members?season=${encodeURIComponent(event.currentTarget.value)}`;
+      window.location.href = `/members?season=${encodeURIComponent(event.currentTarget.value)}&sort=${encodeURIComponent(document.querySelector('#sort-select')?.value || 'manual')}`;
+    });
+
+    document.querySelector('#sort-select')?.addEventListener('change', (event) => {
+      window.location.href = `/members?season=${encodeURIComponent(document.querySelector('#season-select')?.value || '')}&sort=${encodeURIComponent(event.currentTarget.value)}`;
     });
 
     document.querySelectorAll('[data-member-form]').forEach((form) => {
@@ -109,6 +118,33 @@ const members = selectedSeasonId ? await listMembers(selectedSeasonId) : [];
       event.preventDefault();
       const form = event.currentTarget;
       await postJson(`/api/seasons/${form.dataset.season}/members`, 'POST', Object.fromEntries(new FormData(form).entries()));
+      window.location.reload();
+    });
+
+    const memberList = document.querySelector('[data-member-list]');
+    let dragged = null;
+    memberList?.querySelectorAll('[data-member-form]').forEach((row) => {
+      row.addEventListener('dragstart', () => {
+        dragged = row;
+        row.classList.add('dragging');
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        dragged = null;
+      });
+      row.addEventListener('dragover', (event) => {
+        if (!dragged || dragged === row) return;
+        event.preventDefault();
+        const rect = row.getBoundingClientRect();
+        const after = event.clientY > rect.top + rect.height / 2;
+        row.parentNode.insertBefore(dragged, after ? row.nextSibling : row);
+      });
+    });
+
+    document.querySelector('[data-save-order]')?.addEventListener('click', async () => {
+      if (!memberList) return;
+      const memberIds = Array.from(memberList.querySelectorAll('[data-member-form]')).map((row) => row.dataset.id);
+      await postJson(`/api/seasons/${memberList.dataset.season}/members`, 'PATCH', { memberIds });
       window.location.reload();
     });
   </script>

@@ -8,7 +8,7 @@ export const POST: APIRoute = async (context) => {
     const body = await readJson(context);
     const member = await addSheetMember(
       String(context.params.id),
-      { firstName: body.firstName, lastName: body.lastName, notes: body.notes },
+      { firstName: body.firstName, lastName: body.lastName },
       { user, request: context.request },
     );
     return json({ member }, 201);

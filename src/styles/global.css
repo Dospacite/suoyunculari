@@ -1121,8 +1121,10 @@ dd {
   aspect-ratio: 3 / 4;
   border: 1px solid var(--line);
   justify-self: center;
+  min-width: 0;
   object-fit: cover;
-  width: min(260px, 100%);
+  width: 100%;
+  max-width: 260px;
 }
 
 .text-detail-facts {
@@ -2067,7 +2069,7 @@ dd {
 
 @media (min-width: 960px) {
   .text-detail-hero {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
   }
 
   .text-detail-image {

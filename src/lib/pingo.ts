@@ -135,7 +135,7 @@ type LongMemoryItem = {
 
 const QWEN_MODEL = 'qwen3.5-flash';
 const QWEN_BASE_URL = 'https://ws-a08mnlbr3e4q9fni.eu-central-1.maas.aliyuncs.com/compatible-mode/v1';
-const QWEN_EMBEDDING_BASE_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
+const QWEN_EMBEDDING_BASE_URL = 'https://ws-a08mnlbr3e4q9fni.eu-central-1.maas.aliyuncs.com/api/v1';
 const QWEN_EMBEDDING_MODEL = 'qwen3-embedding';
 const QWEN_EMBEDDING_DIMENSIONS = 1024;
 const LLM_TIMEOUT_MS = 25_000;
@@ -1037,23 +1037,34 @@ async function embedText(text: string): Promise<number[]> {
     256,
     2048,
   );
-  const endpoint = `${baseUrl}/embeddings`;
+  const isDashScopeNative = /\/api\/v1$/.test(baseUrl);
+  const endpoint = isDashScopeNative ? `${baseUrl}/services/embeddings/text-embedding/text-embedding` : `${baseUrl}/embeddings`;
+  const body = isDashScopeNative
+    ? {
+        model,
+        input: { texts: [text.slice(0, 8000)] },
+        parameters: { dimension: dimensions },
+      }
+    : {
+        model,
+        input: text.slice(0, 8000),
+        dimensions,
+        encoding_format: 'float',
+      };
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model,
-      input: text.slice(0, 8000),
-      dimensions,
-      encoding_format: 'float',
-    }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error(`Qwen embedding failed with ${response.status}: ${(await response.text().catch(() => '')).slice(0, 400)}`);
-  const payload = (await response.json().catch(() => null)) as { data?: Array<{ embedding?: number[] }> } | null;
-  return payload?.data?.[0]?.embedding?.filter((value) => Number.isFinite(value)) ?? [];
+  const payload = (await response.json().catch(() => null)) as
+    | { data?: Array<{ embedding?: number[] }>; output?: { embeddings?: Array<{ embedding?: number[] }> } }
+    | null;
+  const embedding = isDashScopeNative ? payload?.output?.embeddings?.[0]?.embedding : payload?.data?.[0]?.embedding;
+  return embedding?.filter((value) => Number.isFinite(value)) ?? [];
 }
 
 async function loadQwenImageParts(images: IncomingImage[]): Promise<QwenContentPart[]> {

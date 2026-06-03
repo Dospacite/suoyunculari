@@ -470,6 +470,19 @@ export async function handlePingoWebhook(context: APIContext) {
       return json(response);
     }
 
+    const command = parsePingoCommand(trigger.text);
+    if (command) {
+      const reply = await runPingoCommand(command, incoming, redis);
+      await sendWahaText(incoming.session, incoming.chatId, reply.text);
+      const response = { ok: reply.ok, command: command.name, memory: command.memoryType, deleted: reply.deleted, message: reply.text };
+      await recordPingoEvent(reply.ok ? 'responded' : 'blocked', incoming, {
+        responseMs: Date.now() - startedAt,
+        messageText: reply.text,
+        responseJson: response,
+      });
+      return json(response);
+    }
+
     const rateLimited = await isRateLimited(incoming, settings);
     if (rateLimited) {
       const response = { ok: true, ignored: true, reason: 'rate_limited' };
@@ -844,6 +857,36 @@ function formatUserLabel(user: Pick<WahaIncomingMessage, 'userId' | 'userName'>)
   return user.userName ? `${user.userName} (${user.userId})` : user.userId;
 }
 
+type PingoCommand = {
+  name: 'clear-memory';
+  memoryType: 'short' | 'long';
+};
+
+function parsePingoCommand(text: string): PingoCommand | null {
+  const match = text.trim().match(/^\/clear-memory\s+(short|long)\s*$/i);
+  if (!match) return null;
+  return { name: 'clear-memory', memoryType: match[1].toLowerCase() as 'short' | 'long' };
+}
+
+async function runPingoCommand(command: PingoCommand, incoming: WahaIncomingMessage, redis: RedisClientType) {
+  if (!(await canRunAdminCommand(incoming.userId))) {
+    return { ok: false, text: 'You are not allowed to run this command.', deleted: 0 };
+  }
+
+  if (command.memoryType === 'short') {
+    const deleted = await clearShortMemory(redis, incoming.chatId);
+    return { ok: true, text: `Deleted ${deleted} messages.`, deleted };
+  }
+
+  const deleted = await clearLongMemory(redis, incoming.chatId);
+  return { ok: true, text: `Deleted ${deleted} messages.`, deleted };
+}
+
+async function canRunAdminCommand(userId: string) {
+  const actors = await listPingoActors();
+  return actors.some((actor) => actor.active && normalizeIdentifier(actor.identifier) === userId && (actor.role === 'admin' || actor.role === 'moderator'));
+}
+
 function isAllowed(incoming: WahaIncomingMessage, rules: PingoAccessRule[]) {
   const active = rules.filter((rule) => rule.active);
   const matchesChat = (rule: PingoAccessRule) => rule.subject_type === 'chat' && rule.identifier === incoming.chatId;
@@ -900,6 +943,13 @@ async function saveShortMemory(redis: RedisClientType, chatId: string, limit: nu
   await redis.expire(key, 60 * 60 * 24 * 30);
 }
 
+async function clearShortMemory(redis: RedisClientType, chatId: string) {
+  const key = `pingo:short:${chatId}`;
+  const count = await redis.lLen(key);
+  if (count > 0) await redis.del(key);
+  return count;
+}
+
 async function findLongMemory(redis: RedisClientType, incoming: WahaIncomingMessage, text: string, limit: number): Promise<LongMemoryItem[]> {
   if (limit <= 0 || !text) return [];
   const queryEmbedding = await embedText(text).catch(() => []);
@@ -929,6 +979,12 @@ async function saveLongMemory(redis: RedisClientType, incoming: WahaIncomingMess
     createdAt: new Date().toISOString(),
   };
   await redis.set(`pingo:memory:${incoming.chatId}:${item.id}`, JSON.stringify(item));
+}
+
+async function clearLongMemory(redis: RedisClientType, chatId: string) {
+  const keys = await redis.keys(`pingo:memory:${chatId}:*`);
+  if (keys.length) await redis.del(keys);
+  return keys.length;
 }
 
 async function embedText(text: string): Promise<number[]> {

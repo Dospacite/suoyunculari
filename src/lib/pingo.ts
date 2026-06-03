@@ -135,6 +135,7 @@ type LongMemoryItem = {
 
 const QWEN_MODEL = 'qwen3.5-flash';
 const QWEN_BASE_URL = 'https://ws-a08mnlbr3e4q9fni.eu-central-1.maas.aliyuncs.com/compatible-mode/v1';
+const QWEN_EMBEDDING_BASE_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
 const QWEN_EMBEDDING_MODEL = 'qwen3-embedding';
 const QWEN_EMBEDDING_DIMENSIONS = 1024;
 const LLM_TIMEOUT_MS = 25_000;
@@ -1027,9 +1028,7 @@ async function embedText(text: string): Promise<number[]> {
   const baseUrl = (
     process.env.PINGO_QWEN_EMBEDDING_BASE_URL ||
     process.env.QWEN_EMBEDDING_BASE_URL ||
-    process.env.PINGO_QWEN_BASE_URL ||
-    process.env.QWEN_BASE_URL ||
-    QWEN_BASE_URL
+    QWEN_EMBEDDING_BASE_URL
   ).replace(/\/+$/, '');
   const model = process.env.PINGO_QWEN_EMBEDDING_MODEL || process.env.QWEN_EMBEDDING_MODEL || QWEN_EMBEDDING_MODEL;
   const dimensions = clampInteger(

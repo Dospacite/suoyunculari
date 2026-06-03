@@ -135,7 +135,8 @@ type LongMemoryItem = {
 
 const QWEN_MODEL = 'qwen3.5-flash';
 const QWEN_BASE_URL = 'https://ws-a08mnlbr3e4q9fni.eu-central-1.maas.aliyuncs.com/compatible-mode/v1';
-const GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001';
+const QWEN_EMBEDDING_MODEL = 'qwen3-embedding';
+const QWEN_EMBEDDING_DIMENSIONS = 1024;
 const LLM_TIMEOUT_MS = 25_000;
 const MAX_INCOMING_TEXT = 3000;
 const MAX_REPLY_TEXT = 3500;
@@ -987,6 +988,7 @@ async function findLongMemory(redis: RedisClientType, incoming: WahaIncomingMess
     await Promise.all(keys.slice(-MAX_LONG_MEMORIES_SCANNED).map(async (key) => parseJson<LongMemoryItem>(await redis.get(key))))
   ).filter((item): item is LongMemoryItem => Boolean(item?.embedding?.length && item.text));
   return memories
+    .filter((item) => item.embedding.length === queryEmbedding.length)
     .map((item) => ({ item, score: cosineSimilarity(queryEmbedding, item.embedding) }))
     .filter(({ score }) => score > 0.72)
     .sort((a, b) => b.score - a.score)
@@ -1016,20 +1018,43 @@ async function clearLongMemory(redis: RedisClientType, chatId: string) {
 }
 
 async function embedText(text: string): Promise<number[]> {
-  const apiKey = process.env.PINGO_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey =
+    process.env.PINGO_QWEN_EMBEDDING_API_KEY ||
+    process.env.QWEN_EMBEDDING_API_KEY ||
+    process.env.PINGO_QWEN_API_KEY ||
+    process.env.QWEN_API_KEY;
   if (!apiKey) return [];
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EMBEDDING_MODEL}:embedContent?key=${encodeURIComponent(apiKey)}`;
+  const baseUrl = (
+    process.env.PINGO_QWEN_EMBEDDING_BASE_URL ||
+    process.env.QWEN_EMBEDDING_BASE_URL ||
+    process.env.PINGO_QWEN_BASE_URL ||
+    process.env.QWEN_BASE_URL ||
+    QWEN_BASE_URL
+  ).replace(/\/+$/, '');
+  const model = process.env.PINGO_QWEN_EMBEDDING_MODEL || process.env.QWEN_EMBEDDING_MODEL || QWEN_EMBEDDING_MODEL;
+  const dimensions = clampInteger(
+    process.env.PINGO_QWEN_EMBEDDING_DIMENSIONS || process.env.QWEN_EMBEDDING_DIMENSIONS,
+    QWEN_EMBEDDING_DIMENSIONS,
+    256,
+    2048,
+  );
+  const endpoint = `${baseUrl}/embeddings`;
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
     body: JSON.stringify({
-      model: `models/${GEMINI_EMBEDDING_MODEL}`,
-      content: { parts: [{ text: text.slice(0, 3000) }] },
+      model,
+      input: text.slice(0, 8000),
+      dimensions,
+      encoding_format: 'float',
     }),
   });
-  if (!response.ok) throw new Error(`Gemini embedding failed with ${response.status}`);
-  const payload = (await response.json().catch(() => null)) as { embedding?: { values?: number[] } } | null;
-  return payload?.embedding?.values?.filter((value) => Number.isFinite(value)) ?? [];
+  if (!response.ok) throw new Error(`Qwen embedding failed with ${response.status}: ${(await response.text().catch(() => '')).slice(0, 400)}`);
+  const payload = (await response.json().catch(() => null)) as { data?: Array<{ embedding?: number[] }> } | null;
+  return payload?.data?.[0]?.embedding?.filter((value) => Number.isFinite(value)) ?? [];
 }
 
 async function loadQwenImageParts(images: IncomingImage[]): Promise<QwenContentPart[]> {

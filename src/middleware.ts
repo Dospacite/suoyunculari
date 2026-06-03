@@ -1,7 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { getSessionUser } from '@/lib/yk';
 
-const publicPrefixes = ['/login', '/api/auth/login', '/favicon.svg', '/Logo.svg', '/_astro', '/images'];
+const publicPrefixes = ['/login', '/api/auth/login', '/api/pingo/waha', '/favicon.svg', '/Logo.svg', '/pingo.svg', '/_astro', '/images'];
 const appPrefixes = [
   '/change-password',
   '/roll-call',
@@ -14,14 +14,20 @@ const appPrefixes = [
   '/api/roll-call',
   '/api/users',
   '/api/seasons',
+  '/pingo',
+  '/api/pingo',
 ];
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
+  const forwardedHost = context.request.headers.get('x-forwarded-host');
+  const requestHost = forwardedHost || context.request.headers.get('host') || context.url.host;
+  if (pathname === '/' && requestHost === 'pingo.suoyunculari.com') {
+    return context.redirect('/pingo');
+  }
+
   if (!['GET', 'HEAD', 'OPTIONS'].includes(context.request.method)) {
     const origin = context.request.headers.get('origin');
-    const forwardedHost = context.request.headers.get('x-forwarded-host');
-    const requestHost = forwardedHost || context.request.headers.get('host') || context.url.host;
     const allowedHosts = new Set([
       requestHost,
       context.url.host,

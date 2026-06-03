@@ -2,7 +2,12 @@ import type { APIRoute } from 'astro';
 import { createSession, login } from '@/lib/yk';
 
 export const POST: APIRoute = async (context) => {
-  const form = await context.request.formData();
+  let form: FormData;
+  try {
+    form = await context.request.formData();
+  } catch {
+    return context.redirect('/login?error=1', 303);
+  }
   const email = String(form.get('email') || '');
   const password = String(form.get('password') || '');
   const next = String(form.get('next') || '/roll-call');

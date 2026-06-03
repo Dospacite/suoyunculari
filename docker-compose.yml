@@ -15,6 +15,23 @@ services:
     volumes:
       - yk_postgres_data:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7-alpine
+    container_name: pingo-redis
+    restart: unless-stopped
+    command:
+      [
+        "sh",
+        "-c",
+        "printf 'user default off\nuser ege on >%s ~* &* +@all\n' \"$${PINGO_REDIS_PASSWORD}\" > /tmp/users.acl && exec redis-server --appendonly yes --aclfile /tmp/users.acl"
+      ]
+    environment:
+      PINGO_REDIS_PASSWORD: ${PINGO_REDIS_PASSWORD:?PINGO_REDIS_PASSWORD is required}
+    ports:
+      - "6379:6379"
+    volumes:
+      - pingo_redis_data:/data
+
   app:
     container_name: suoyunculari-yk-app
     restart: unless-stopped
@@ -22,22 +39,37 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       HOST: 0.0.0.0
       PORT: 4321
       YK_DB_HOST: postgres
+      YK_DATABASE_URL: ${YK_DATABASE_URL:-}
       YK_POSTGRES_DB: ${YK_POSTGRES_DB:-suoyunculari_yk}
       YK_POSTGRES_USER: ${YK_POSTGRES_USER:-suo_yk}
       YK_POSTGRES_PASSWORD: ${YK_POSTGRES_PASSWORD:-suo_yk_password}
+      DATABASE_URL: ${DATABASE_URL:-}
+      DATABASE_SSL: ${DATABASE_SSL:-}
       YK_SESSION_SECRET: ${YK_SESSION_SECRET:-}
       YK_ADMIN_EMAIL: ${YK_ADMIN_EMAIL:-}
       YK_ADMIN_INITIAL_PASSWORD: ${YK_ADMIN_INITIAL_PASSWORD:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      PINGO_GEMINI_API_KEY: ${PINGO_GEMINI_API_KEY:-}
+      PINGO_WAHA_URL: ${PINGO_WAHA_URL:-https://waha.services.suoyunculari.com}
+      PINGO_WAHA_API_KEY: ${PINGO_WAHA_API_KEY:-}
+      PINGO_WAHA_SESSION: ${PINGO_WAHA_SESSION:-default}
+      PINGO_WAHA_BOT_ID: ${PINGO_WAHA_BOT_ID:-}
+      PINGO_WAHA_BOT_MENTION_IDS: ${PINGO_WAHA_BOT_MENTION_IDS:-}
+      PINGO_WEBHOOK_SECRET: ${PINGO_WEBHOOK_SECRET:-}
+      PINGO_REDIS_URL: ${PINGO_REDIS_URL:-redis://ege:${PINGO_REDIS_PASSWORD:?PINGO_REDIS_PASSWORD is required}@redis:6379}
     networks:
       - default
       - web
 
 volumes:
   yk_postgres_data:
+  pingo_redis_data:
 
 networks:
   web:

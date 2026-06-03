@@ -63,20 +63,61 @@ jobs:
             YK_SESSION_SECRET_VALUE='${{ secrets.YK_SESSION_SECRET }}'
             YK_ADMIN_EMAIL_VALUE='${{ secrets.YK_ADMIN_EMAIL }}'
             YK_ADMIN_INITIAL_PASSWORD_VALUE='${{ secrets.YK_ADMIN_INITIAL_PASSWORD }}'
+            YK_DATABASE_URL_VALUE='${{ secrets.YK_DATABASE_URL }}'
+            DATABASE_URL_VALUE='${{ secrets.DATABASE_URL }}'
+            DATABASE_SSL_VALUE='${{ secrets.DATABASE_SSL }}'
+            GEMINI_API_KEY_VALUE='${{ secrets.GEMINI_API_KEY }}'
+            PINGO_GEMINI_API_KEY_VALUE='${{ secrets.PINGO_GEMINI_API_KEY }}'
+            PINGO_WAHA_URL_VALUE='${{ secrets.PINGO_WAHA_URL }}'
+            PINGO_WAHA_API_KEY_VALUE='${{ secrets.PINGO_WAHA_API_KEY }}'
+            PINGO_WAHA_SESSION_VALUE='${{ secrets.PINGO_WAHA_SESSION }}'
+            PINGO_WAHA_BOT_ID_VALUE='${{ secrets.PINGO_WAHA_BOT_ID }}'
+            PINGO_WAHA_BOT_MENTION_IDS_VALUE='${{ secrets.PINGO_WAHA_BOT_MENTION_IDS }}'
+            PINGO_WEBHOOK_SECRET_VALUE='${{ secrets.PINGO_WEBHOOK_SECRET }}'
+            PINGO_REDIS_PASSWORD_VALUE='${{ secrets.PINGO_REDIS_PASSWORD }}'
+            PINGO_REDIS_URL_VALUE='${{ secrets.PINGO_REDIS_URL }}'
 
             YK_POSTGRES_PASSWORD_VALUE="${YK_POSTGRES_PASSWORD_VALUE:-$(existing_value YK_POSTGRES_PASSWORD)}"
             YK_SESSION_SECRET_VALUE="${YK_SESSION_SECRET_VALUE:-$(existing_value YK_SESSION_SECRET)}"
             YK_ADMIN_EMAIL_VALUE="${YK_ADMIN_EMAIL_VALUE:-$(existing_value YK_ADMIN_EMAIL)}"
             YK_ADMIN_INITIAL_PASSWORD_VALUE="${YK_ADMIN_INITIAL_PASSWORD_VALUE:-$(existing_value YK_ADMIN_INITIAL_PASSWORD)}"
+            YK_DATABASE_URL_VALUE="${YK_DATABASE_URL_VALUE:-$(existing_value YK_DATABASE_URL)}"
+            DATABASE_URL_VALUE="${DATABASE_URL_VALUE:-$(existing_value DATABASE_URL)}"
+            DATABASE_SSL_VALUE="${DATABASE_SSL_VALUE:-$(existing_value DATABASE_SSL)}"
+            GEMINI_API_KEY_VALUE="${GEMINI_API_KEY_VALUE:-$(existing_value GEMINI_API_KEY)}"
+            PINGO_GEMINI_API_KEY_VALUE="${PINGO_GEMINI_API_KEY_VALUE:-$(existing_value PINGO_GEMINI_API_KEY)}"
+            PINGO_WAHA_URL_VALUE="${PINGO_WAHA_URL_VALUE:-$(existing_value PINGO_WAHA_URL)}"
+            PINGO_WAHA_API_KEY_VALUE="${PINGO_WAHA_API_KEY_VALUE:-$(existing_value PINGO_WAHA_API_KEY)}"
+            PINGO_WAHA_SESSION_VALUE="${PINGO_WAHA_SESSION_VALUE:-$(existing_value PINGO_WAHA_SESSION)}"
+            PINGO_WAHA_BOT_ID_VALUE="${PINGO_WAHA_BOT_ID_VALUE:-$(existing_value PINGO_WAHA_BOT_ID)}"
+            PINGO_WAHA_BOT_MENTION_IDS_VALUE="${PINGO_WAHA_BOT_MENTION_IDS_VALUE:-$(existing_value PINGO_WAHA_BOT_MENTION_IDS)}"
+            PINGO_WEBHOOK_SECRET_VALUE="${PINGO_WEBHOOK_SECRET_VALUE:-$(existing_value PINGO_WEBHOOK_SECRET)}"
+            PINGO_REDIS_PASSWORD_VALUE="${PINGO_REDIS_PASSWORD_VALUE:-$(existing_value PINGO_REDIS_PASSWORD)}"
+            PINGO_REDIS_URL_VALUE="${PINGO_REDIS_URL_VALUE:-$(existing_value PINGO_REDIS_URL)}"
+            YK_DATABASE_URL_VALUE="${YK_DATABASE_URL_VALUE:-postgres://suo_yk:${YK_POSTGRES_PASSWORD_VALUE:-suo_yk_password}@postgres:5432/suoyunculari_yk}"
+            PINGO_REDIS_URL_VALUE="${PINGO_REDIS_URL_VALUE:-redis://ege:${PINGO_REDIS_PASSWORD_VALUE}@redis:6379}"
 
             tmp_env="$(mktemp)"
             cat > "$tmp_env" <<EOF
             YK_POSTGRES_DB=suoyunculari_yk
             YK_POSTGRES_USER=suo_yk
             YK_POSTGRES_PASSWORD=${YK_POSTGRES_PASSWORD_VALUE:-suo_yk_password}
+            YK_DATABASE_URL=${YK_DATABASE_URL_VALUE}
+            DATABASE_URL=${DATABASE_URL_VALUE:-}
+            DATABASE_SSL=${DATABASE_SSL_VALUE:-false}
             YK_SESSION_SECRET=${YK_SESSION_SECRET_VALUE:-}
             YK_ADMIN_EMAIL=${YK_ADMIN_EMAIL_VALUE:-ege.ertan@sabanciuniv.edu}
             YK_ADMIN_INITIAL_PASSWORD=${YK_ADMIN_INITIAL_PASSWORD_VALUE:-}
+            GEMINI_API_KEY=${GEMINI_API_KEY_VALUE:-}
+            PINGO_GEMINI_API_KEY=${PINGO_GEMINI_API_KEY_VALUE:-}
+            PINGO_WAHA_URL=${PINGO_WAHA_URL_VALUE:-https://waha.services.suoyunculari.com}
+            PINGO_WAHA_API_KEY=${PINGO_WAHA_API_KEY_VALUE:-}
+            PINGO_WAHA_SESSION=${PINGO_WAHA_SESSION_VALUE:-default}
+            PINGO_WAHA_BOT_ID=${PINGO_WAHA_BOT_ID_VALUE:-}
+            PINGO_WAHA_BOT_MENTION_IDS=${PINGO_WAHA_BOT_MENTION_IDS_VALUE:-}
+            PINGO_WEBHOOK_SECRET=${PINGO_WEBHOOK_SECRET_VALUE:-}
+            PINGO_REDIS_PASSWORD=${PINGO_REDIS_PASSWORD_VALUE:-}
+            PINGO_REDIS_URL=${PINGO_REDIS_URL_VALUE:-}
             EOF
             rm -f .env || sudo rm -f .env
             install -m 600 "$tmp_env" .env || sudo install -m 600 -o "$(id -un)" -g "$(id -gn)" "$tmp_env" .env

@@ -22,7 +22,8 @@
     "@astrojs/sitemap": "^3.7.2",
     "astro": "^6.3.7",
     "exceljs": "^4.4.0",
-    "pg": "^8.21.0"
+    "pg": "^8.21.0",
+    "redis": "^6.0.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",

@@ -65,31 +65,31 @@ type PingoEventType =
   | 'tool_used'
   | 'error';
 
-type GeminiPart = {
-  text?: string;
-  inlineData?: {
-    mimeType: string;
-    data: string;
-  };
-  functionCall?: {
-    name?: string;
-    args?: Record<string, unknown>;
-  };
-  functionResponse?: {
+type QwenContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
+type QwenMessage = {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content?: string | QwenContentPart[];
+  tool_calls?: QwenToolCall[];
+  tool_call_id?: string;
+};
+
+type QwenToolCall = {
+  id: string;
+  type: 'function';
+  function: {
     name: string;
-    response: Record<string, unknown>;
+    arguments: string;
   };
 };
 
-type GeminiContent = {
-  role: 'user' | 'model';
-  parts: GeminiPart[];
-};
-
-type GeminiResponse = {
-  candidates?: Array<{
-    content?: {
-      parts?: GeminiPart[];
+type QwenResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string | Array<{ type?: string; text?: string }>;
+      tool_calls?: QwenToolCall[];
     };
   }>;
 };
@@ -133,9 +133,10 @@ type LongMemoryItem = {
   createdAt: string;
 };
 
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const QWEN_MODEL = 'qwen3.5-flash';
+const QWEN_BASE_URL = 'https://ws-a08mnlbr3e4q9fni.eu-central-1.maas.aliyuncs.com/compatible-mode/v1';
 const GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001';
-const GEMINI_TIMEOUT_MS = 25_000;
+const LLM_TIMEOUT_MS = 25_000;
 const MAX_INCOMING_TEXT = 3000;
 const MAX_REPLY_TEXT = 3500;
 const MAX_LONG_MEMORIES_SCANNED = 400;
@@ -492,7 +493,7 @@ export async function handlePingoWebhook(context: APIContext) {
       return json(response);
     }
 
-    const imageParts = await loadGeminiImageParts(incoming.images);
+    const imageParts = await loadQwenImageParts(incoming.images);
     const [shortMemory, longMemory] = await Promise.all([
       loadShortMemory(redis, incoming.chatId, settings.short_memory_messages),
       settings.long_memory_enabled ? findLongMemory(redis, incoming, buildPromptText(incoming, trigger.text), settings.long_memory_max_results) : Promise.resolve([]),
@@ -541,44 +542,41 @@ async function generatePingoReply(input: {
   tools: PingoTool[];
   shortMemory: MemoryItem[];
   longMemory: LongMemoryItem[];
-  imageParts: GeminiPart[];
+  imageParts: QwenContentPart[];
 }): Promise<{ text: string; usedTools: string[] }> {
-  const apiKey = process.env.PINGO_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('PINGO_GEMINI_API_KEY is required');
+  const apiKey = process.env.PINGO_QWEN_API_KEY || process.env.QWEN_API_KEY;
+  if (!apiKey) throw new Error('PINGO_QWEN_API_KEY is required');
 
   const enabledTools = input.tools.filter((tool) => tool.enabled);
-  const contents = buildGeminiContents(input);
-  const first = await callGemini(apiKey, contents, enabledTools, input.settings.system_prompt);
+  const messages = buildQwenMessages(input);
+  const first = await callQwen(apiKey, messages, enabledTools);
   const call = getFunctionCall(first);
 
   if (!call) {
     return { text: extractText(first), usedTools: [] };
   }
 
-  if (call.name !== 'search_text_bank' || !enabledTools.some((tool) => tool.key === 'text_bank')) {
+  if (call.function.name !== 'search_text_bank' || !enabledTools.some((tool) => tool.key === 'text_bank')) {
     return { text: 'Bu araç şu anda etkin değil.', usedTools: [] };
   }
 
-  const results = await runTextBankTool(call.args ?? {});
-  const second = await callGemini(
+  const results = await runTextBankTool(parseJson<Record<string, unknown>>(call.function.arguments) ?? {});
+  const second = await callQwen(
     apiKey,
     [
-      ...contents,
-      { role: 'model', parts: [{ functionCall: call }] },
+      ...messages,
       {
-        role: 'user',
-        parts: [
-          {
-            functionResponse: {
-              name: 'search_text_bank',
-              response: { results },
-            },
-          },
-        ],
+        role: 'assistant',
+        content: '',
+        tool_calls: [call],
+      },
+      {
+        role: 'tool',
+        tool_call_id: call.id,
+        content: JSON.stringify({ results }),
       },
     ],
     [],
-    input.settings.system_prompt,
   );
 
   return {
@@ -589,18 +587,19 @@ async function generatePingoReply(input: {
   };
 }
 
-function buildGeminiContents(input: {
+function buildQwenMessages(input: {
   incoming: WahaIncomingMessage;
   promptText: string;
   settings: PingoSettings;
   shortMemory: MemoryItem[];
   longMemory: LongMemoryItem[];
-  imageParts: GeminiPart[];
-}): GeminiContent[] {
+  imageParts: QwenContentPart[];
+}): QwenMessage[] {
   return [
+    { role: 'system', content: buildSystemInstruction(input.settings.system_prompt) },
     {
       role: 'user',
-      parts: [{ text: buildGroundedUserPrompt(input) }, ...input.imageParts],
+      content: [{ type: 'text', text: buildGroundedUserPrompt(input) }, ...input.imageParts],
     },
   ];
 }
@@ -636,30 +635,31 @@ function formatMemoryItem(item: MemoryItem) {
   return `<message role="${item.role}" at="${escapeXml(item.createdAt)}">${escapeXml(item.text)}</message>`;
 }
 
-async function callGemini(apiKey: string, contents: GeminiContent[], enabledTools: PingoTool[], systemPrompt = ''): Promise<GeminiResponse> {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+async function callQwen(apiKey: string, messages: QwenMessage[], enabledTools: PingoTool[]): Promise<QwenResponse> {
+  const baseUrl = (process.env.PINGO_QWEN_BASE_URL || process.env.QWEN_BASE_URL || QWEN_BASE_URL).replace(/\/+$/, '');
+  const model = process.env.PINGO_QWEN_MODEL || process.env.QWEN_MODEL || QWEN_MODEL;
+  const endpoint = `${baseUrl}/chat/completions`;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
       signal: controller.signal,
       body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: buildSystemInstruction(systemPrompt) }],
-        },
-        contents,
+        model,
+        messages,
         tools: enabledTools.some((tool) => tool.key === 'text_bank') ? [textBankToolDeclaration] : undefined,
-        generationConfig: {
-          temperature: 0.35,
-          maxOutputTokens: 900,
-        },
+        temperature: 0.35,
+        max_tokens: 900,
       }),
     });
-    if (!response.ok) throw new Error(`Gemini request failed with ${response.status}`);
-    const payload = (await response.json().catch(() => null)) as GeminiResponse | null;
-    if (!payload || typeof payload !== 'object') throw new Error('Gemini returned invalid JSON');
+    if (!response.ok) throw new Error(`Qwen request failed with ${response.status}: ${(await response.text().catch(() => '')).slice(0, 400)}`);
+    const payload = (await response.json().catch(() => null)) as QwenResponse | null;
+    if (!payload || typeof payload !== 'object') throw new Error('Qwen returned invalid JSON');
     return payload;
   } finally {
     clearTimeout(timeout);
@@ -753,34 +753,33 @@ function sanitizeTextBankArgs(args: Record<string, unknown>): TextBankAssistantS
 }
 
 const textBankToolDeclaration = {
-  functionDeclarations: [
-    {
-      name: 'search_text_bank',
-      description:
-        'Searches the SUOyuncuları Metin Bankası database for plays and musicals. Use only when the user is asking for play/text-bank recommendations or metadata. Do not call for people, chat history, images, or general questions.',
-      parameters: {
-        type: 'object',
-        required: ['query'],
-        properties: {
-          query: { type: 'string', description: 'The plain text search phrase from the user. Prefer title, author, genre, theme, or casting terms explicitly requested by the user.' },
-          source: { type: 'string', enum: ['concord_theatricals', 'drama_online_library'], description: 'Only set if the user explicitly names the source.' },
-          playType: { type: 'string', description: 'Only set if the user explicitly asks for a play type.' },
-          genre: { type: 'string', description: 'Only set if the user explicitly asks for a genre.' },
-          subgenre: { type: 'string', description: 'Only set if the user explicitly asks for a subgenre.' },
-          theme: { type: 'string', description: 'Only set if the user explicitly asks for a theme.' },
-          targetAudience: { type: 'string', description: 'Only set if the user explicitly asks for a target audience.' },
-          performanceGroup: { type: 'string', description: 'Only set if the user explicitly asks for a performance group.' },
-          feature: { type: 'string', description: 'Only set if the user explicitly asks for a feature.' },
-          caution: { type: 'string', description: 'Only set if the user explicitly asks for a caution/content note.' },
-          duration: { type: 'string', enum: ['short', 'medium', 'long'], description: 'Only set if the user explicitly asks for duration.' },
-          totalCast: { type: 'string', enum: ['small', 'medium', 'large'], description: 'Only set if the user explicitly asks for cast size.' },
-          femaleRoles: { type: 'string', description: 'Only set if the user explicitly asks for this role count.' },
-          maleRoles: { type: 'string', description: 'Only set if the user explicitly asks for this role count.' },
-          neutralRoles: { type: 'string', description: 'Only set if the user explicitly asks for this role count.' },
-        },
+  type: 'function',
+  function: {
+    name: 'search_text_bank',
+    description:
+      'Searches the SUOyuncuları Metin Bankası database for plays and musicals. Use only when the user is asking for play/text-bank recommendations or metadata. Do not call for people, chat history, images, or general questions.',
+    parameters: {
+      type: 'object',
+      required: ['query'],
+      properties: {
+        query: { type: 'string', description: 'The plain text search phrase from the user. Prefer title, author, genre, theme, or casting terms explicitly requested by the user.' },
+        source: { type: 'string', enum: ['concord_theatricals', 'drama_online_library'], description: 'Only set if the user explicitly names the source.' },
+        playType: { type: 'string', description: 'Only set if the user explicitly asks for a play type.' },
+        genre: { type: 'string', description: 'Only set if the user explicitly asks for a genre.' },
+        subgenre: { type: 'string', description: 'Only set if the user explicitly asks for a subgenre.' },
+        theme: { type: 'string', description: 'Only set if the user explicitly asks for a theme.' },
+        targetAudience: { type: 'string', description: 'Only set if the user explicitly asks for a target audience.' },
+        performanceGroup: { type: 'string', description: 'Only set if the user explicitly asks for a performance group.' },
+        feature: { type: 'string', description: 'Only set if the user explicitly asks for a feature.' },
+        caution: { type: 'string', description: 'Only set if the user explicitly asks for a caution/content note.' },
+        duration: { type: 'string', enum: ['short', 'medium', 'long'], description: 'Only set if the user explicitly asks for duration.' },
+        totalCast: { type: 'string', enum: ['small', 'medium', 'large'], description: 'Only set if the user explicitly asks for cast size.' },
+        femaleRoles: { type: 'string', description: 'Only set if the user explicitly asks for this role count.' },
+        maleRoles: { type: 'string', description: 'Only set if the user explicitly asks for this role count.' },
+        neutralRoles: { type: 'string', description: 'Only set if the user explicitly asks for this role count.' },
       },
     },
-  ],
+  },
 };
 
 function normalizeWahaIncomingMessage(payload: unknown): WahaIncomingMessage | null {
@@ -1033,12 +1032,12 @@ async function embedText(text: string): Promise<number[]> {
   return payload?.embedding?.values?.filter((value) => Number.isFinite(value)) ?? [];
 }
 
-async function loadGeminiImageParts(images: IncomingImage[]): Promise<GeminiPart[]> {
-  const parts: GeminiPart[] = [];
+async function loadQwenImageParts(images: IncomingImage[]): Promise<QwenContentPart[]> {
+  const parts: QwenContentPart[] = [];
   for (const image of images) {
     const data = image.data || (image.url ? await downloadImageAsBase64(image).catch(() => '') : '');
     if (!data) continue;
-    parts.push({ inlineData: { mimeType: image.mimetype, data } });
+    parts.push({ type: 'image_url', image_url: { url: `data:${image.mimetype};base64,${data}` } });
   }
   return parts;
 }
@@ -1145,18 +1144,14 @@ async function getRowById<T extends QueryResultRow>(table: string, id: string): 
   return result.rows[0] ?? null;
 }
 
-function getFunctionCall(response: GeminiResponse): GeminiPart['functionCall'] | undefined {
-  return response.candidates?.[0]?.content?.parts?.find((part) => part.functionCall)?.functionCall;
+function getFunctionCall(response: QwenResponse): QwenToolCall | undefined {
+  return response.choices?.[0]?.message?.tool_calls?.[0];
 }
 
-function extractText(response: GeminiResponse): string {
-  return cleanText(
-    response.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text)
-      .filter(Boolean)
-      .join('\n') ?? '',
-    MAX_REPLY_TEXT,
-  );
+function extractText(response: QwenResponse): string {
+  const content = response.choices?.[0]?.message?.content;
+  if (typeof content === 'string') return cleanText(content, MAX_REPLY_TEXT);
+  return cleanText(content?.map((part) => part.text).filter(Boolean).join('\n') ?? '', MAX_REPLY_TEXT);
 }
 
 function normalizeList(value: unknown, fallback: string[], maxItems: number, maxLength: number) {

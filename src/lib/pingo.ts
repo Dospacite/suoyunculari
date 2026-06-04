@@ -900,7 +900,7 @@ function summarizeToolResult(result: unknown) {
   if (!result || typeof result !== 'object') return result === undefined ? '' : safeStringify(result, 600);
   const record = result as Record<string, unknown>;
   const summary: Record<string, unknown> = {};
-  for (const key of ['count', 'query', 'room', 'source']) {
+  for (const key of ['count', 'query', 'room', 'scheduleUrl', 'source', 'linkGuidance']) {
     if (record[key] !== undefined) summary[key] = record[key];
   }
   if (record.found !== undefined) summary.found = record.found;
@@ -1059,7 +1059,7 @@ const roomAvailabilityToolDeclaration: QwenToolDeclaration = {
   function: {
     name: 'search_room_availability',
     description:
-      'Searches Sabanci University SUIS room availability or returns detailed schedule rows for a specific room. Use for room, classroom, building, date, day, time range, category, room schedule, or booking-detail questions.',
+      'Searches Sabanci University SUIS room availability or returns detailed schedule rows for a specific room. Use for room, classroom, building, date, day, time range, category, room schedule, or booking-detail questions. Use the returned scheduleUrl for general schedule links; never construct r_crn1 detail links.',
     parameters: {
       type: 'object',
       required: ['mode'],
@@ -1076,7 +1076,7 @@ const roomAvailabilityToolDeclaration: QwenToolDeclaration = {
         includeDetails: {
           type: 'boolean',
           description:
-            'Set true in schedule mode when the user asks who reserved/booked a room, why a time slot is occupied, or asks for event/requester/course details. This fetches detail pages for every returned schedule row.',
+            'Set true in schedule mode when the user asks who reserved/booked a room, why a time slot is occupied, or asks for event/requester/course details. This fetches detail pages for every returned schedule row. If not answering about one exact returned reservation, cite scheduleUrl rather than a detailUrl.',
         },
         day: { type: 'string', description: 'Single day filter for availability, such as Monday, Thu, pazartesi, or cuma.' },
         days: {

@@ -39,6 +39,7 @@ type RoomScheduleResult = {
   startTime: string;
   endTime: string;
   days: string;
+  detailId: string;
   detailUrl: string;
   suForm: string;
   detail?: RoomBookingDetail | null;
@@ -220,6 +221,7 @@ export async function getSabanciRoomSchedule(input: RoomScheduleInput) {
   url.searchParams.set('e_date', normalized.endDate);
   url.searchParams.set('b_code', normalized.building);
   url.searchParams.set('r_code', normalized.roomCode);
+  const scheduleUrl = formatSabanciUrl(url);
   const html = await fetchText(url, { method: 'GET' });
   const parsed = parseScheduleHtml(html);
   const schedule = parsed.schedule.slice(0, normalized.limit);
@@ -237,7 +239,10 @@ export async function getSabanciRoomSchedule(input: RoomScheduleInput) {
     count: parsed.schedule.length,
     detailsFetched: normalized.includeDetails ? scheduleWithDetails.filter((row) => row.detail).length : 0,
     schedule: scheduleWithDetails,
-    source: url.toString(),
+    scheduleUrl,
+    source: scheduleUrl,
+    linkGuidance:
+      'For a general room schedule link, use scheduleUrl. Do not construct sabanci_rooms.r_crn1 detail links. A detailUrl is valid only when copied exactly from a returned schedule row and it includes an r_crn value; if multiple rows share the same time slot, prefer scheduleUrl unless answering about one specific reservation.',
   };
 }
 
@@ -380,13 +385,15 @@ function parseScheduleHtml(html: string): { room: Record<string, string>; schedu
       .get();
     if (cells.length < 6 || /^start date$/i.test(cells[0])) return;
     const detailHref = $(row).find('a').first().attr('href');
+    const detailUrl = absolutize(detailHref);
     schedule.push({
       startDate: cells[0],
       endDate: cells[1],
       startTime: cells[2],
       endTime: cells[3],
       days: cells[4],
-      detailUrl: absolutize(detailHref),
+      detailId: extractDetailId(detailUrl),
+      detailUrl,
       suForm: cells[6] || '',
     });
   });
@@ -571,6 +578,19 @@ function unique<T>(items: T[]) {
 function absolutize(href: string | undefined) {
   if (!href) return '';
   return new URL(href, `${BASE_URL}/`).toString();
+}
+
+function formatSabanciUrl(url: URL) {
+  return url.toString().replaceAll('%2F', '/');
+}
+
+function extractDetailId(url: string) {
+  if (!url) return '';
+  try {
+    return new URL(url).searchParams.get('r_crn') || '';
+  } catch {
+    return '';
+  }
 }
 
 function toCamelCase(value: string) {

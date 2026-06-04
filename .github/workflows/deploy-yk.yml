@@ -39,7 +39,7 @@ jobs:
           REMOTE_HOST: ${{ secrets.VPS_HOST }}
           REMOTE_USER: ${{ secrets.VPS_USER }}
           SOURCE: "./"
-          TARGET: "/opt/suoyunculari-yk/"
+          TARGET: "/tmp/suoyunculari-yk-deploy/"
           ARGS: "-rlDzvc --delete --chmod=D775,F664"
           EXCLUDE: "/node_modules/, /dist/, /.astro/, /.git/, /.github/, /.env, /.env.*, /scripts/scraped/"
 
@@ -52,6 +52,13 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
+            sudo mkdir -p /opt/suoyunculari-yk
+            sudo rsync -a --delete \
+              --exclude '.env' \
+              --exclude '.env.*' \
+              /tmp/suoyunculari-yk-deploy/ \
+              /opt/suoyunculari-yk/
+            sudo chown -R "$(id -un):$(id -gn)" /opt/suoyunculari-yk
             cd /opt/suoyunculari-yk
 
             existing_value() {
@@ -166,7 +173,7 @@ jobs:
             install -m 600 "$tmp_env" .env || sudo install -m 600 -o "$(id -un)" -g "$(id -gn)" "$tmp_env" .env
             rm -f "$tmp_env"
 
-            cp docker-compose.yk.yml docker-compose.yml
+            cp docker-compose.yk.yml docker-compose.yml || sudo cp docker-compose.yk.yml docker-compose.yml
             docker compose up -d --build --force-recreate
             docker compose exec -T app npm run yk:migrate
             if [ -n "${YK_ADMIN_INITIAL_PASSWORD_VALUE:-}" ]; then

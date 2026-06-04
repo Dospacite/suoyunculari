@@ -22,7 +22,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
   const forwardedHost = context.request.headers.get('x-forwarded-host');
   const requestHost = forwardedHost || context.request.headers.get('host') || context.url.host;
-  if (pathname === '/' && requestHost === 'pingo.suoyunculari.com') {
+  const requestHostname = requestHost.split(':')[0];
+  const ykHostname = process.env.YK_PUBLIC_HOST || 'yk.suoyunculari.com';
+  const pingoHostname = process.env.PINGO_PUBLIC_HOST || 'pingo.suoyunculari.com';
+  const isYkHost = requestHostname === ykHostname || requestHostname === pingoHostname;
+  const isAppPath = appPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+
+  if (pathname === '/' && requestHostname === pingoHostname) {
     return context.redirect('/pingo');
   }
 
@@ -50,6 +56,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return next();
   }
 
+  if (!isYkHost && !isAppPath) {
+    return next();
+  }
+
   const token = context.cookies.get('yk_session')?.value;
   const user = await getSessionUser(token).catch(() => null);
 
@@ -73,7 +83,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return context.redirect('/roll-call');
   }
 
-  if (!appPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+  if (!isAppPath) {
     return context.redirect('/roll-call');
   }
 

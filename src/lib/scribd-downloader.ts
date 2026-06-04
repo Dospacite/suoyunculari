@@ -198,27 +198,12 @@ const throwIfAborted = (signal?: AbortSignal) => {
   }
 };
 
-const scribdCookieForUrl = (rawUrl: string) => {
-  const cookie = process.env.PINGO_SCRIBD_COOKIE || process.env.SCRIBD_COOKIE || '';
-  if (!cookie) return '';
-  try {
-    const url = new URL(rawUrl);
-    return url.hostname === 'scribd.com' || url.hostname.endsWith('.scribd.com') ? cookie : '';
-  } catch {
-    return '';
-  }
-};
-
-const requestHeaders = (url: string, referer?: string) => {
-  const cookie = scribdCookieForUrl(url);
-  return {
-    'Accept': '*/*',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Referer': referer ?? '',
-    'User-Agent': USER_AGENT,
-    ...(cookie ? { Cookie: cookie } : {}),
-  };
-};
+const requestHeaders = (referer?: string) => ({
+  'Accept': '*/*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Referer': referer ?? '',
+  'User-Agent': USER_AGENT,
+});
 
 const isScribdClientChallenge = (html: string) => (
   /<title>\s*Client Challenge\s*<\/title>/i.test(html) ||
@@ -231,7 +216,7 @@ const requestText = async (url: string, referer?: string, signal?: AbortSignal) 
   try {
     const response = await fetch(url, {
       signal: timeout.signal,
-      headers: requestHeaders(url, referer),
+      headers: requestHeaders(referer),
     });
     if (!response.ok) {
       throw new ScribdDownloadError(`HTTP ${response.status} fetching ${url}`, 502);
@@ -247,7 +232,7 @@ const requestBuffer = async (url: string, referer: string, signal?: AbortSignal)
   try {
     const response = await fetch(url, {
       signal: timeout.signal,
-      headers: requestHeaders(url, referer),
+      headers: requestHeaders(referer),
     });
     if (!response.ok) {
       throw new ScribdDownloadError(`HTTP ${response.status} fetching ${url}`, 502);
@@ -568,7 +553,7 @@ export const downloadScribdPdf = async ({ url, includeText, onProgress, signal }
   progress('Reading document', 0, 100);
   const pageHtml = await requestText(sourceUrl, undefined, signal);
   if (isScribdClientChallenge(pageHtml)) {
-    throw new ScribdDownloadError('Scribd returned a client challenge. Configure PINGO_SCRIBD_COOKIE with a valid Scribd browser session cookie.', 403);
+    throw new ScribdDownloadError('Scribd returned a client challenge for the public document request.', 403);
   }
   const state = extractState(pageHtml) as { wordDocument?: { title?: string; extracted_title?: string } };
   const title = state.wordDocument?.title || state.wordDocument?.extracted_title || 'Scribd document';

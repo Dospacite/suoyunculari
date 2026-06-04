@@ -884,7 +884,7 @@ function fallbackToolReply(toolKey: string, result: unknown) {
     if (record.kind === 'search') {
       const results = Array.isArray(record.results) ? record.results as Array<Record<string, unknown>> : [];
       if (!results.length) {
-        if (record.reason === 'client_challenge') return 'scribd araması şu anda erişilemiyor. scribd oturumu yenilenmeli.';
+        if (record.reason === 'client_challenge') return 'scribd araması şu anda public istekle erişilemiyor.';
         return 'scribd üzerinde bu aramayla eşleşen bir sonuç bulamadım.';
       }
       return [
@@ -905,7 +905,7 @@ function fallbackToolReply(toolKey: string, result: unknown) {
         return url ? `metni indirdim. indirme linki: ${url}\n\nbu link bir gün geçerli.` : 'metni indirdim ve indirme linkini hazırladım.';
       }
       if (record.reason === 'missing_selection') return 'hangi sonucu indireceğimi anlayamadım. sonuç numarasını veya scribd linkini yazar mısın?';
-      if (record.reason === 'client_challenge') return 'scribd indirmesi şu anda erişilemiyor. scribd oturumu yenilenmeli.';
+      if (record.reason === 'client_challenge') return 'scribd indirmesi şu anda public istekle erişilemiyor.';
       return 'scribd sonucunu indiremedim.';
     }
   }

@@ -112,7 +112,7 @@ export async function searchScribdScripts(
       query,
       searchUrl,
       reason: 'client_challenge',
-      error: 'Scribd returned a client challenge. Configure PINGO_SCRIBD_COOKIE with a valid Scribd browser session cookie.',
+      error: 'Scribd returned a client challenge for the public search request.',
     };
   }
 
@@ -245,26 +245,11 @@ async function request(url: string, referer: string) {
         Referer: referer,
         'User-Agent': USER_AGENT,
         'X-Requested-With': 'XMLHttpRequest',
-        ...scribdCookieHeader(url),
       },
     });
   } finally {
     clearTimeout(timeout);
   }
-}
-
-function scribdCookieHeader(rawUrl: string): Record<string, string> {
-  const cookie = process.env.PINGO_SCRIBD_COOKIE || process.env.SCRIBD_COOKIE || '';
-  if (!cookie) return {};
-  try {
-    const url = new URL(rawUrl);
-    if (url.hostname === 'scribd.com' || url.hostname.endsWith('.scribd.com')) {
-      return { Cookie: cookie };
-    }
-  } catch {
-    return {};
-  }
-  return {};
 }
 
 function extractDocuments(payload: Record<string, unknown>): ScribdSearchDocument[] {

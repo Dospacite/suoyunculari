@@ -26,6 +26,14 @@ const stagingFields = '*,play.*,cover_image,photos.*,photos.image';
 const blogPostFields =
   '*,cover_image,related_plays.plays_id.*,related_plays.plays_id.author.*,related_plays.plays_id.genres.genres_id.*,related_plays.plays_id.tags.tags_id.*,related_plays.plays_id.tags.tags_id.category.*,related_books.books_id.*,related_books.books_id.category_ref.*,related_books.books_id.tag_refs.tags_id.*,related_books.books_id.tag_refs.tags_id.category.*,related_blog_posts.related_blog_posts_id.*,related_rehearsal_ideas.rehearsal_ideas_id.*,text_bank_references.*';
 const bookFields = '*,cover_image,category_ref.*,tag_refs.tags_id.*,tag_refs.tags_id.category.*';
+const PLAYED_TEXT_BANK_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let playedTextBankReferencesCache:
+  | {
+      expiresAt: number;
+      value: PlayedTextBankReference[];
+    }
+  | undefined;
 
 export type Taxonomy = {
   name: string;
@@ -143,6 +151,11 @@ export type TextBankReference = {
   source_id?: string;
   title?: string;
   source_url?: string;
+};
+
+type PlayedTextBankReference = TextBankReference & {
+  play_slug: string;
+  play_title: string;
 };
 
 export type StagingPhoto = {
@@ -397,10 +410,14 @@ export async function getRelatedBlogPostsForTextBank(
 }
 
 export async function getPlayedTextBankReferences(): Promise<
-  Array<TextBankReference & { play_slug: string; play_title: string }>
+  PlayedTextBankReference[]
 > {
+  if (playedTextBankReferencesCache && playedTextBankReferencesCache.expiresAt > Date.now()) {
+    return playedTextBankReferencesCache.value;
+  }
+
   const plays = await getPlays();
-  const references: Array<TextBankReference & { play_slug: string; play_title: string }> = [];
+  const references: PlayedTextBankReference[] = [];
 
   for (const play of plays) {
     const reference = getTextBankReference(play);
@@ -413,6 +430,11 @@ export async function getPlayedTextBankReferences(): Promise<
       play_title: play.title,
     });
   }
+
+  playedTextBankReferencesCache = {
+    value: references,
+    expiresAt: Date.now() + PLAYED_TEXT_BANK_CACHE_TTL_MS,
+  };
 
   return references;
 }

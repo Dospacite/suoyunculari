@@ -27,6 +27,7 @@ type SearchOptions = {
   reference?: string;
   page?: number;
   pageSize?: number;
+  includeFacets?: boolean;
   playedReferences?: Array<{
     source?: string;
     source_id?: string;
@@ -44,6 +45,23 @@ type ConcordRow = Omit<ConcordPlay, 'authors' | 'scraped_at'> & {
   scraped_at: Date | string | null;
 };
 
+type ConcordSearchRow = ConcordRow & {
+  result_count?: number | string;
+};
+
+type TextBankFacets = Pick<
+  ConcordSearchResult,
+  | 'genres'
+  | 'playTypes'
+  | 'subgenres'
+  | 'themes'
+  | 'targetAudiences'
+  | 'performanceGroups'
+  | 'features'
+  | 'cautions'
+  | 'sources'
+>;
+
 type TextBankWhereClause = {
   whereSql: string;
   params: unknown[];
@@ -57,7 +75,13 @@ type TextBankBuildOptions = SearchOptions & {
 
 const globalForPg = globalThis as typeof globalThis & {
   concordPool?: pg.Pool;
+  concordFacetCache?: {
+    expiresAt: number;
+    value: TextBankFacets;
+  };
 };
+
+const FACET_CACHE_TTL_MS = 10 * 60 * 1000;
 
 export async function searchConcordPlays({
   query = '',
@@ -83,6 +107,7 @@ export async function searchConcordPlays({
   reference = '',
   page = 1,
   pageSize = 25,
+  includeFacets = true,
   playedReferences = [],
 }: SearchOptions): Promise<ConcordSearchResult> {
   const pool = getPool();
@@ -91,7 +116,7 @@ export async function searchConcordPlays({
   const safePage = clampInteger(page, 1, 10_000);
   const safePageSize = clampInteger(pageSize, 1, 100);
   const offset = (safePage - 1) * safePageSize;
-  const { whereSql, params, rankExpression, orderSql } = await buildTextBankWhereClauseWithExactFallback(pool, {
+  const { whereSql, params, rankExpression, orderSql } = buildTextBankWhereClause({
     query,
     source,
     playType,
@@ -117,19 +142,13 @@ export async function searchConcordPlays({
   });
 
   try {
-    const count = await pool.query<{ count: string }>(
-      `SELECT count(*)::int AS count FROM concord_plays ${whereSql}`,
-      params,
-    );
+    const queryParams = [...params, safePageSize, offset];
+    const limitParam = `$${queryParams.length - 1}`;
+    const offsetParam = `$${queryParams.length}`;
 
-    const total = Number(count.rows[0]?.count ?? 0);
-
-    params.push(safePageSize, offset);
-    const limitParam = `$${params.length - 1}`;
-    const offsetParam = `$${params.length}`;
-
-    const items = await pool.query<ConcordRow>(
+    const itemsPromise = pool.query<ConcordSearchRow>(
       `SELECT
+        count(*) OVER() AS result_count,
         source,
         source_id,
         source_url,
@@ -170,30 +189,22 @@ export async function searchConcordPlays({
       ORDER BY ${orderSql}
       LIMIT ${limitParam}
       OFFSET ${offsetParam}`,
-      params,
+      queryParams,
     );
 
-    const [
-      genres,
-      playTypes,
-      subgenres,
-      themes,
-      targetAudiences,
-      performanceGroups,
-      features,
-      cautions,
-      sources,
-    ] = await Promise.all([
-      getConcordGenres(pool),
-      getDistinctScalar(pool, 'play_type'),
-      getDistinctArrayValues(pool, 'subgenres'),
-      getDistinctArrayValues(pool, 'themes'),
-      getDistinctTargetAudiences(pool),
-      getDistinctArrayValues(pool, 'performance_groups'),
-      getDistinctArrayValues(pool, 'features'),
-      getDistinctArrayValues(pool, 'cautions'),
-      getConcordSources(pool),
+    const [items, facets] = await Promise.all([
+      itemsPromise,
+      includeFacets ? getTextBankFacets(pool) : Promise.resolve(emptyTextBankFacets()),
     ]);
+
+    let total = Number(items.rows[0]?.result_count ?? 0);
+    if (total === 0 && offset > 0) {
+      const count = await pool.query<{ count: string }>(
+        `SELECT count(*)::int AS count FROM concord_plays ${whereSql}`,
+        params,
+      );
+      total = Number(count.rows[0]?.count ?? 0);
+    }
 
     const result: ConcordSearchResult = {
       items: items.rows.map(normalizeConcordRow),
@@ -201,15 +212,7 @@ export async function searchConcordPlays({
       page: safePage,
       pageSize: safePageSize,
       totalPages: Math.max(1, Math.ceil(total / safePageSize)),
-      genres,
-      playTypes,
-      subgenres,
-      themes,
-      targetAudiences,
-      performanceGroups,
-      features,
-      cautions,
-      sources,
+      ...facets,
       databaseReady: true,
     };
 
@@ -230,7 +233,7 @@ export async function searchTextBankForAssistant({
   if (!pool) return [];
 
   const safePageSize = clampInteger(pageSize, 1, 6);
-  const { whereSql, params, rankExpression, orderSql } = await buildTextBankWhereClauseWithExactFallback(pool, {
+  const { whereSql, params, rankExpression, orderSql } = buildTextBankWhereClause({
     ...options,
     playedReferences,
   });
@@ -373,6 +376,66 @@ async function getConcordGenres(pool: pg.Pool): Promise<string[]> {
   return payload.rows.map((row) => row.genre);
 }
 
+async function getTextBankFacets(pool: pg.Pool): Promise<TextBankFacets> {
+  const cached = globalForPg.concordFacetCache;
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  const [
+    genres,
+    playTypes,
+    subgenres,
+    themes,
+    targetAudiences,
+    performanceGroups,
+    features,
+    cautions,
+    sources,
+  ] = await Promise.all([
+    getConcordGenres(pool),
+    getDistinctScalar(pool, 'play_type'),
+    getDistinctArrayValues(pool, 'subgenres'),
+    getDistinctArrayValues(pool, 'themes'),
+    getDistinctTargetAudiences(pool),
+    getDistinctArrayValues(pool, 'performance_groups'),
+    getDistinctArrayValues(pool, 'features'),
+    getDistinctArrayValues(pool, 'cautions'),
+    getConcordSources(pool),
+  ]);
+
+  const value = {
+    genres,
+    playTypes,
+    subgenres,
+    themes,
+    targetAudiences,
+    performanceGroups,
+    features,
+    cautions,
+    sources,
+  };
+
+  globalForPg.concordFacetCache = {
+    value,
+    expiresAt: Date.now() + FACET_CACHE_TTL_MS,
+  };
+
+  return value;
+}
+
+function emptyTextBankFacets(): TextBankFacets {
+  return {
+    genres: [],
+    playTypes: [],
+    subgenres: [],
+    themes: [],
+    targetAudiences: [],
+    performanceGroups: [],
+    features: [],
+    cautions: [],
+    sources: [],
+  };
+}
+
 async function getDistinctArrayValues(pool: pg.Pool, column: string): Promise<string[]> {
   const payload = await pool.query<{ value: string }>(
     `SELECT DISTINCT value
@@ -483,22 +546,6 @@ function splitReferenceKey(key: string): { source: string; sourceId: string } {
   return { source, sourceId };
 }
 
-async function buildTextBankWhereClauseWithExactFallback(
-  pool: pg.Pool,
-  options: SearchOptions,
-): Promise<TextBankWhereClause> {
-  const cleanedQuery = options.query?.trim() ?? '';
-  if (!cleanedQuery) return buildTextBankWhereClause(options);
-
-  const exactClause = buildTextBankWhereClause({ ...options, exactOnly: true });
-  const count = await pool.query<{ count: string }>(
-    `SELECT count(*)::int AS count FROM concord_plays ${exactClause.whereSql}`,
-    exactClause.params,
-  );
-
-  return Number(count.rows[0]?.count ?? 0) > 0 ? exactClause : buildTextBankWhereClause(options);
-}
-
 function buildTextBankWhereClause({
   query = '',
   source = '',
@@ -544,8 +591,7 @@ function buildTextBankWhereClause({
           WHEN lower(title) = lower(${searchParam}) THEN 500
           WHEN lower(title) LIKE lower(${searchParam}) || '%' THEN 420
           WHEN lower(title) LIKE '%' || lower(${searchParam}) || '%' THEN 360
-          WHEN ${authorContainsSql(searchParam)} THEN 260
-          WHEN ${descriptionContainsSql(searchParam)} THEN 140
+          WHEN source_id = ${searchParam} THEN 220
           ELSE 0
         END + ts_rank_cd(${vector}, ${tsQuery})
       )::real AS rank`;
@@ -614,7 +660,6 @@ function exactTextBankMatchSql(searchParam: string): string {
     OR lower(title) LIKE '%' || lower(${searchParam}) || '%'
     OR source_id = ${searchParam}
     OR ${authorContainsSql(searchParam)}
-    OR ${descriptionContainsSql(searchParam)}
   )`;
 }
 
@@ -625,7 +670,6 @@ function exactTextBankRankSql(searchParam: string): string {
     WHEN lower(title) LIKE '%' || lower(${searchParam}) || '%' THEN 360
     WHEN ${authorContainsSql(searchParam)} THEN 260
     WHEN source_id = ${searchParam} THEN 220
-    WHEN ${descriptionContainsSql(searchParam)} THEN 140
     ELSE 20
   END::real AS rank`;
 }
@@ -638,14 +682,6 @@ function authorContainsSql(searchParam: string): string {
   )`;
 }
 
-function descriptionContainsSql(searchParam: string): string {
-  return `(
-    lower(coalesce(summary_text, '')) LIKE '%' || lower(${searchParam}) || '%'
-    OR lower(coalesce(summary_html, '')) LIKE '%' || lower(${searchParam}) || '%'
-    OR lower(coalesce(full_description_html, '')) LIKE '%' || lower(${searchParam}) || '%'
-  )`;
-}
-
 function emptySearchResult(page: number, pageSize: number, databaseReady: boolean): ConcordSearchResult {
   return {
     items: [],
@@ -653,15 +689,7 @@ function emptySearchResult(page: number, pageSize: number, databaseReady: boolea
     page,
     pageSize,
     totalPages: 1,
-    genres: [],
-    playTypes: [],
-    subgenres: [],
-    themes: [],
-    targetAudiences: [],
-    performanceGroups: [],
-    features: [],
-    cautions: [],
-    sources: [],
+    ...emptyTextBankFacets(),
     databaseReady,
   };
 }

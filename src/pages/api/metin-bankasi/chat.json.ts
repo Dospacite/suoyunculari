@@ -166,40 +166,8 @@ export const POST: APIRoute = async ({ request }) => {
     });
     const results = plays.map(toAssistantResult);
 
-    const secondResponse = await callGemini(
-      apiKey,
-      [
-        ...contents,
-        {
-          role: 'model',
-          parts: [{ functionCall }],
-        },
-        {
-          role: 'user',
-          parts: [
-            {
-              functionResponse: {
-                name: 'search_text_bank',
-                response: {
-                  results: results.map(toGeminiResult),
-                },
-              },
-            },
-          ],
-        },
-      ],
-      false,
-    ).catch((error) => {
-      console.error('Metin Bankasi assistant finalization failed:', safeError(error));
-      return null;
-    });
-
     return json({
-      reply:
-        (secondResponse ? extractText(secondResponse) : '') ||
-        (results.length > 0
-          ? 'Pingo bu aramaya uygun kayıtlar buldu.'
-          : 'Bu ölçütlerle eşleşen bir oyun bulamadım. Kadro, tür veya süreyi genişletmeyi deneyebilirsin.'),
+      reply: buildAssistantReply(results, searchOptions),
       results,
     });
   } catch (error) {
@@ -283,8 +251,8 @@ async function callGemini(apiKey: string, contents: GeminiContent[], includeTool
         contents,
         tools: includeTools ? [toolDeclaration] : undefined,
         generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 700,
+          temperature: includeTools ? 0.1 : 0.3,
+          maxOutputTokens: includeTools ? 220 : 700,
         },
       }),
     });
@@ -356,17 +324,54 @@ function toAssistantResult(play: ConcordPlay): AssistantSearchResult {
   };
 }
 
-function toGeminiResult(result: AssistantSearchResult): Record<string, unknown> {
-  return {
-    title: result.title,
-    href: result.href,
-    authorText: result.authorText,
-    playType: result.playType,
-    genres: result.genres,
-    duration: result.duration,
-    castingText: result.castingText,
-    summary: result.summary,
-  };
+function buildAssistantReply(results: AssistantSearchResult[], searchOptions: TextBankAssistantSearchOptions): string {
+  if (results.length === 0) {
+    return 'Bu ölçütlerle eşleşen bir oyun bulamadım. Kadro, tür, süre veya temayı biraz genişletmeyi deneyebilirsin.';
+  }
+
+  const filters = [
+    searchOptions.query ? `"${searchOptions.query}"` : '',
+    searchOptions.genre,
+    searchOptions.subgenre,
+    searchOptions.theme,
+    searchOptions.playType,
+    searchOptions.duration ? durationLabel(searchOptions.duration) : '',
+    searchOptions.totalCast ? castSizeLabel(searchOptions.totalCast) : '',
+    searchOptions.femaleRoles ? `${searchOptions.femaleRoles} kadın rolü` : '',
+    searchOptions.maleRoles ? `${searchOptions.maleRoles} erkek rolü` : '',
+    searchOptions.neutralRoles ? `${searchOptions.neutralRoles} nötr rol` : '',
+  ].filter(Boolean);
+
+  const intro =
+    filters.length > 0
+      ? `${filters.join(', ')} için en yakın Metin Bankası sonuçları:`
+      : 'Metin Bankası içinde en yakın sonuçlar:';
+  const lines = results.slice(0, 4).map((result, index) => {
+    const details = [
+      result.authorText,
+      result.playType,
+      result.genres.slice(0, 2).join(', '),
+      result.duration,
+      result.castingText,
+    ].filter(Boolean);
+    return `${index + 1}. ${result.title}${details.length > 0 ? ` - ${details.join(' · ')}` : ''}`;
+  });
+
+  return [intro, ...lines].join('\n');
+}
+
+function durationLabel(value: string): string {
+  if (value === 'short') return '90 dakika ve altı';
+  if (value === 'medium') return '91-120 dakika';
+  if (value === 'long') return '120 dakika üstü';
+  return value;
+}
+
+function castSizeLabel(value: string): string {
+  if (value === 'small') return 'küçük kadro';
+  if (value === 'medium') return 'orta kadro';
+  if (value === 'large') return 'kalabalık kadro';
+  return value;
 }
 
 function sanitizeString(value: unknown, maxLength: number): string {

@@ -188,6 +188,7 @@
   let currentPage = 1;
   let totalPages = 1;
   let debounceTimer: number | undefined;
+  let facetsLoaded = false;
   const rangeFilters = Array.from(document.querySelectorAll<HTMLElement>('[data-range-filter]')).map((root) => ({
     root,
     minInput: root.querySelector<HTMLInputElement>('[data-range-min]'),
@@ -226,6 +227,7 @@
       reference: referenceSelect?.value || '',
       page: String(currentPage),
       pageSize: String(pageSize),
+      includeFacets: facetsLoaded ? 'false' : 'true',
     });
     applyRangeParams(params);
 
@@ -235,14 +237,17 @@
       totalPages = payload.totalPages;
       currentPage = payload.page;
 
-      updateGenres(payload.genres);
-      updateSelect(playTypeSelect, payload.playTypes);
-      updateSelect(subgenreSelect, payload.subgenres);
-      updateSelect(themeSelect, payload.themes);
-      updateSelect(targetAudienceSelect, payload.targetAudiences);
-      updateSelect(performanceGroupSelect, payload.performanceGroups);
-      updateSelect(featureSelect, payload.features);
-      updateSelect(cautionSelect, payload.cautions);
+      if (!facetsLoaded) {
+        updateGenres(payload.genres);
+        updateSelect(playTypeSelect, payload.playTypes);
+        updateSelect(subgenreSelect, payload.subgenres);
+        updateSelect(themeSelect, payload.themes);
+        updateSelect(targetAudienceSelect, payload.targetAudiences);
+        updateSelect(performanceGroupSelect, payload.performanceGroups);
+        updateSelect(featureSelect, payload.features);
+        updateSelect(cautionSelect, payload.cautions);
+        facetsLoaded = true;
+      }
       renderResults(payload);
     } catch {
       list.innerHTML = '';

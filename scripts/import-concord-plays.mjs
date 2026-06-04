@@ -167,8 +167,32 @@ async function ensureSchema(pool) {
     CREATE INDEX IF NOT EXISTS concord_plays_genres_idx
       ON concord_plays USING gin (genres);
 
+    CREATE INDEX IF NOT EXISTS concord_plays_subgenres_idx
+      ON concord_plays USING gin (subgenres);
+
+    CREATE INDEX IF NOT EXISTS concord_plays_themes_idx
+      ON concord_plays USING gin (themes);
+
+    CREATE INDEX IF NOT EXISTS concord_plays_performance_groups_idx
+      ON concord_plays USING gin (performance_groups);
+
+    CREATE INDEX IF NOT EXISTS concord_plays_features_idx
+      ON concord_plays USING gin (features);
+
+    CREATE INDEX IF NOT EXISTS concord_plays_cautions_idx
+      ON concord_plays USING gin (cautions);
+
     CREATE INDEX IF NOT EXISTS concord_plays_duration_idx
       ON concord_plays (duration_minutes);
+
+    CREATE INDEX IF NOT EXISTS concord_plays_cast_size_idx
+      ON concord_plays (min_cast_size, max_cast_size);
+
+    CREATE INDEX IF NOT EXISTS concord_plays_roles_idx
+      ON concord_plays (female_roles, male_roles, neutral_roles);
+
+    CREATE INDEX IF NOT EXISTS concord_plays_play_type_lower_idx
+      ON concord_plays (lower(play_type));
 
     CREATE INDEX IF NOT EXISTS concord_plays_title_idx
       ON concord_plays (title);

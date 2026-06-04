@@ -9,6 +9,7 @@ const { settings, actors, accessRules, tools, stats } = await getPingoDashboardD
 const webhookUrl = `${Astro.url.origin}/api/pingo/waha`;
 const redisConfigured = Boolean(process.env.PINGO_REDIS_URL || process.env.REDIS_URL);
 const formatJson = (value: unknown) => (value ? JSON.stringify(value, null, 2) : '');
+const toolPrompt = (tool: { config: Record<string, unknown> }) => (typeof tool.config?.prompt === 'string' ? tool.config.prompt : '');
 ---
 
 <YkLayout title="Pingo" user={user}>
@@ -120,10 +121,15 @@ const formatJson = (value: unknown) => (value ? JSON.stringify(value, null, 2) :
           <dd>{redisConfigured ? 'Yapılandırıldı' : 'Varsayılan servis adı'}</dd>
         </div>
       </dl>
-      <h2>Araçlar</h2>
-      <div class="pingo-list">
-        {tools.map((tool) => (
-          <form class="pingo-row" data-tool-form data-key={tool.key}>
+    </section>
+  </section>
+
+  <section class="panel pingo-tools-panel">
+    <h2>Araçlar</h2>
+    <div class="pingo-list">
+      {tools.map((tool) => (
+        <form class="pingo-tool-row" data-tool-form data-key={tool.key}>
+          <div class="pingo-tool-head">
             <div>
               <strong>{tool.label}</strong>
               <span>{tool.description}</span>
@@ -136,10 +142,14 @@ const formatJson = (value: unknown) => (value ? JSON.stringify(value, null, 2) :
               </select>
             </label>
             <button class="icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
-          </form>
-        ))}
-      </div>
-    </section>
+          </div>
+          <label>
+            Araç yönergesi
+            <textarea name="prompt" rows="4">{toolPrompt(tool)}</textarea>
+          </label>
+        </form>
+      ))}
+    </div>
   </section>
 
   <section class="pingo-lower">
@@ -283,7 +293,10 @@ const formatJson = (value: unknown) => (value ? JSON.stringify(value, null, 2) :
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const body = formData(form);
-        await postJson(`/api/pingo/tools/${form.dataset.key}`, 'PATCH', { enabled: toBool(body.enabled) });
+        await postJson(`/api/pingo/tools/${form.dataset.key}`, 'PATCH', {
+          enabled: toBool(body.enabled),
+          config: { prompt: body.prompt },
+        });
         window.location.reload();
       });
     });
@@ -430,6 +443,30 @@ const formatJson = (value: unknown) => (value ? JSON.stringify(value, null, 2) :
     grid-template-columns: minmax(0, 1fr) 120px 40px;
   }
 
+  .pingo-tools-panel {
+    margin-bottom: 18px;
+  }
+
+  .pingo-tool-row {
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 12px;
+    padding-top: 12px;
+  }
+
+  .pingo-tool-head {
+    align-items: end;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) 140px 40px;
+  }
+
+  .pingo-tool-head div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
   .pingo-row div {
     display: grid;
     gap: 4px;
@@ -540,7 +577,8 @@ const formatJson = (value: unknown) => (value ? JSON.stringify(value, null, 2) :
     [data-create-actor].pingo-inline-form,
     .pingo-access-form,
     .pingo-row,
-    [data-tool-form].pingo-row {
+    [data-tool-form].pingo-row,
+    .pingo-tool-head {
       grid-template-columns: 1fr;
     }
   }

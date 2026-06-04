@@ -34,6 +34,7 @@ export const GET: APIRoute = async ({ url }) => {
       reference: url.searchParams.get('reference') ?? '',
       page,
       pageSize,
+      includeFacets: url.searchParams.get('includeFacets') !== 'false',
       playedReferences,
     });
 

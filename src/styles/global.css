@@ -356,6 +356,20 @@ img {
   transform: translateY(-2px);
 }
 
+.button:disabled,
+.button[aria-disabled='true'] {
+  background: #b9b5b2;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.button:disabled:hover,
+.button[aria-disabled='true']:hover {
+  background: #b9b5b2;
+  transform: none;
+}
+
 .secondary-button {
   background: var(--ink);
 }

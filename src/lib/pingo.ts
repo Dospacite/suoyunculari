@@ -975,10 +975,14 @@ async function runRoomAvailabilityTool(args: Record<string, unknown>) {
 }
 
 async function runGoogleDriveScriptsTool(args: Record<string, unknown>, context: PingoToolRunContext) {
-  const local = await searchLocalPdfDocument(args);
-  if (local.found) {
-    await sendWahaText(context.incoming.session, context.incoming.chatId, 'metni buldum, şimdi gönderiyorum.');
-    return local;
+  try {
+    const local = await searchLocalPdfDocument(args);
+    if (local.found) {
+      await sendWahaText(context.incoming.session, context.incoming.chatId, 'metni buldum, şimdi gönderiyorum.');
+      return local;
+    }
+  } catch (error) {
+    console.error('Pingo local PDF search failed:', safeError(error));
   }
   return searchGoogleDriveScript(args, context.tool.config, async () => {
     await sendWahaText(context.incoming.session, context.incoming.chatId, 'metni buldum, şimdi gönderiyorum.');

@@ -62,17 +62,20 @@ export const getLocalPdfDirectory = getScriptsDirectory;
 
 export async function listLocalPdfDocuments(): Promise<LocalPdfDocument[]> {
   await migrateDocumentsToScriptsDirectory();
-  const [localDocuments, driveDocuments] = await Promise.all([listUploadedPdfDocuments(), listDrivePdfDocuments()]);
+  const driveDocuments = await listDrivePdfDocuments();
+  const driveFilenames = new Set(driveDocuments.map((document) => document.filename));
+  const localDocuments = await listUploadedPdfDocuments(driveFilenames);
   return [...localDocuments, ...driveDocuments]
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title, 'tr'));
 }
 
-async function listUploadedPdfDocuments(): Promise<LocalPdfDocument[]> {
+async function listUploadedPdfDocuments(excludedFilenames = new Set<string>()): Promise<LocalPdfDocument[]> {
   await ensureDocumentDir();
   const names = await fs.readdir(getLocalPdfDirectory()).catch(() => []);
   const documents = await Promise.all(
     names
       .filter((name) => isPdfFilename(name))
+      .filter((name) => !excludedFilenames.has(name))
       .map(async (filename) => documentFromFilename(filename).catch(() => null)),
   );
   return documents
@@ -342,26 +345,36 @@ async function migrateDrivePdfsToScripts() {
 
   for (const row of result.rows) {
     const currentPath = row.local_path;
-    const desiredFilename = uniqueFilename(row.local_filename || buildDocumentFilename(row.file_id, row.drive_name, 'pdf'));
-    const desiredPath = localPathForId(desiredFilename);
-    if (currentPath === desiredPath) continue;
+    const preferredFilename = uniqueFilename(row.local_filename || buildDocumentFilename(row.file_id, row.drive_name, 'pdf'));
+    const preferredPath = localPathForId(preferredFilename);
+    if (currentPath === preferredPath) continue;
+
     const exists = await fs.access(currentPath).then(() => true).catch(() => false);
-    if (!exists) continue;
-    await fs.rename(currentPath, desiredPath).catch(async (error) => {
-      if (error?.code !== 'EEXIST') throw error;
-      await fs.unlink(currentPath).catch(() => undefined);
-    });
+    if (!exists) {
+      if (await fileExists(preferredPath)) {
+        await updateDrivePdfLocation(row.file_id, preferredFilename, preferredPath);
+      }
+      continue;
+    }
+
+    const desiredFilename = await nextAvailableDocumentFilename(preferredFilename);
+    const desiredPath = localPathForId(desiredFilename);
+    await fs.rename(currentPath, desiredPath);
     const stats = await fs.stat(desiredPath).catch(() => null);
-    await query(
-      `update pingo_drive_files
-          set local_filename = $1,
-              local_path = $2,
-              bytes = coalesce($3, bytes),
-              updated_at = now()
-        where file_id = $4`,
-      [desiredFilename, desiredPath, stats?.size ?? null, row.file_id],
-    );
+    await updateDrivePdfLocation(row.file_id, desiredFilename, desiredPath, stats?.size ?? null);
   }
+}
+
+async function updateDrivePdfLocation(fileId: string, filename: string, filePath: string, bytes: number | null = null) {
+  await query(
+    `update pingo_drive_files
+        set local_filename = $1,
+            local_path = $2,
+            bytes = coalesce($3, bytes),
+            updated_at = now()
+      where file_id = $4`,
+    [filename, filePath, bytes, fileId],
+  );
 }
 
 async function assertPdf(data: Buffer) {
@@ -375,6 +388,25 @@ async function ensureDocumentDir() {
 
 function localPathForId(id: string) {
   return path.join(getScriptsDirectory(), assertSafeDocumentFilename(id));
+}
+
+async function nextAvailableDocumentFilename(filename: string) {
+  const safeFilename = uniqueFilename(filename);
+  if (!(await fileExists(localPathForId(safeFilename)))) return safeFilename;
+
+  const stem = safeFilename.replace(/\.pdf$/i, '').slice(0, 168);
+  for (let index = 2; index < 1000; index += 1) {
+    const candidate = uniqueFilename(`${stem}-${index}.pdf`);
+    if (!(await fileExists(localPathForId(candidate)))) return candidate;
+  }
+  return uniqueFilename(`${stem}-${randomBytes(4).toString('hex')}.pdf`);
+}
+
+async function fileExists(filePath: string) {
+  return fs
+    .access(filePath)
+    .then(() => true)
+    .catch(() => false);
 }
 
 function assertSafeDocumentFilename(id: string) {

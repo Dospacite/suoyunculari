@@ -25,7 +25,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
             <div class="downloader-meter">
               <span data-progress-bar></span>
             </div>
-            <button class="button" type="button" data-cancel-button disabled>İptal</button>
+            <button class="button" type="button" data-action-button data-action-mode="idle" disabled>İptal</button>
           </div>
           <p data-status-text></p>
         </div>
@@ -38,21 +38,28 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
   const form = document.querySelector('[data-downloader-form]');
   const urlInput = document.querySelector('[data-url-input]');
   const submitButton = document.querySelector('[data-submit-button]');
-  const cancelButton = document.querySelector('[data-cancel-button]');
+  const actionButton = document.querySelector('[data-action-button]');
   const statusText = document.querySelector('[data-status-text]');
   const progressBar = document.querySelector('[data-progress-bar]');
 
   let activeJobId = null;
   let activeSocket = null;
   let activeDownloadUrl = null;
+  let activeDownloadFilename = 'scribd-document.pdf';
 
   const setStatus = (message) => {
     statusText.textContent = message;
   };
 
+  const setActionMode = (mode) => {
+    actionButton.dataset.actionMode = mode;
+    actionButton.disabled = mode === 'idle';
+    actionButton.textContent = mode === 'download' ? 'İndir' : 'İptal';
+  };
+
   const setBusy = (busy) => {
     submitButton.disabled = busy;
-    cancelButton.disabled = !busy;
+    setActionMode(busy ? 'cancel' : 'idle');
   };
 
   const cleanupDownloadUrl = () => {
@@ -60,6 +67,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
       URL.revokeObjectURL(activeDownloadUrl);
       activeDownloadUrl = null;
     }
+    activeDownloadFilename = 'scribd-document.pdf';
   };
 
   const filenameFromDisposition = (value) => {
@@ -78,7 +86,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
     activeSocket = null;
   };
 
-  const downloadResult = async (jobId) => {
+  const prepareDownload = async (jobId) => {
     const response = await fetch(`/api/downloader?id=${encodeURIComponent(jobId)}`);
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
@@ -88,11 +96,23 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
     const pdf = await response.blob();
     cleanupDownloadUrl();
     activeDownloadUrl = URL.createObjectURL(pdf);
+    activeDownloadFilename = filenameFromDisposition(response.headers.get('Content-Disposition'));
+    setStatus(activeDownloadFilename);
+    setActionMode('download');
+  };
+
+  const downloadPreparedFile = () => {
+    if (!activeDownloadUrl) return;
     const link = document.createElement('a');
     link.href = activeDownloadUrl;
-    link.download = filenameFromDisposition(response.headers.get('Content-Disposition'));
+    link.download = activeDownloadFilename;
     link.click();
-    setStatus(link.download);
+    setStatus('İndirildi');
+    window.setTimeout(() => {
+      cleanupDownloadUrl();
+      setActionMode('idle');
+      progressBar.style.width = '0';
+    }, 0);
   };
 
   const bindSocket = () => {
@@ -131,7 +151,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
       if (message.type === 'complete') {
         updateProgress(payload);
         try {
-          await downloadResult(payload.id);
+          await prepareDownload(payload.id);
           closeSocket();
           activeJobId = null;
         } catch (error) {
@@ -139,8 +159,9 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
           setStatus(`Hata: ${error.message || error}`);
           progressBar.style.width = '0';
           activeJobId = null;
+          setActionMode('idle');
         } finally {
-          setBusy(false);
+          submitButton.disabled = false;
         }
         return;
       }
@@ -164,6 +185,8 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
     });
 
     activeSocket.addEventListener('error', () => {
+      closeSocket();
+      activeJobId = null;
       setBusy(false);
       setStatus('Hata: WebSocket bağlantısı kurulamadı.');
       progressBar.style.width = '0';
@@ -184,7 +207,11 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
     bindSocket();
   });
 
-  cancelButton.addEventListener('click', () => {
+  actionButton.addEventListener('click', () => {
+    if (actionButton.dataset.actionMode === 'download') {
+      downloadPreparedFile();
+      return;
+    }
     cancelActiveJob();
     setBusy(false);
     progressBar.style.width = '0';

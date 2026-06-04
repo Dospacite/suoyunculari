@@ -548,14 +548,24 @@ async function getCachedDriveFile(fileId: string) {
 
 async function ensureCachedDriveFileInScripts(file: DriveCachedFileRow) {
   await fs.mkdir(getScriptsDirectory(), { recursive: true });
-  const nextFilename = buildDocumentFilename(file.file_id, file.drive_name, extensionFromName(file.local_filename) || extensionFromMime(file.download_mime_type));
-  const nextPath = path.join(getScriptsDirectory(), nextFilename);
-  if (file.local_path === nextPath) return file;
+  const preferredFilename = buildDocumentFilename(file.file_id, file.drive_name, extensionFromName(file.local_filename) || extensionFromMime(file.download_mime_type));
+  const preferredPath = path.join(getScriptsDirectory(), preferredFilename);
+  if (file.local_path === preferredPath) return file;
 
-  await fs.rename(file.local_path, nextPath).catch(async (error) => {
-    if (error?.code !== 'EEXIST') throw error;
-    await fs.unlink(file.local_path).catch(() => undefined);
-  });
+  if (!(await fileExists(file.local_path))) {
+    if (await fileExists(preferredPath)) {
+      return updateCachedDriveFileLocation(file, preferredFilename, preferredPath);
+    }
+    return file;
+  }
+
+  const nextFilename = await nextAvailableScriptFilename(preferredFilename);
+  const nextPath = path.join(getScriptsDirectory(), nextFilename);
+  await fs.rename(file.local_path, nextPath);
+  return updateCachedDriveFileLocation(file, nextFilename, nextPath);
+}
+
+async function updateCachedDriveFileLocation(file: DriveCachedFileRow, nextFilename: string, nextPath: string) {
   const stats = await fs.stat(nextPath).catch(() => null);
   const result = await query<DriveCachedFileRow>(
     `update pingo_drive_files
@@ -577,6 +587,18 @@ async function ensureCachedDriveFileInScripts(file: DriveCachedFileRow) {
     [nextFilename, nextPath, stats?.size ?? null, file.file_id],
   );
   return result.rows[0] ?? { ...file, local_filename: nextFilename, local_path: nextPath, bytes: stats?.size ?? file.bytes };
+}
+
+async function nextAvailableScriptFilename(filename: string) {
+  if (!(await fileExists(path.join(getScriptsDirectory(), filename)))) return filename;
+
+  const extension = path.extname(filename) || '.pdf';
+  const stem = filename.slice(0, -extension.length).slice(0, 168);
+  for (let index = 2; index < 1000; index += 1) {
+    const candidate = `${stem}-${index}${extension}`;
+    if (!(await fileExists(path.join(getScriptsDirectory(), candidate)))) return candidate;
+  }
+  return `${stem}-${randomBytes(4).toString('hex')}${extension}`;
 }
 
 async function createDriveDownloadToken(fileId: string) {

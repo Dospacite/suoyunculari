@@ -24,7 +24,9 @@
     "cheerio": "^1.2.0",
     "exceljs": "^4.4.0",
     "pg": "^8.21.0",
-    "redis": "^6.0.0"
+    "redis": "^6.0.0",
+    "sharp": "^0.34.5",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",

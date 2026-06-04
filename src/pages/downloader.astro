@@ -1,0 +1,191 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Downloader" description="Server-side Scribd public asset downloader.">
+  <main>
+    <section class="section compact downloader-page">
+      <div class="section-inner downloader-shell">
+        <div class="section-heading">
+          <h1>Downloader</h1>
+        </div>
+
+        <form class="downloader-form" data-downloader-form>
+          <label>
+            <span>Scribd document URL</span>
+            <input data-url-input type="url" placeholder="https://www.scribd.com/document/..." required />
+          </label>
+          <div class="downloader-options">
+            <label class="check-label">
+              <input data-text-toggle type="checkbox" checked />
+              <span>Searchable text</span>
+            </label>
+            <button class="button" type="submit" data-submit-button>Generate PDF</button>
+          </div>
+        </form>
+
+        <div class="downloader-status" aria-live="polite">
+          <div class="downloader-meter">
+            <span data-progress-bar></span>
+          </div>
+          <p data-status-text></p>
+        </div>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<script is:inline>
+  const form = document.querySelector('[data-downloader-form]');
+  const urlInput = document.querySelector('[data-url-input]');
+  const textToggle = document.querySelector('[data-text-toggle]');
+  const submitButton = document.querySelector('[data-submit-button]');
+  const statusText = document.querySelector('[data-status-text]');
+  const progressBar = document.querySelector('[data-progress-bar]');
+
+  let activeJobId = null;
+  let activeSocket = null;
+  let activeDownloadUrl = null;
+
+  const setStatus = (message) => {
+    statusText.textContent = message;
+  };
+
+  const setBusy = (busy) => {
+    submitButton.disabled = busy;
+  };
+
+  const cleanupDownloadUrl = () => {
+    if (activeDownloadUrl) {
+      URL.revokeObjectURL(activeDownloadUrl);
+      activeDownloadUrl = null;
+    }
+  };
+
+  const filenameFromDisposition = (value) => {
+    const match = String(value || '').match(/filename="([^"]+)"/);
+    return match ? match[1] : 'scribd-document.pdf';
+  };
+
+  const cancelActiveJob = () => {
+    if (!activeJobId && !activeSocket) return;
+    closeSocket();
+    activeJobId = null;
+  };
+
+  const closeSocket = () => {
+    activeSocket?.close();
+    activeSocket = null;
+  };
+
+  const downloadResult = async (jobId) => {
+    const response = await fetch(`/api/downloader?id=${encodeURIComponent(jobId)}`);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || `Downloader returned HTTP ${response.status}.`);
+    }
+
+    const pdf = await response.blob();
+    cleanupDownloadUrl();
+    activeDownloadUrl = URL.createObjectURL(pdf);
+    const link = document.createElement('a');
+    link.href = activeDownloadUrl;
+    link.download = filenameFromDisposition(response.headers.get('Content-Disposition'));
+    link.click();
+    setStatus(link.download);
+  };
+
+  const bindSocket = () => {
+    closeSocket();
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    activeSocket = new WebSocket(`${protocol}://${window.location.host}/api/downloader/ws`);
+    const updateProgress = (payload) => {
+      const progress = payload.progress || {};
+      progressBar.style.width = `${progress.percent || 0}%`;
+      setStatus(progress.stage || payload.status || '');
+    };
+
+    activeSocket.addEventListener('open', () => {
+      activeSocket.send(JSON.stringify({
+        type: 'start',
+        url: urlInput.value.trim(),
+        includeText: textToggle.checked,
+      }));
+    });
+
+    activeSocket.addEventListener('message', async (event) => {
+      const message = JSON.parse(event.data);
+      const payload = message.payload || {};
+
+      if (message.type === 'job') {
+        activeJobId = payload.id;
+        updateProgress(payload);
+        return;
+      }
+
+      if (message.type === 'status' || message.type === 'progress') {
+        updateProgress(payload);
+        return;
+      }
+
+      if (message.type === 'complete') {
+        updateProgress(payload);
+        try {
+          await downloadResult(payload.id);
+          closeSocket();
+          activeJobId = null;
+        } catch (error) {
+          closeSocket();
+          setStatus(`Error: ${error.message || error}`);
+          progressBar.style.width = '0';
+          activeJobId = null;
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
+
+      if (message.type === 'error') {
+        closeSocket();
+        activeJobId = null;
+        setBusy(false);
+        setStatus(`Error: ${payload.error || payload.status || 'Downloader error.'}`);
+        progressBar.style.width = '0';
+        return;
+      }
+
+      if (message.type === 'cancelled') {
+        closeSocket();
+        activeJobId = null;
+        setBusy(false);
+        setStatus(payload.error || 'Download cancelled.');
+        progressBar.style.width = '0';
+      }
+    });
+
+    activeSocket.addEventListener('error', () => {
+      setBusy(false);
+      setStatus('Error: WebSocket connection failed.');
+      progressBar.style.width = '0';
+    });
+
+    activeSocket.addEventListener('close', () => {
+      activeSocket = null;
+    });
+  };
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    cancelActiveJob();
+    cleanupDownloadUrl();
+    setBusy(true);
+    progressBar.style.width = '0';
+    setStatus('Queued');
+    bindSocket();
+  });
+
+  window.addEventListener('pagehide', () => {
+    cancelActiveJob();
+    cleanupDownloadUrl();
+  });
+</script>

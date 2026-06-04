@@ -14,6 +14,7 @@ const driveFolderIds = (tool: { config: Record<string, unknown> }) =>
   Array.isArray(tool.config?.allowedFolderIds) ? tool.config.allowedFolderIds.filter((item) => typeof item === 'string').join(', ') : '';
 const driveIncludeSubfolders = (tool: { config: Record<string, unknown> }) => tool.config?.includeSubfolders !== false;
 const driveMaxResults = (tool: { config: Record<string, unknown> }) => Number(tool.config?.maxResults || 8);
+const scribdMaxResults = (tool: { config: Record<string, unknown> }) => Number(tool.config?.maxResults || 6);
 ---
 
 <YkLayout title="Pingo" user={user}>
@@ -172,6 +173,16 @@ const driveMaxResults = (tool: { config: Record<string, unknown> }) => Number(to
               </div>
             )
           }
+          {
+            tool.key === 'scribd_scripts' && (
+              <div class="pingo-scribd-config">
+                <label>
+                  Sonuç limiti
+                  <input name="maxResults" type="number" min="1" max="12" value={scribdMaxResults(tool)} />
+                </label>
+              </div>
+            )
+          }
         </form>
       ))}
     </div>
@@ -322,6 +333,9 @@ const driveMaxResults = (tool: { config: Record<string, unknown> }) => Number(to
         if (form.dataset.key === 'google_drive_scripts') {
           config.allowedFolderIds = body.allowedFolderIds;
           config.includeSubfolders = toBool(body.includeSubfolders);
+          config.maxResults = Number(body.maxResults);
+        }
+        if (form.dataset.key === 'scribd_scripts') {
           config.maxResults = Number(body.maxResults);
         }
         await postJson(`/api/pingo/tools/${form.dataset.key}`, 'PATCH', {
@@ -491,6 +505,12 @@ const driveMaxResults = (tool: { config: Record<string, unknown> }) => Number(to
     grid-template-columns: minmax(0, 1fr) 170px 130px;
   }
 
+  .pingo-scribd-config {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 130px;
+  }
+
   .pingo-tool-head {
     align-items: end;
     display: grid;
@@ -616,7 +636,8 @@ const driveMaxResults = (tool: { config: Record<string, unknown> }) => Number(to
     .pingo-row,
     [data-tool-form].pingo-row,
     .pingo-tool-head,
-    .pingo-drive-config {
+    .pingo-drive-config,
+    .pingo-scribd-config {
       grid-template-columns: 1fr;
     }
   }

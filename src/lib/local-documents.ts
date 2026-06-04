@@ -127,6 +127,15 @@ export async function saveLocalPdfDocument(input: { filename: string; data: Buff
   return documentFromFilename(filename);
 }
 
+export async function savePermanentScriptPdf(input: { seed: string; filename: string; data: Buffer }) {
+  await ensureDocumentDir();
+  await assertPdf(input.data);
+  const filename = buildDocumentFilename(input.seed, input.filename, 'pdf');
+  const filePath = localPathForId(filename);
+  await fs.writeFile(filePath, input.data);
+  return documentFromFilename(filename);
+}
+
 export async function uploadLocalPdfDocument(file: File) {
   if (file.type && file.type !== 'application/pdf') throw new Error('Only PDF files are supported.');
   if (!isPdfFilename(file.name)) throw new Error('Only PDF files are supported.');

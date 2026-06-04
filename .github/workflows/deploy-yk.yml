@@ -128,6 +128,7 @@ jobs:
             PINGO_GOOGLE_DRIVE_REDIRECT_URI_VALUE="${PINGO_GOOGLE_DRIVE_REDIRECT_URI_VALUE:-$(existing_value PINGO_GOOGLE_DRIVE_REDIRECT_URI)}"
             PINGO_DRIVE_PUBLIC_BASE_URL_VALUE="${PINGO_DRIVE_PUBLIC_BASE_URL_VALUE:-$(existing_value PINGO_DRIVE_PUBLIC_BASE_URL)}"
             PINGO_DRIVE_STORAGE_DIR_VALUE="${PINGO_DRIVE_STORAGE_DIR_VALUE:-$(existing_value PINGO_DRIVE_STORAGE_DIR)}"
+            PINGO_DRIVE_VOLUME_NAME_VALUE="${PINGO_DRIVE_VOLUME_NAME_VALUE:-$(existing_value PINGO_DRIVE_VOLUME_NAME)}"
             YK_DATABASE_URL_VALUE="${YK_DATABASE_URL_VALUE:-postgres://suo_yk:${YK_POSTGRES_PASSWORD_VALUE:-suo_yk_password}@postgres:5432/suoyunculari_yk}"
             PINGO_REDIS_URL_VALUE="${PINGO_REDIS_URL_VALUE:-redis://ege:${PINGO_REDIS_PASSWORD_VALUE}@redis:6379}"
 
@@ -166,6 +167,7 @@ jobs:
             PINGO_GOOGLE_DRIVE_REDIRECT_URI=${PINGO_GOOGLE_DRIVE_REDIRECT_URI_VALUE:-https://yk.suoyunculari.com/api/pingo/drive/oauth/callback}
             PINGO_DRIVE_PUBLIC_BASE_URL=${PINGO_DRIVE_PUBLIC_BASE_URL_VALUE:-https://assets.suoyunculari.com}
             PINGO_DRIVE_STORAGE_DIR=${PINGO_DRIVE_STORAGE_DIR_VALUE:-/var/lib/pingo-drive-files}
+            PINGO_DRIVE_VOLUME_NAME=${PINGO_DRIVE_VOLUME_NAME_VALUE:-suoyunculari-yk_pingo_drive_files}
             EOF
             rm -f .env || sudo rm -f .env
             install -m 600 "$tmp_env" .env || sudo install -m 600 -o "$(id -un)" -g "$(id -gn)" "$tmp_env" .env

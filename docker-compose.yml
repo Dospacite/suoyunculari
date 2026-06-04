@@ -30,14 +30,20 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-suo}:${POSTGRES_PASSWORD:-suo_password}@postgres:5432/${POSTGRES_DB:-suoyunculari}
       PUBLIC_DIRECTUS_URL: ${PUBLIC_DIRECTUS_URL:-https://cms.suoyunculari.com}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      PINGO_DRIVE_STORAGE_DIR: ${PINGO_DRIVE_STORAGE_DIR:-/var/lib/pingo-drive-files}
     ports:
       - "4321:4321"
+    volumes:
+      - pingo_drive_files:/var/lib/pingo-drive-files
     networks:
       - default
       - web
 
 volumes:
   postgres_data:
+  pingo_drive_files:
+    external: true
+    name: ${PINGO_DRIVE_VOLUME_NAME:-suoyunculari-yk_pingo_drive_files}
 
 networks:
   web:

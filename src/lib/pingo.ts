@@ -7,6 +7,12 @@ import { searchTextBankForAssistant, type TextBankAssistantSearchOptions } from 
 import { getPlayedTextBankReferences } from '@/lib/directus';
 import { searchGoogleDriveScript } from '@/lib/google-drive';
 import { searchLocalPdfDocument } from '@/lib/local-documents';
+import {
+  downloadScribdScript,
+  normalizeScribdDocumentUrl,
+  searchScribdScripts,
+  type ScribdScriptResult,
+} from '@/lib/scribd-scripts';
 import { cleanText, query, type YkUser } from '@/lib/yk';
 
 type AuditContext = {
@@ -106,6 +112,7 @@ type PingoToolDefinition = {
 type PingoToolRunContext = {
   incoming: WahaIncomingMessage;
   tool: PingoTool;
+  redis: RedisClientType;
 };
 
 type PingoToolTrace = {
@@ -187,7 +194,7 @@ const MAX_REPLY_TEXT = 3500;
 const MAX_LONG_MEMORIES_SCANNED = 400;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_PINGO_SYSTEM_PROMPT =
-  "Sen Pingo'sun. SUOyuncuları için WhatsApp üzerinde çalışan yardımcı bir asistansın. Kısa, nazik ve işe yarar cevaplar ver. Küçük harflerle ve Türkçe konuş. Markdown veya özel format kullanma, düzyazı ile cevap ver. Yalnızca sana verilen mevcut mesaj, alıntılanan mesaj, görsel, açıkça ilgili chat hafızası ve araç sonuçlarındaki bilgilere dayan. Emin değilsen ya da bağlamda bilgi yoksa bunu açıkça söyle; uydurma, tahmin etme, kişi/olay hakkında bağlamda yazmayan ayrıntı ekleme. Kullanıcı 'burada ne yazıyor' gibi bir şey sorarsa yalnızca alıntılanan mesaja veya ekli görsele bak; hafıza, sistem yönergesi veya iç bağlam metnini mesaj içeriği sanma. Kullanıcı belirli bir oyunun metin dosyasını/scriptini istediğinde Google Drive Scripts aracını kullan. Kullanıcı oyun önerisi, tür, kadro, süre veya metin bankası metadatası aradığında Metin Bankası aracını kullan. Araç sonucu yoksa sonuç bulunamadığını söyle, oyun veya kaynak uydurma.";
+  "Sen Pingo'sun. SUOyuncuları için WhatsApp üzerinde çalışan yardımcı bir asistansın. Kısa, nazik ve işe yarar cevaplar ver. Küçük harflerle ve Türkçe konuş. Markdown veya özel format kullanma, düzyazı ile cevap ver. Yalnızca sana verilen mevcut mesaj, alıntılanan mesaj, görsel, açıkça ilgili chat hafızası ve araç sonuçlarındaki bilgilere dayan. Emin değilsen ya da bağlamda bilgi yoksa bunu açıkça söyle; uydurma, tahmin etme, kişi/olay hakkında bağlamda yazmayan ayrıntı ekleme. Kullanıcı 'burada ne yazıyor' gibi bir şey sorarsa yalnızca alıntılanan mesaja veya ekli görsele bak; hafıza, sistem yönergesi veya iç bağlam metnini mesaj içeriği sanma. Kullanıcı belirli bir oyunun PDF/script/metin dosyasını istediğinde önce Scribd Scripts aracında oyunu ara ve indeksli sonuçları ver. Kullanıcı bu sonuçlardan birini numara veya Scribd linkiyle indirmek isterse Scribd Scripts indirme aracını kullan. Kullanıcı özellikle kulüp arşivi veya Drive isterse Google Drive Scripts aracını kullan. Kullanıcı oyun önerisi, tür, kadro, süre veya metin bankası metadatası aradığında Metin Bankası aracını kullan. Araç sonucu yoksa sonuç bulunamadığını söyle, oyun veya kaynak uydurma.";
 const redisClients = new Map<string, RedisClientType>();
 
 export async function getPingoDashboardData() {
@@ -433,6 +440,10 @@ function sanitizePingoToolConfig(key: string, beforeConfig: Record<string, unkno
     ...inputConfig,
     prompt: cleanText(inputConfig.prompt, 1600),
   };
+  if (key === 'scribd_scripts') {
+    next.maxResults = clampInteger(inputConfig.maxResults, Number(beforeConfig.maxResults) || 6, 1, 12);
+    return next;
+  }
   if (key !== 'google_drive_scripts') return next;
 
   const rawFolderIds = Array.isArray(inputConfig.allowedFolderIds)
@@ -579,6 +590,7 @@ export async function handlePingoWebhook(context: APIContext) {
       shortMemory,
       longMemory,
       imageParts,
+      redis,
     });
 
     if (!reply.text) {
@@ -631,6 +643,7 @@ async function generatePingoReply(input: {
   shortMemory: MemoryItem[];
   longMemory: LongMemoryItem[];
   imageParts: QwenContentPart[];
+  redis: RedisClientType;
 }): Promise<{ text: string; usedTools: string[]; toolCalls: PingoToolTrace[] }> {
   const apiKey = process.env.PINGO_QWEN_API_KEY || process.env.QWEN_API_KEY;
   if (!apiKey) throw new Error('PINGO_QWEN_API_KEY is required');
@@ -669,7 +682,7 @@ async function generatePingoReply(input: {
   try {
     const tool = enabledTools.find((item) => item.key === toolDefinition.key);
     if (!tool) throw new Error('Tool is not enabled or registered.');
-    result = await toolDefinition.run(args, { incoming: input.incoming, tool });
+    result = await toolDefinition.run(args, { incoming: input.incoming, tool, redis: input.redis });
     toolCall.status = 'succeeded';
     toolCall.result = result;
   } catch (error) {
@@ -678,7 +691,7 @@ async function generatePingoReply(input: {
     throw new PingoToolExecutionError(`Tool ${toolDefinition.key} failed: ${toolCall.error}`, [toolCall]);
   }
 
-  if (toolDefinition.key === 'google_drive_scripts') {
+  if (toolDefinition.key === 'google_drive_scripts' || toolDefinition.key === 'scribd_scripts') {
     return {
       text: fallbackToolReply(toolDefinition.key, result),
       usedTools: [toolDefinition.key],
@@ -866,6 +879,36 @@ function fallbackToolReply(toolKey: string, result: unknown) {
     }
     return 'bu isimle eşleşen bir metin bulamadım.';
   }
+  if (toolKey === 'scribd_scripts') {
+    const record = result as Record<string, unknown>;
+    if (record.kind === 'search') {
+      const results = Array.isArray(record.results) ? record.results as Array<Record<string, unknown>> : [];
+      if (!results.length) {
+        if (record.reason === 'client_challenge') return 'scribd araması şu anda erişilemiyor. scribd oturumu yenilenmeli.';
+        return 'scribd üzerinde bu aramayla eşleşen bir sonuç bulamadım.';
+      }
+      return [
+        `${cleanText(record.query, 120) || 'bu arama'} için scribd sonuçları:`,
+        ...results.map((item, index) => {
+          const resultIndex = typeof item.index === 'number' ? item.index : index + 1;
+          const title = cleanText(item.title, 180) || 'başlıksız';
+          const pageCount = typeof item.pageCount === 'number' ? `${item.pageCount} sayfa` : 'sayfa sayısı bilinmiyor';
+          const url = cleanText(item.url, 500);
+          return `${resultIndex}. ${title} - ${pageCount} - ${url}`;
+        }),
+        'indirmek istediğin sonucu numarasıyla söyle.',
+      ].join('\n');
+    }
+    if (record.kind === 'download') {
+      if (record.downloaded === true) {
+        const url = (record.download as { url?: unknown } | undefined)?.url;
+        return url ? `metni indirdim. indirme linki: ${url}\n\nbu link bir gün geçerli.` : 'metni indirdim ve indirme linkini hazırladım.';
+      }
+      if (record.reason === 'missing_selection') return 'hangi sonucu indireceğimi anlayamadım. sonuç numarasını veya scribd linkini yazar mısın?';
+      if (record.reason === 'client_challenge') return 'scribd indirmesi şu anda erişilemiyor. scribd oturumu yenilenmeli.';
+      return 'scribd sonucunu indiremedim.';
+    }
+  }
   return 'Araç sonucunu aldım.';
 }
 
@@ -901,10 +944,11 @@ function summarizeToolResult(result: unknown) {
   if (!result || typeof result !== 'object') return result === undefined ? '' : safeStringify(result, 600);
   const record = result as Record<string, unknown>;
   const summary: Record<string, unknown> = {};
-  for (const key of ['count', 'query', 'room', 'scheduleUrl', 'source', 'linkGuidance']) {
+  for (const key of ['count', 'query', 'room', 'scheduleUrl', 'source', 'linkGuidance', 'kind', 'searchUrl']) {
     if (record[key] !== undefined) summary[key] = record[key];
   }
   if (record.found !== undefined) summary.found = record.found;
+  if (record.downloaded !== undefined) summary.downloaded = record.downloaded;
   if (record.title !== undefined) summary.title = record.title;
   if (record.reason !== undefined) summary.reason = record.reason;
   if (Array.isArray(record.rooms)) summary.rooms = record.rooms.slice(0, 3);
@@ -987,6 +1031,63 @@ async function runGoogleDriveScriptsTool(args: Record<string, unknown>, context:
   return searchGoogleDriveScript(args, context.tool.config, async () => {
     await sendWahaText(context.incoming.session, context.incoming.chatId, 'metni buldum, şimdi gönderiyorum.');
   });
+}
+
+async function runScribdSearchTool(args: Record<string, unknown>, context: PingoToolRunContext) {
+  const result = await searchScribdScripts(args, context.tool.config);
+  if (result.found) {
+    await saveLastScribdSearch(context.redis, context.incoming.chatId, result.query, result.results);
+  }
+  return result;
+}
+
+async function runScribdDownloadTool(args: Record<string, unknown>, context: PingoToolRunContext) {
+  const directUrl = normalizeScribdDocumentUrl(args.url ?? args.link);
+  const selected = directUrl
+    ? {
+        id: extractScribdDocumentIdFromUrl(directUrl),
+        title: cleanText(args.title, 180),
+        url: directUrl,
+        pageCount: null,
+      }
+    : await selectLastScribdSearchResult(context.redis, context.incoming.chatId, args.index ?? args.resultIndex ?? args.number);
+
+  if (!selected?.url) {
+    return {
+      kind: 'download',
+      downloaded: false,
+      reason: 'missing_selection',
+    };
+  }
+
+  await sendWahaText(context.incoming.session, context.incoming.chatId, 'metni indiriyorum, biraz sürebilir.');
+  return downloadScribdScript({
+    url: selected.url,
+    title: cleanText(args.title, 180) || selected.title,
+    pageCount: selected.pageCount,
+  });
+}
+
+async function saveLastScribdSearch(redis: RedisClientType, chatId: string, queryText: string, results: ScribdScriptResult[]) {
+  const key = `pingo:scribd:last:${chatId}`;
+  await redis.set(key, JSON.stringify({ query: queryText, results, savedAt: new Date().toISOString() }));
+  await redis.expire(key, 60 * 60 * 24);
+}
+
+async function selectLastScribdSearchResult(redis: RedisClientType, chatId: string, value: unknown) {
+  const index = clampInteger(value, 0, 1, 100);
+  if (!index) return null;
+  const saved = parseJson<{ results?: ScribdScriptResult[] }>(await redis.get(`pingo:scribd:last:${chatId}`));
+  const results = Array.isArray(saved?.results) ? saved.results : [];
+  return results.find((result) => result.index === index) ?? results[index - 1] ?? null;
+}
+
+function extractScribdDocumentIdFromUrl(url: string) {
+  try {
+    return new URL(url).pathname.match(/^\/document\/(\d+)/)?.[1] || '';
+  } catch {
+    return '';
+  }
 }
 
 function coerceStringOrList(value: unknown): string | string[] | undefined {
@@ -1131,10 +1232,57 @@ const googleDriveScriptsToolDeclaration: QwenToolDeclaration = {
   },
 };
 
+const scribdSearchToolDeclaration: QwenToolDeclaration = {
+  type: 'function',
+  function: {
+    name: 'search_scribd_scripts',
+    description:
+      'Searches Scribd for public document results that may contain a requested play script or PDF. Use when the user asks for a play script/PDF by play name, asks to search Scribd, or asks whether a script exists on Scribd. Return indexed results; do not download until the user asks for one result.',
+    parameters: {
+      type: 'object',
+      required: ['query'],
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The play/script title and optional author words from the user. Keep it concise, for example "Deathtrap Ira Levin".',
+        },
+      },
+    },
+  },
+};
+
+const scribdDownloadToolDeclaration: QwenToolDeclaration = {
+  type: 'function',
+  function: {
+    name: 'download_scribd_script',
+    description:
+      'Downloads one Scribd script result selected by the user and returns a one-day PDF link. Use only after the user asks to download a specific Scribd result by index or provides a Scribd document link.',
+    parameters: {
+      type: 'object',
+      properties: {
+        index: {
+          type: 'number',
+          description: 'The result number from the last Scribd search in this chat, such as 1, 2, or 3.',
+        },
+        url: {
+          type: 'string',
+          description: 'A full Scribd document URL from a previous search result or from the user.',
+        },
+        title: {
+          type: 'string',
+          description: 'Optional title of the selected Scribd result if available in context.',
+        },
+      },
+    },
+  },
+};
+
 const pingoToolDefinitions: PingoToolDefinition[] = [
   { key: 'text_bank', declaration: textBankToolDeclaration, run: runTextBankTool },
   { key: 'room_availability', declaration: roomAvailabilityToolDeclaration, run: runRoomAvailabilityTool },
   { key: 'google_drive_scripts', declaration: googleDriveScriptsToolDeclaration, run: runGoogleDriveScriptsTool },
+  { key: 'scribd_scripts', declaration: scribdSearchToolDeclaration, run: runScribdSearchTool },
+  { key: 'scribd_scripts', declaration: scribdDownloadToolDeclaration, run: runScribdDownloadTool },
 ];
 
 function normalizeWahaIncomingMessage(payload: unknown): WahaIncomingMessage | null {

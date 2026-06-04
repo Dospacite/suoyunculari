@@ -76,6 +76,8 @@ jobs:
             POSTGRES_PASSWORD_VALUE='${{ secrets.POSTGRES_PASSWORD }}'
             GEMINI_API_KEY_VALUE='${{ secrets.GEMINI_API_KEY }}'
             DIRECTUS_TOKEN_VALUE='${{ secrets.DIRECTUS_TOKEN }}'
+            PINGO_DRIVE_STORAGE_DIR_VALUE="${PINGO_DRIVE_STORAGE_DIR_VALUE:-$(existing_value PINGO_DRIVE_STORAGE_DIR)}"
+            PINGO_DRIVE_VOLUME_NAME_VALUE="${PINGO_DRIVE_VOLUME_NAME_VALUE:-$(existing_value PINGO_DRIVE_VOLUME_NAME)}"
 
             PUBLIC_DIRECTUS_URL_VALUE="${PUBLIC_DIRECTUS_URL_VALUE:-$(existing_value PUBLIC_DIRECTUS_URL)}"
             POSTGRES_PASSWORD_VALUE="${POSTGRES_PASSWORD_VALUE:-$(existing_value POSTGRES_PASSWORD)}"
@@ -90,9 +92,24 @@ jobs:
             POSTGRES_PASSWORD=${POSTGRES_PASSWORD_VALUE:-suo_password}
             GEMINI_API_KEY=${GEMINI_API_KEY_VALUE:-}
             DIRECTUS_TOKEN=${DIRECTUS_TOKEN_VALUE:-}
+            PINGO_DRIVE_STORAGE_DIR=${PINGO_DRIVE_STORAGE_DIR_VALUE:-/var/lib/pingo-drive-files}
+            PINGO_DRIVE_VOLUME_NAME=${PINGO_DRIVE_VOLUME_NAME_VALUE:-suoyunculari-yk_pingo_drive_files}
             EOF
             install -m 600 "$tmp_env" .env
             rm -f "$tmp_env"
+
+            shared_pingo_volume="${PINGO_DRIVE_VOLUME_NAME_VALUE:-suoyunculari-yk_pingo_drive_files}"
+            docker volume create "$shared_pingo_volume" >/dev/null
+            if docker ps -a --format '{{.Names}}' | grep -qx 'suoyunculari-app'; then
+              tmp_pingo_files="$(mktemp -d)"
+              if docker cp suoyunculari-app:/var/lib/pingo-drive-files/. "$tmp_pingo_files"/ 2>/dev/null; then
+                docker run --rm \
+                  -v "$shared_pingo_volume":/dest \
+                  -v "$tmp_pingo_files":/src:ro \
+                  alpine:3.20 sh -c 'mkdir -p /dest && cp -a /src/. /dest/'
+              fi
+              rm -rf "$tmp_pingo_files"
+            fi
 
             docker compose up -d --build --force-recreate app
             if [ -n "${DIRECTUS_TOKEN_VALUE:-}" ]; then

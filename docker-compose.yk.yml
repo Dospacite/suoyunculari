@@ -87,6 +87,7 @@ volumes:
   yk_postgres_data:
   pingo_redis_data:
   pingo_drive_files:
+    name: ${PINGO_DRIVE_VOLUME_NAME:-suoyunculari-yk_pingo_drive_files}
 
 networks:
   web:

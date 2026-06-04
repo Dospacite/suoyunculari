@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { cleanText } from '@/lib/yk';
+import type { QueryResultRow } from 'pg';
+import { cleanText, query } from '@/lib/yk';
 
 const DEFAULT_STORAGE_DIR = '/var/lib/pingo-drive-files';
 const DOCUMENT_DIRNAME = 'local-pdfs';
@@ -9,6 +10,7 @@ const MAX_PDF_BYTES = 80 * 1024 * 1024;
 
 export type LocalPdfDocument = {
   id: string;
+  source: 'local' | 'drive';
   title: string;
   filename: string;
   bytes: number;
@@ -16,6 +18,17 @@ export type LocalPdfDocument = {
   updatedAt: string;
   downloadHref: string;
   previewHref: string;
+};
+
+type DriveCachedPdfRow = QueryResultRow & {
+  file_id: string;
+  drive_name: string;
+  local_filename: string;
+  local_path: string;
+  download_mime_type: string;
+  bytes: number;
+  downloaded_at: string;
+  updated_at: string;
 };
 
 export type LocalPdfSearchResult =
@@ -46,6 +59,12 @@ export type LocalPdfSearchResult =
 export const getLocalPdfDirectory = () => path.join(process.env.PINGO_DRIVE_STORAGE_DIR || DEFAULT_STORAGE_DIR, DOCUMENT_DIRNAME);
 
 export async function listLocalPdfDocuments(): Promise<LocalPdfDocument[]> {
+  const [localDocuments, driveDocuments] = await Promise.all([listUploadedPdfDocuments(), listDrivePdfDocuments()]);
+  return [...localDocuments, ...driveDocuments]
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title, 'tr'));
+}
+
+async function listUploadedPdfDocuments(): Promise<LocalPdfDocument[]> {
   await ensureDocumentDir();
   const names = await fs.readdir(getLocalPdfDirectory()).catch(() => []);
   const documents = await Promise.all(
@@ -54,17 +73,38 @@ export async function listLocalPdfDocuments(): Promise<LocalPdfDocument[]> {
       .map(async (filename) => documentFromFilename(filename).catch(() => null)),
   );
   return documents
-    .filter((document): document is LocalPdfDocument => Boolean(document))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title, 'tr'));
+    .filter((document): document is LocalPdfDocument => Boolean(document));
+}
+
+async function listDrivePdfDocuments(): Promise<LocalPdfDocument[]> {
+  const result = await query<DriveCachedPdfRow>(
+    `select file_id,
+            drive_name,
+            local_filename,
+            local_path,
+            download_mime_type,
+            bytes,
+            downloaded_at::text,
+            updated_at::text
+       from pingo_drive_files
+      where download_mime_type = 'application/pdf'
+         or local_filename ~* '\\.pdf$'
+      order by updated_at desc`,
+  ).catch(() => ({ rows: [] as DriveCachedPdfRow[] }));
+  const documents = await Promise.all(result.rows.map((row) => driveDocumentFromRow(row).catch(() => null)));
+  return documents.filter((document): document is LocalPdfDocument => Boolean(document));
 }
 
 export async function getLocalPdfDocument(id: string) {
-  return documentFromFilename(assertSafeDocumentId(id));
+  const ref = parseDocumentId(id);
+  if (ref.source === 'local') return documentFromFilename(ref.value);
+  return getDrivePdfDocument(ref.value);
 }
 
 export async function readLocalPdf(id: string) {
+  const ref = parseDocumentId(id);
   const document = await getLocalPdfDocument(id);
-  const data = await fs.readFile(localPathForId(document.id));
+  const data = await fs.readFile(ref.source === 'local' ? localPathForId(ref.value) : await drivePathForId(ref.value));
   return { document, data };
 }
 
@@ -91,18 +131,22 @@ export async function uploadLocalPdfDocument(file: File) {
 
 export async function renameLocalPdfDocument(id: string, title: string) {
   await ensureDocumentDir();
-  const current = await getLocalPdfDocument(id);
+  const ref = parseDocumentId(id);
+  if (ref.source !== 'local') throw new Error('Drive PDFs cannot be renamed here.');
+  const current = await documentFromFilename(ref.value);
   const nextTitle = sanitizePdfTitle(title);
-  const prefix = current.id.split('-', 1)[0] || randomBytes(5).toString('hex');
+  const prefix = ref.value.split('-', 1)[0] || randomBytes(5).toString('hex');
   const nextId = uniqueFilename(`${prefix}-${nextTitle}.pdf`);
-  if (nextId !== current.id) {
-    await fs.rename(localPathForId(current.id), localPathForId(nextId));
+  if (nextId !== current.filename) {
+    await fs.rename(localPathForId(current.filename), localPathForId(nextId));
   }
   return documentFromFilename(nextId);
 }
 
 export async function deleteLocalPdfDocument(id: string) {
-  await fs.unlink(localPathForId(assertSafeDocumentId(id)));
+  const ref = parseDocumentId(id);
+  if (ref.source !== 'local') throw new Error('Drive PDFs cannot be deleted here.');
+  await fs.unlink(localPathForId(ref.value));
 }
 
 export async function searchLocalPdfDocument(args: Record<string, unknown>): Promise<LocalPdfSearchResult> {
@@ -119,7 +163,7 @@ export async function searchLocalPdfDocument(args: Record<string, unknown>): Pro
       found: false,
       title,
       reason: 'not_found',
-      candidates: documents.slice(0, 5).map((document) => ({ id: document.id, name: document.title })),
+      candidates: documents.slice(0, 5).map((document) => ({ id: document.id, name: `${document.title} (${document.source})` })),
     };
   }
   const token = createLocalPdfToken(match.id);
@@ -143,7 +187,7 @@ export async function searchLocalPdfDocument(args: Record<string, unknown>): Pro
 }
 
 export function createLocalPdfToken(id: string, ttlMs = 24 * 60 * 60 * 1000) {
-  const safeId = assertSafeDocumentId(id);
+  const safeId = normalizeDocumentId(id);
   const expiresAtMs = Date.now() + ttlMs;
   const payload = `${safeId}.${expiresAtMs}`;
   const signature = sign(payload);
@@ -171,22 +215,68 @@ export function verifyLocalPdfToken(token: string) {
   const actualBytes = Buffer.from(signature);
   const expectedBytes = Buffer.from(expected);
   if (actualBytes.length !== expectedBytes.length || !timingSafeEqual(actualBytes, expectedBytes)) return null;
-  return assertSafeDocumentId(id);
+  return normalizeDocumentId(id);
 }
 
 async function documentFromFilename(filename: string): Promise<LocalPdfDocument> {
-  const id = assertSafeDocumentId(filename);
-  const stats = await fs.stat(localPathForId(id));
+  const filenameSafe = assertSafeDocumentFilename(filename);
+  const stats = await fs.stat(localPathForId(filenameSafe));
   return {
-    id,
-    title: titleFromFilename(id),
-    filename: id,
+    id: `local:${filenameSafe}`,
+    source: 'local',
+    title: titleFromFilename(filenameSafe),
+    filename: filenameSafe,
     bytes: stats.size,
     createdAt: stats.birthtime.toISOString(),
     updatedAt: stats.mtime.toISOString(),
-    downloadHref: `/api/documents/${encodeURIComponent(id)}/download`,
-    previewHref: `/api/documents/${encodeURIComponent(id)}/view`,
+    downloadHref: `/api/documents/${encodeURIComponent(`local:${filenameSafe}`)}/download`,
+    previewHref: `/api/documents/${encodeURIComponent(`local:${filenameSafe}`)}/view`,
   };
+}
+
+async function driveDocumentFromRow(row: DriveCachedPdfRow): Promise<LocalPdfDocument> {
+  await fs.access(row.local_path);
+  return {
+    id: `drive:${row.file_id}`,
+    source: 'drive',
+    title: row.drive_name.replace(/\.pdf$/i, '') || row.local_filename,
+    filename: row.local_filename,
+    bytes: Number(row.bytes) || 0,
+    createdAt: row.downloaded_at,
+    updatedAt: row.updated_at,
+    downloadHref: `/api/documents/${encodeURIComponent(`drive:${row.file_id}`)}/download`,
+    previewHref: `/api/documents/${encodeURIComponent(`drive:${row.file_id}`)}/view`,
+  };
+}
+
+async function getDrivePdfDocument(fileId: string) {
+  const row = await getDrivePdfRow(fileId);
+  return driveDocumentFromRow(row);
+}
+
+async function drivePathForId(fileId: string) {
+  return (await getDrivePdfRow(fileId)).local_path;
+}
+
+async function getDrivePdfRow(fileId: string) {
+  const result = await query<DriveCachedPdfRow>(
+    `select file_id,
+            drive_name,
+            local_filename,
+            local_path,
+            download_mime_type,
+            bytes,
+            downloaded_at::text,
+            updated_at::text
+       from pingo_drive_files
+      where file_id = $1
+        and (download_mime_type = 'application/pdf' or local_filename ~* '\\.pdf$')
+      limit 1`,
+    [assertSafeDriveFileId(fileId)],
+  );
+  const row = result.rows[0];
+  if (!row) throw new Error('PDF not found.');
+  return row;
 }
 
 async function assertPdf(data: Buffer) {
@@ -199,10 +289,10 @@ async function ensureDocumentDir() {
 }
 
 function localPathForId(id: string) {
-  return path.join(getLocalPdfDirectory(), assertSafeDocumentId(id));
+  return path.join(getLocalPdfDirectory(), assertSafeDocumentFilename(id));
 }
 
-function assertSafeDocumentId(id: string) {
+function assertSafeDocumentFilename(id: string) {
   const value = cleanText(id, 180);
   if (!isPdfFilename(value) || value.includes('/') || value.includes('\\') || value.includes('..')) {
     throw new Error('Invalid PDF id.');
@@ -211,7 +301,29 @@ function assertSafeDocumentId(id: string) {
 }
 
 function uniqueFilename(filename: string) {
-  return assertSafeDocumentId(filename.replace(/-+/g, '-'));
+  return assertSafeDocumentFilename(filename.replace(/-+/g, '-'));
+}
+
+function parseDocumentId(id: string): { source: 'local' | 'drive'; value: string } {
+  const normalized = normalizeDocumentId(id);
+  const [source, ...rest] = normalized.split(':');
+  return { source: source as 'local' | 'drive', value: rest.join(':') };
+}
+
+function normalizeDocumentId(id: string) {
+  const value = cleanText(id, 260);
+  const [source, ...rest] = value.split(':');
+  const raw = rest.join(':');
+  if (source === 'local') return `local:${assertSafeDocumentFilename(raw)}`;
+  if (source === 'drive') return `drive:${assertSafeDriveFileId(raw)}`;
+  if (isPdfFilename(value)) return `local:${assertSafeDocumentFilename(value)}`;
+  throw new Error('Invalid PDF id.');
+}
+
+function assertSafeDriveFileId(id: string) {
+  const value = cleanText(id, 180);
+  if (!/^[a-zA-Z0-9_-]{8,180}$/.test(value)) throw new Error('Invalid Drive PDF id.');
+  return value;
 }
 
 function sanitizePdfTitle(value: string) {

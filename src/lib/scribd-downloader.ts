@@ -22,7 +22,7 @@ type FontInfo = {
 
 type PageAsset = {
   pageNum: number;
-  contentUrl: string;
+  contentUrl?: string;
   origWidth: number;
   origHeight: number;
   fragment?: string;
@@ -102,6 +102,19 @@ const assertAllowedSourceUrl = (value: string) => {
   }
   return url.href;
 };
+
+const extractScribdDocumentId = (sourceUrl: string) => {
+  try {
+    const url = new URL(sourceUrl);
+    return url.pathname.match(/^\/document\/(\d+)/)?.[1] || '';
+  } catch {
+    return '';
+  }
+};
+
+const embedContentUrlForDocument = (documentId: string) => (
+  `https://www.scribd.com/embeds/${encodeURIComponent(documentId)}/content?start_page=1&view_mode=scroll&show_recommendations=false`
+);
 
 const normalizeAssetUrl = (rawUrl: string) => {
   let url = decodeEntities(rawUrl).trim().replace(/^['"]|['"]$/g, '');
@@ -211,6 +224,8 @@ const isScribdClientChallenge = (html: string) => (
   html.includes('Please enable JavaScript to proceed')
 );
 
+const hasScribdPageAssets = (html: string) => /docManager\.addPage\(/.test(html);
+
 const requestText = async (url: string, referer?: string, signal?: AbortSignal) => {
   const timeout = withTimeoutSignal(signal);
   try {
@@ -243,6 +258,32 @@ const requestBuffer = async (url: string, referer: string, signal?: AbortSignal)
   }
 };
 
+const requestDocumentHtml = async (sourceUrl: string, signal?: AbortSignal) => {
+  const documentId = extractScribdDocumentId(sourceUrl);
+  const candidates = [
+    ...(documentId ? [embedContentUrlForDocument(documentId)] : []),
+    sourceUrl,
+  ];
+  let challenge = false;
+  let fallback: { html: string; referer: string } | null = null;
+
+  for (const candidate of candidates) {
+    const html = await requestText(candidate, sourceUrl, signal);
+    if (isScribdClientChallenge(html)) {
+      challenge = true;
+      continue;
+    }
+    if (hasScribdPageAssets(html)) return { html, referer: candidate };
+    fallback ??= { html, referer: candidate };
+  }
+
+  if (fallback) return fallback;
+  if (challenge) {
+    throw new ScribdDownloadError('Scribd returned a client challenge for the public document request.', 403);
+  }
+  throw new ScribdDownloadError('No Scribd document HTML was returned.', 404);
+};
+
 const runPool = async <T>(items: T[], limit: number, worker: (item: T, index: number) => Promise<void>, signal?: AbortSignal) => {
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -273,8 +314,8 @@ const parsePages = (pageHtml: string) => {
     const origWidth = Number(block.match(/origWidth:\s*(\d+)/s)?.[1]);
     const origHeight = Number(block.match(/origHeight:\s*(\d+)/s)?.[1]);
     const contentUrl = block.match(/contentUrl:\s*"([^"]+)"/s)?.[1];
-    if (pageNum && origWidth && origHeight && contentUrl) {
-      pages.push({ pageNum, origWidth, origHeight, contentUrl: assertAllowedAssetUrl(contentUrl) });
+    if (pageNum && origWidth && origHeight) {
+      pages.push({ pageNum, origWidth, origHeight, contentUrl: contentUrl ? assertAllowedAssetUrl(contentUrl) : undefined });
     }
   }
   pages.sort((a, b) => a.pageNum - b.pageNum);
@@ -361,6 +402,12 @@ const escapeXml = (value: string) => value
   .replace(/</g, '&lt;')
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;');
+
+const parseTitle = (pageHtml: string) => {
+  const match = pageHtml.match(/<title[^>]*>(.*?)<\/title>/is);
+  if (!match) return '';
+  return decodeEntities(match[1]).replace(/\s*\|\s*Scribd\s*$/i, '').trim();
+};
 
 const textOverlaySvg = (page: PageAsset, textRuns: TextRun[], fonts: Map<string, FontInfo>) => {
   const text = textRuns.map((run) => {
@@ -551,12 +598,9 @@ export const downloadScribdPdf = async ({ url, includeText, onProgress, signal }
   throwIfAborted(signal);
   const sourceUrl = assertAllowedSourceUrl(url);
   progress('Reading document', 0, 100);
-  const pageHtml = await requestText(sourceUrl, undefined, signal);
-  if (isScribdClientChallenge(pageHtml)) {
-    throw new ScribdDownloadError('Scribd returned a client challenge for the public document request.', 403);
-  }
+  const { html: pageHtml, referer } = await requestDocumentHtml(sourceUrl, signal);
   const state = extractState(pageHtml) as { wordDocument?: { title?: string; extracted_title?: string } };
-  const title = state.wordDocument?.title || state.wordDocument?.extracted_title || 'Scribd document';
+  const title = state.wordDocument?.title || state.wordDocument?.extracted_title || parseTitle(pageHtml) || 'Scribd document';
   const pages = parsePages(pageHtml);
   const fonts = parseFonts(pageHtml);
   const totalSteps = Math.max(1, pages.length * 2 + 2);
@@ -564,7 +608,9 @@ export const downloadScribdPdf = async ({ url, includeText, onProgress, signal }
 
   let fetchedPages = 0;
   await runPool(pages, MAX_PAGE_FETCHES, async (page) => {
-    page.fragment = decodeJsonp(await requestText(page.contentUrl, sourceUrl, signal), page.pageNum);
+    if (page.contentUrl) {
+      page.fragment = decodeJsonp(await requestText(page.contentUrl, referer, signal), page.pageNum);
+    }
     fetchedPages += 1;
     progress(`Fetching pages ${fetchedPages}/${pages.length}`, 1 + fetchedPages, totalSteps);
   }, signal);
@@ -575,7 +621,7 @@ export const downloadScribdPdf = async ({ url, includeText, onProgress, signal }
     let renderedCount = 0;
     await runPool(pages, RENDER_CONCURRENCY, async (page, index) => {
       throwIfAborted(signal);
-      renderedPages[index] = await renderPage(page, fonts, includeText, sourceUrl, imageCache, signal);
+      renderedPages[index] = await renderPage(page, fonts, includeText, referer, imageCache, signal);
       renderedCount += 1;
       progress(`Rendering pages ${renderedCount}/${pages.length}`, 1 + pages.length + renderedCount, totalSteps);
     }, signal);

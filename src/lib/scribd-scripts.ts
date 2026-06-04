@@ -7,6 +7,7 @@ const SCRIBD_BASE_URL = 'https://www.scribd.com';
 const DEFAULT_PUBLIC_BASE_URL = 'https://assets.suoyunculari.com';
 const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36';
 const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_WEBHOOK_PDF_BYTES = 100 * 1024 * 1024;
 
 type ScribdSearchConfig = {
   maxResults: number;
@@ -95,6 +96,16 @@ export async function searchScribdScripts(
     return { kind: 'search', found: false, query, searchUrl, reason: 'missing_query' };
   }
 
+  const webhookResult = await searchScribdScriptsViaWebhook(query, config.maxResults).catch((error) => ({
+    kind: 'search' as const,
+    found: false as const,
+    query,
+    searchUrl,
+    reason: 'request_failed' as const,
+    error: safeError(error),
+  }));
+  if (webhookResult) return webhookResult;
+
   const apiUrl = buildSearchApiUrl(query);
   let response: Response;
   let text = '';
@@ -154,7 +165,8 @@ export async function downloadScribdScript(input: {
   if (!url) return { kind: 'download', downloaded: false, reason: 'invalid_url', url: cleanText(input.url, 500) };
 
   try {
-    const result = await downloadScribdPdf({ url, includeText: true });
+    const result = await downloadScribdScriptViaWebhook({ url, title: input.title, pageCount: input.pageCount })
+      .then((webhookResult) => webhookResult ?? downloadScribdPdf({ url, includeText: true }));
     const documentId = extractDocumentId(url) || url;
     const title = cleanText(input.title, 180) || result.filename.replace(/\.pdf$/i, '') || 'Scribd document';
     const document = await savePermanentScriptPdf({
@@ -193,6 +205,89 @@ export async function downloadScribdScript(input: {
       error: message,
     };
   }
+}
+
+async function searchScribdScriptsViaWebhook(query: string, maxResults: number): Promise<ScribdScriptSearchResponse | null> {
+  const webhookUrl = cleanText(process.env.PINGO_SCRIBD_SEARCH_WEBHOOK_URL || process.env.PINGO_SCRIBD_WEBHOOK_URL, 600);
+  if (!webhookUrl) return null;
+  const payload = await postWebhook(webhookUrl, { action: 'search', query, maxResults });
+  const rawResults = Array.isArray(payload.results) ? payload.results : [];
+  const results = rawResults
+    .map(normalizeWebhookSearchResult)
+    .filter((item): item is Omit<ScribdScriptResult, 'index'> => Boolean(item))
+    .slice(0, maxResults)
+    .map((result, index) => ({ ...result, index: index + 1 }));
+  const searchUrl = buildSearchPageUrl(query);
+  if (!results.length) {
+    return { kind: 'search', found: false, query, searchUrl, reason: 'not_found' };
+  }
+  return {
+    kind: 'search',
+    found: true,
+    query,
+    searchUrl,
+    totalResults: toNumber(payload.totalResults ?? payload.total_results_count),
+    results,
+  };
+}
+
+async function downloadScribdScriptViaWebhook(input: { url: string; title?: string; pageCount?: number | null }) {
+  const webhookUrl = cleanText(process.env.PINGO_SCRIBD_DOWNLOADER_WEBHOOK_URL || process.env.PINGO_SCRIBD_WEBHOOK_URL, 600);
+  if (!webhookUrl) return null;
+  const payload = await postWebhook(webhookUrl, {
+    action: 'download',
+    url: input.url,
+    title: cleanText(input.title, 180),
+    pageCount: input.pageCount,
+    includeText: true,
+  });
+  const pdf = decodeWebhookPdf(payload);
+  return {
+    filename: cleanText(payload.filename, 180) || `${cleanText(input.title, 120) || 'scribd-document'}.pdf`,
+    pdf,
+    pageCount: toNumber(payload.pageCount) ?? input.pageCount ?? 0,
+  };
+}
+
+async function postWebhook(webhookUrl: string, body: Record<string, unknown>) {
+  let url: URL;
+  try {
+    url = new URL(webhookUrl);
+  } catch {
+    throw new Error('Invalid Scribd webhook URL.');
+  }
+  if (url.protocol !== 'https:' && url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
+    throw new Error('Scribd webhook URL must use HTTPS.');
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(process.env.PINGO_SCRIBD_WEBHOOK_SECRET ? { 'X-Pingo-Webhook-Secret': process.env.PINGO_SCRIBD_WEBHOOK_SECRET } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!response.ok || !payload) {
+      throw new Error(`Scribd webhook failed: ${cleanText(payload?.error ?? payload?.message, 300) || response.status}`);
+    }
+    return payload;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function decodeWebhookPdf(payload: Record<string, unknown>) {
+  const encoded = String(payload.pdfBase64 ?? payload.pdf_base64 ?? '').replace(/\s+/g, '');
+  if (!encoded) throw new Error('Scribd webhook did not return pdfBase64.');
+  const pdf = Buffer.from(encoded, 'base64');
+  if (pdf.byteLength > MAX_WEBHOOK_PDF_BYTES) throw new Error('Scribd webhook PDF is too large.');
+  if (!pdf.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new Error('Scribd webhook returned invalid PDF data.');
+  return pdf;
 }
 
 export function normalizeScribdDocumentUrl(value: unknown) {
@@ -276,6 +371,23 @@ function normalizeSearchDocument(document: ScribdSearchDocument): Omit<ScribdScr
     releasedAt: cleanText(document.releasedAt, 40),
     views: cleanText(document.views, 40),
     ratingCount,
+  };
+}
+
+function normalizeWebhookSearchResult(document: Record<string, unknown>): Omit<ScribdScriptResult, 'index'> | null {
+  const title = cleanText(document.title, 220);
+  const url = normalizeScribdDocumentUrl(document.url ?? document.reader_url ?? document.href);
+  const id = cleanText(document.id, 80) || extractDocumentId(url);
+  if (!id || !title || !url) return null;
+  return {
+    id,
+    title,
+    url,
+    pageCount: toNumber(document.pageCount ?? document.page_count),
+    author: cleanText(document.author, 140),
+    releasedAt: cleanText(document.releasedAt ?? document.released_at, 40),
+    views: cleanText(document.views, 40),
+    ratingCount: toNumber(document.ratingCount ?? document.rating_count),
   };
 }
 

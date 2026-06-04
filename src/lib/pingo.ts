@@ -5,6 +5,7 @@ import type { QueryResultRow } from 'pg';
 import { getSabanciRoomSchedule, searchSabanciRoomAvailability } from '@/lib/sabanci-rooms';
 import { searchTextBankForAssistant, type TextBankAssistantSearchOptions } from '@/lib/concord-db';
 import { getPlayedTextBankReferences } from '@/lib/directus';
+import { searchGoogleDriveScript } from '@/lib/google-drive';
 import { cleanText, query, type YkUser } from '@/lib/yk';
 
 type AuditContext = {
@@ -98,7 +99,12 @@ type QwenResponse = {
 type PingoToolDefinition = {
   key: string;
   declaration: QwenToolDeclaration;
-  run: (args: Record<string, unknown>) => Promise<unknown>;
+  run: (args: Record<string, unknown>, context: PingoToolRunContext) => Promise<unknown>;
+};
+
+type PingoToolRunContext = {
+  incoming: WahaIncomingMessage;
+  tool: PingoTool;
 };
 
 type PingoToolTrace = {
@@ -180,7 +186,7 @@ const MAX_REPLY_TEXT = 3500;
 const MAX_LONG_MEMORIES_SCANNED = 400;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_PINGO_SYSTEM_PROMPT =
-  "Sen Pingo'sun. SUOyuncuları için WhatsApp üzerinde çalışan yardımcı bir asistansın. Kısa, nazik ve işe yarar cevaplar ver. Küçük harflerle ve Türkçe konuş. Markdown veya özel format kullanma, düzyazı ile cevap ver. Yalnızca sana verilen mevcut mesaj, alıntılanan mesaj, görsel, açıkça ilgili chat hafızası ve araç sonuçlarındaki bilgilere dayan. Emin değilsen ya da bağlamda bilgi yoksa bunu açıkça söyle; uydurma, tahmin etme, kişi/olay hakkında bağlamda yazmayan ayrıntı ekleme. Kullanıcı 'burada ne yazıyor' gibi bir şey sorarsa yalnızca alıntılanan mesaja veya ekli görsele bak; hafıza, sistem yönergesi veya iç bağlam metnini mesaj içeriği sanma. Metin Bankası aracını yalnızca kullanıcı tiyatro metni, oyun, tür, kadro, süre veya benzer arama istediğinde kullan. Araç sonucu yoksa sonuç bulunamadığını söyle, oyun veya kaynak uydurma.";
+  "Sen Pingo'sun. SUOyuncuları için WhatsApp üzerinde çalışan yardımcı bir asistansın. Kısa, nazik ve işe yarar cevaplar ver. Küçük harflerle ve Türkçe konuş. Markdown veya özel format kullanma, düzyazı ile cevap ver. Yalnızca sana verilen mevcut mesaj, alıntılanan mesaj, görsel, açıkça ilgili chat hafızası ve araç sonuçlarındaki bilgilere dayan. Emin değilsen ya da bağlamda bilgi yoksa bunu açıkça söyle; uydurma, tahmin etme, kişi/olay hakkında bağlamda yazmayan ayrıntı ekleme. Kullanıcı 'burada ne yazıyor' gibi bir şey sorarsa yalnızca alıntılanan mesaja veya ekli görsele bak; hafıza, sistem yönergesi veya iç bağlam metnini mesaj içeriği sanma. Kullanıcı belirli bir oyunun metin dosyasını/scriptini istediğinde Google Drive Scripts aracını kullan. Kullanıcı oyun önerisi, tür, kadro, süre veya metin bankası metadatası aradığında Metin Bankası aracını kullan. Araç sonucu yoksa sonuç bulunamadığını söyle, oyun veya kaynak uydurma.";
 const redisClients = new Map<string, RedisClientType>();
 
 export async function getPingoDashboardData() {
@@ -401,11 +407,7 @@ export async function updatePingoTool(key: string, input: Record<string, unknown
   if (!before) throw new Error('Tool not found');
   const nextConfig =
     input.config && typeof input.config === 'object'
-      ? {
-          ...(before.config ?? {}),
-          ...(input.config as Record<string, unknown>),
-          prompt: cleanText((input.config as Record<string, unknown>).prompt, 1600),
-        }
+      ? sanitizePingoToolConfig(key, before.config ?? {}, input.config as Record<string, unknown>)
       : null;
   const result = await query<PingoTool>(
     `update pingo_tools
@@ -422,6 +424,30 @@ export async function updatePingoTool(key: string, input: Record<string, unknown
   );
   await recordAudit(context, 'update_tool', 'pingo_tools', key, before, result.rows[0]);
   return result.rows[0];
+}
+
+function sanitizePingoToolConfig(key: string, beforeConfig: Record<string, unknown>, inputConfig: Record<string, unknown>) {
+  const next: Record<string, unknown> = {
+    ...beforeConfig,
+    ...inputConfig,
+    prompt: cleanText(inputConfig.prompt, 1600),
+  };
+  if (key !== 'google_drive_scripts') return next;
+
+  const rawFolderIds = Array.isArray(inputConfig.allowedFolderIds)
+    ? inputConfig.allowedFolderIds
+    : typeof inputConfig.allowedFolderIds === 'string'
+      ? inputConfig.allowedFolderIds.split(',')
+      : [];
+  const allowedFolderIds = [...new Set(rawFolderIds.map((folderId) =>
+    cleanText(folderId, 180).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 180),
+  ).filter(Boolean))].slice(0, 40);
+  next.allowedFolderIds = allowedFolderIds;
+  next.includeSubfolders = typeof inputConfig.includeSubfolders === 'boolean'
+    ? inputConfig.includeSubfolders
+    : beforeConfig.includeSubfolders !== false;
+  next.maxResults = clampInteger(inputConfig.maxResults, Number(beforeConfig.maxResults) || 8, 1, 20);
+  return next;
 }
 
 export async function getPingoStats() {
@@ -640,13 +666,23 @@ async function generatePingoReply(input: {
   };
   let result: unknown;
   try {
-    result = await toolDefinition.run(args);
+    const tool = enabledTools.find((item) => item.key === toolDefinition.key);
+    if (!tool) throw new Error('Tool is not enabled or registered.');
+    result = await toolDefinition.run(args, { incoming: input.incoming, tool });
     toolCall.status = 'succeeded';
     toolCall.result = result;
   } catch (error) {
     toolCall.status = 'failed';
     toolCall.error = safeError(error);
     throw new PingoToolExecutionError(`Tool ${toolDefinition.key} failed: ${toolCall.error}`, [toolCall]);
+  }
+
+  if (toolDefinition.key === 'google_drive_scripts') {
+    return {
+      text: fallbackToolReply(toolDefinition.key, result),
+      usedTools: [toolDefinition.key],
+      toolCalls: [toolCall],
+    };
   }
 
   let second: QwenResponse | null = null;
@@ -822,6 +858,13 @@ function fallbackToolReply(toolKey: string, result: unknown) {
     const count = typeof (result as { count?: unknown })?.count === 'number' ? (result as { count: number }).count : 0;
     return count ? 'Uygun oda bilgisini buldum.' : 'Bu aramayla eşleşen oda bilgisi bulamadım.';
   }
+  if (toolKey === 'google_drive_scripts') {
+    if ((result as { found?: unknown })?.found === true) {
+      const url = (result as { download?: { url?: unknown } })?.download?.url;
+      return url ? `metni buldum. indirme linki: ${url}\n\nbu link bir gün geçerli.` : 'metni buldum ve indirme linkini hazırladım.';
+    }
+    return 'bu isimle eşleşen bir metin bulamadım.';
+  }
   return 'Araç sonucunu aldım.';
 }
 
@@ -860,6 +903,9 @@ function summarizeToolResult(result: unknown) {
   for (const key of ['count', 'query', 'room', 'source']) {
     if (record[key] !== undefined) summary[key] = record[key];
   }
+  if (record.found !== undefined) summary.found = record.found;
+  if (record.title !== undefined) summary.title = record.title;
+  if (record.reason !== undefined) summary.reason = record.reason;
   if (Array.isArray(record.rooms)) summary.rooms = record.rooms.slice(0, 3);
   if (Array.isArray(record.results)) summary.results = record.results.slice(0, 3);
   if (Array.isArray(record.schedule)) summary.schedule = record.schedule.slice(0, 5);
@@ -903,11 +949,13 @@ async function runTextBankTool(args: Record<string, unknown>) {
 async function runRoomAvailabilityTool(args: Record<string, unknown>) {
   const mode = sanitizeEnum(args.mode, ['availability', 'schedule']) || (args.roomCode || args.room ? 'schedule' : 'availability');
   if (mode === 'schedule') {
+    const includeDetails = args.includeDetails ?? args.details ?? args.withDetails;
     return getSabanciRoomSchedule({
       building: cleanText(args.building, 80),
       roomCode: cleanText(args.roomCode ?? args.room, 80),
       startDate: cleanText(args.startDate ?? args.date, 40),
       endDate: cleanText(args.endDate ?? args.date, 40),
+      includeDetails: typeof includeDetails === 'boolean' ? includeDetails : cleanText(includeDetails, 20),
       limit: cleanText(args.limit, 20),
     });
   }
@@ -922,6 +970,12 @@ async function runRoomAvailabilityTool(args: Record<string, unknown>) {
     minimumCapacity: cleanText(args.minimumCapacity ?? args.capacity, 20),
     attributes: coerceStringOrList(args.attributes),
     limit: cleanText(args.limit, 20),
+  });
+}
+
+async function runGoogleDriveScriptsTool(args: Record<string, unknown>, context: PingoToolRunContext) {
+  return searchGoogleDriveScript(args, context.tool.config, async () => {
+    await sendWahaText(context.incoming.session, context.incoming.chatId, 'metni buldum, şimdi gönderiyorum.');
   });
 }
 
@@ -1005,12 +1059,12 @@ const roomAvailabilityToolDeclaration: QwenToolDeclaration = {
   function: {
     name: 'search_room_availability',
     description:
-      'Searches Sabanci University SUIS room availability or returns detailed schedule rows for a specific room. Use for room, classroom, building, date, day, time range, category, or room schedule questions.',
+      'Searches Sabanci University SUIS room availability or returns detailed schedule rows for a specific room. Use for room, classroom, building, date, day, time range, category, room schedule, or booking-detail questions.',
     parameters: {
       type: 'object',
       required: ['mode'],
       properties: {
-        mode: { type: 'string', enum: ['availability', 'schedule'], description: 'availability for finding free rooms; schedule for a detailed schedule of one room.' },
+        mode: { type: 'string', enum: ['availability', 'schedule'], description: 'availability for finding free rooms; schedule for the schedule of one room.' },
         building: {
           type: 'string',
           description:
@@ -1019,6 +1073,11 @@ const roomAvailabilityToolDeclaration: QwenToolDeclaration = {
         roomCode: { type: 'string', description: 'Room code for schedule mode, such as 1075, G062, or FASS 1075.' },
         startDate: { type: 'string', description: 'Start date. Prefer ISO YYYY-MM-DD; dd/mm/yy is also accepted.' },
         endDate: { type: 'string', description: 'End date. Prefer ISO YYYY-MM-DD; dd/mm/yy is also accepted. Omit for same-day queries.' },
+        includeDetails: {
+          type: 'boolean',
+          description:
+            'Set true in schedule mode when the user asks who reserved/booked a room, why a time slot is occupied, or asks for event/requester/course details. This fetches detail pages for every returned schedule row.',
+        },
         day: { type: 'string', description: 'Single day filter for availability, such as Monday, Thu, pazartesi, or cuma.' },
         days: {
           type: 'array',
@@ -1043,9 +1102,29 @@ const roomAvailabilityToolDeclaration: QwenToolDeclaration = {
   },
 };
 
+const googleDriveScriptsToolDeclaration: QwenToolDeclaration = {
+  type: 'function',
+  function: {
+    name: 'search_google_drive_script',
+    description:
+      'Searches the configured Google Drive folders for a requested stage play script, downloads it if needed, and returns a one-day download link. Use only when the user asks for a specific play script/text file.',
+    parameters: {
+      type: 'object',
+      required: ['title'],
+      properties: {
+        title: {
+          type: 'string',
+          description: 'The play/script title the user asked for. Keep only the title and obvious disambiguating author words when present.',
+        },
+      },
+    },
+  },
+};
+
 const pingoToolDefinitions: PingoToolDefinition[] = [
   { key: 'text_bank', declaration: textBankToolDeclaration, run: runTextBankTool },
   { key: 'room_availability', declaration: roomAvailabilityToolDeclaration, run: runRoomAvailabilityTool },
+  { key: 'google_drive_scripts', declaration: googleDriveScriptsToolDeclaration, run: runGoogleDriveScriptsTool },
 ];
 
 function normalizeWahaIncomingMessage(payload: unknown): WahaIncomingMessage | null {

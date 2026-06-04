@@ -10,6 +10,10 @@ const webhookUrl = `${Astro.url.origin}/api/pingo/waha`;
 const redisConfigured = Boolean(process.env.PINGO_REDIS_URL || process.env.REDIS_URL);
 const formatJson = (value: unknown) => (value ? JSON.stringify(value, null, 2) : '');
 const toolPrompt = (tool: { config: Record<string, unknown> }) => (typeof tool.config?.prompt === 'string' ? tool.config.prompt : '');
+const driveFolderIds = (tool: { config: Record<string, unknown> }) =>
+  Array.isArray(tool.config?.allowedFolderIds) ? tool.config.allowedFolderIds.filter((item) => typeof item === 'string').join(', ') : '';
+const driveIncludeSubfolders = (tool: { config: Record<string, unknown> }) => tool.config?.includeSubfolders !== false;
+const driveMaxResults = (tool: { config: Record<string, unknown> }) => Number(tool.config?.maxResults || 8);
 ---
 
 <YkLayout title="Pingo" user={user}>
@@ -147,6 +151,27 @@ const toolPrompt = (tool: { config: Record<string, unknown> }) => (typeof tool.c
             Araç yönergesi
             <textarea name="prompt" rows="4">{toolPrompt(tool)}</textarea>
           </label>
+          {
+            tool.key === 'google_drive_scripts' && (
+              <div class="pingo-drive-config">
+                <label>
+                  Drive folder IDs
+                  <textarea name="allowedFolderIds" rows="3" placeholder="Folder ID, Folder ID">{driveFolderIds(tool)}</textarea>
+                </label>
+                <label>
+                  Alt klasörler
+                  <select name="includeSubfolders">
+                    <option value="true" selected={driveIncludeSubfolders(tool)}>Dahil</option>
+                    <option value="false" selected={!driveIncludeSubfolders(tool)}>Sadece bu klasörler</option>
+                  </select>
+                </label>
+                <label>
+                  Sonuç limiti
+                  <input name="maxResults" type="number" min="1" max="20" value={driveMaxResults(tool)} />
+                </label>
+              </div>
+            )
+          }
         </form>
       ))}
     </div>
@@ -293,9 +318,15 @@ const toolPrompt = (tool: { config: Record<string, unknown> }) => (typeof tool.c
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const body = formData(form);
+        const config = { prompt: body.prompt };
+        if (form.dataset.key === 'google_drive_scripts') {
+          config.allowedFolderIds = body.allowedFolderIds;
+          config.includeSubfolders = toBool(body.includeSubfolders);
+          config.maxResults = Number(body.maxResults);
+        }
         await postJson(`/api/pingo/tools/${form.dataset.key}`, 'PATCH', {
           enabled: toBool(body.enabled),
-          config: { prompt: body.prompt },
+          config,
         });
         window.location.reload();
       });
@@ -454,6 +485,12 @@ const toolPrompt = (tool: { config: Record<string, unknown> }) => (typeof tool.c
     padding-top: 12px;
   }
 
+  .pingo-drive-config {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) 170px 130px;
+  }
+
   .pingo-tool-head {
     align-items: end;
     display: grid;
@@ -578,7 +615,8 @@ const toolPrompt = (tool: { config: Record<string, unknown> }) => (typeof tool.c
     .pingo-access-form,
     .pingo-row,
     [data-tool-form].pingo-row,
-    .pingo-tool-head {
+    .pingo-tool-head,
+    .pingo-drive-config {
       grid-template-columns: 1fr;
     }
   }

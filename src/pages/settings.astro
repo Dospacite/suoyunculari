@@ -1,17 +1,65 @@
 ---
 import YkLayout from '@/layouts/YkLayout.astro';
+import { getGoogleDriveStatus } from '@/lib/google-drive';
 import { getRollCallData, listSheets } from '@/lib/yk';
+import { isAdmin } from '@/lib/yk';
 
 const user = Astro.locals.user!;
 const sheets = await listSheets();
 const selectedId = Astro.url.searchParams.get('sheet') || sheets[0]?.id || '';
 const data = selectedId ? await getRollCallData(selectedId) : null;
+const driveStatus = isAdmin(user) ? await getGoogleDriveStatus(Astro.url) : null;
+const driveMessage = Astro.url.searchParams.get('drive');
+const driveError = Astro.url.searchParams.get('message');
 ---
 
 <YkLayout title="Ayarlar" user={user}>
   <header class="page-head">
     <h1>Ayarlar</h1>
   </header>
+
+  {
+    driveStatus && (
+      <section class="panel drive-settings">
+        <div>
+          <h2>Pingo Google Drive</h2>
+          <p>Connect the Drive account Pingo uses to search and send script files.</p>
+        </div>
+        {driveMessage === 'connected' && <p class="notice ok">Google Drive bağlantısı hazır.</p>}
+        {driveMessage === 'error' && <p class="notice error">{driveError || 'Google Drive bağlantısı tamamlanamadı.'}</p>}
+        <dl class="detail-list">
+          <div>
+            <dt>OAuth config</dt>
+            <dd>{driveStatus.configured ? 'Configured' : 'Missing client id or secret'}</dd>
+          </div>
+          <div>
+            <dt>Account</dt>
+            <dd>{driveStatus.connected ? driveStatus.accountEmail || 'Connected' : 'Not connected'}</dd>
+          </div>
+          <div>
+            <dt>Redirect URI</dt>
+            <dd>{driveStatus.redirectUri}</dd>
+          </div>
+          <div>
+            <dt>Download base</dt>
+            <dd>{driveStatus.publicBaseUrl}</dd>
+          </div>
+        </dl>
+        <div class="toolbar compact-toolbar">
+          <a class="button" href="/api/pingo/drive/oauth/start" aria-disabled={!driveStatus.configured}>
+            {driveStatus.connected ? 'Reconnect Drive' : 'Connect Drive'}
+          </a>
+          {
+            driveStatus.connected && (
+              <form data-drive-disconnect>
+                <button type="submit" class="secondary">Disconnect</button>
+              </form>
+            )
+          }
+        </div>
+      </section>
+    )
+  }
 
   {
     data ? (
@@ -65,6 +113,12 @@ const data = selectedId ? await getRollCallData(selectedId) : null;
       window.location.href = `/settings?sheet=${encodeURIComponent(event.currentTarget.value)}`;
     });
 
+    document.querySelector('[data-drive-disconnect]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await postJson('/api/pingo/drive/disconnect', 'POST', {});
+      window.location.href = '/settings';
+    });
+
     document.querySelectorAll('[data-state-form]').forEach((form) => {
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -76,3 +130,30 @@ const data = selectedId ? await getRollCallData(selectedId) : null;
     });
   </script>
 </YkLayout>
+
+<style>
+  .drive-settings {
+    margin-bottom: 18px;
+  }
+
+  .compact-toolbar {
+    border-bottom: 0;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .notice {
+    border-left: 4px solid var(--line);
+    padding: 12px;
+  }
+
+  .notice.ok {
+    background: #edf8f1;
+    border-color: var(--ok);
+    color: var(--ok);
+  }
+
+  .drive-settings dd {
+    overflow-wrap: anywhere;
+  }
+</style>

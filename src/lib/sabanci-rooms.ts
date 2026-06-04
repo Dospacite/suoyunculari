@@ -18,6 +18,7 @@ export type RoomScheduleInput = {
   roomCode?: string;
   startDate?: string;
   endDate?: string;
+  includeDetails?: boolean | string;
   limit?: number | string;
 };
 
@@ -40,6 +41,17 @@ type RoomScheduleResult = {
   days: string;
   detailUrl: string;
   suForm: string;
+  detail?: RoomBookingDetail | null;
+  detailError?: string;
+};
+
+type RoomBookingDetail = {
+  name: string;
+  eventNo: string;
+  eventName: string;
+  fields: Record<string, string>;
+  room: Record<string, string>;
+  source: string;
 };
 
 const BASE_URL = 'https://suis.sabanciuniv.edu/prod';
@@ -210,6 +222,8 @@ export async function getSabanciRoomSchedule(input: RoomScheduleInput) {
   url.searchParams.set('r_code', normalized.roomCode);
   const html = await fetchText(url, { method: 'GET' });
   const parsed = parseScheduleHtml(html);
+  const schedule = parsed.schedule.slice(0, normalized.limit);
+  const scheduleWithDetails = normalized.includeDetails ? await getSabanciRoomScheduleDetails(schedule) : schedule;
   return {
     query: {
       mode: 'schedule',
@@ -217,12 +231,31 @@ export async function getSabanciRoomSchedule(input: RoomScheduleInput) {
       roomCode: normalized.roomCode,
       startDate: normalized.startDate,
       endDate: normalized.endDate,
+      includeDetails: normalized.includeDetails,
     },
     room: parsed.room,
     count: parsed.schedule.length,
-    schedule: parsed.schedule.slice(0, normalized.limit),
+    detailsFetched: normalized.includeDetails ? scheduleWithDetails.filter((row) => row.detail).length : 0,
+    schedule: scheduleWithDetails,
     source: url.toString(),
   };
+}
+
+export async function getSabanciRoomScheduleDetails(schedule: RoomScheduleResult[]) {
+  const cache = new Map<string, Promise<RoomBookingDetail>>();
+  return mapLimit(schedule, 4, async (row) => {
+    if (!row.detailUrl) return row;
+    try {
+      let detail = cache.get(row.detailUrl);
+      if (!detail) {
+        detail = fetchSabanciRoomBookingDetail(row.detailUrl);
+        cache.set(row.detailUrl, detail);
+      }
+      return { ...row, detail: await detail };
+    } catch (error) {
+      return { ...row, detail: null, detailError: error instanceof Error ? error.message : String(error) };
+    }
+  });
 }
 
 function normalizeAvailabilityInput(input: RoomAvailabilitySearchInput) {
@@ -262,8 +295,15 @@ function normalizeScheduleInput(input: RoomScheduleInput) {
     roomCode,
     startDate: normalizeDate(input.startDate) || today,
     endDate: normalizeDate(input.endDate) || normalizeDate(input.startDate) || today,
-    limit: normalizeLimit(input.limit, 20, 80),
+    includeDetails: normalizeBoolean(input.includeDetails),
+    limit: normalizeLimit(input.limit, 80, 200),
   };
+}
+
+async function fetchSabanciRoomBookingDetail(detailUrl: string): Promise<RoomBookingDetail> {
+  const url = new URL(detailUrl);
+  const html = await fetchText(url, { method: 'GET' });
+  return parseBookingDetailHtml(html, url.toString());
 }
 
 async function postRoomEndpoint(path: string, body: URLSearchParams) {
@@ -351,6 +391,42 @@ function parseScheduleHtml(html: string): { room: Record<string, string>; schedu
     });
   });
   return { room, schedule };
+}
+
+function parseBookingDetailHtml(html: string, source: string): RoomBookingDetail {
+  const $ = cheerio.load(html);
+  const room: Record<string, string> = {};
+  const firstRows = $('table.table-bordered').first().find('> tbody > tr, > tr');
+  firstRows.slice(0, 2).each((_, row) => {
+    const headers = $(row).find('th').map((__, cell) => cleanCellText($(cell).text())).get();
+    const values = $(row).find('td').map((__, cell) => cleanCellText($(cell).text())).get();
+    headers.forEach((header, index) => {
+      if (header && values[index]) room[toCamelCase(header)] = values[index];
+    });
+  });
+
+  const fields: Record<string, string> = {};
+  $('table.table-bordered table.table-bordered tr').each((_, row) => {
+    const cells = $(row)
+      .find('td')
+      .map((__, cell) => cleanCellText($(cell).text()))
+      .get();
+    if (cells.length < 2) return;
+    const label = cells[0];
+    const value = cells.slice(1).join(' ');
+    if (label && value) fields[toCamelCase(label)] = value;
+  });
+
+  const eventNoName = fields.eventNoName || '';
+  const eventMatch = eventNoName.match(/^([^/]+)\s*\/\s*(.+)$/);
+  return {
+    name: fields.name || '',
+    eventNo: eventMatch ? eventMatch[1].trim() : '',
+    eventName: eventMatch ? eventMatch[2].trim() : eventNoName,
+    fields,
+    room,
+    source,
+  };
 }
 
 function normalizeMulti(value: unknown, normalizer: (item: string) => string): string[] {
@@ -458,6 +534,27 @@ function normalizeLimit(value: unknown, fallback: number, max: number) {
   return Math.min(max, Math.max(1, parsed));
 }
 
+function normalizeBoolean(value: unknown) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  const raw = cleanCellText(String(value ?? '')).toLocaleLowerCase('tr-TR');
+  return ['true', '1', 'yes', 'y', 'evet', 'detay', 'details', 'detail'].includes(raw);
+}
+
+async function mapLimit<T, U>(items: T[], limit: number, mapper: (item: T, index: number) => Promise<U>) {
+  const results = new Array<U>(items.length);
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 function parseInteger(value: string) {
   const parsed = Number.parseInt(value.replace(/[^\d-]/g, ''), 10);
   return Number.isFinite(parsed) ? parsed : null;
@@ -477,8 +574,11 @@ function absolutize(href: string | undefined) {
 }
 
 function toCamelCase(value: string) {
-  return value
+  const words = value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9]+(.)/g, (_, char: string) => char.toUpperCase())
-    .replace(/[^a-z0-9]/g, '');
+    .match(/[a-z0-9]+/g);
+  if (!words?.length) return '';
+  return words.map((word, index) => (index ? `${word[0].toUpperCase()}${word.slice(1)}` : word)).join('');
 }

@@ -1,7 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { getSessionUser } from '@/lib/yk';
 
-const publicPrefixes = ['/login', '/api/auth/login', '/api/pingo/waha', '/favicon.svg', '/Logo.svg', '/pingo.svg', '/_astro', '/images'];
+const publicPrefixes = ['/login', '/api/auth/login', '/api/pingo/waha', '/drive', '/favicon.svg', '/Logo.svg', '/pingo.svg', '/_astro', '/images'];
 const appPrefixes = [
   '/change-password',
   '/roll-call',

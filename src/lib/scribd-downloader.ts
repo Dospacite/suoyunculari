@@ -1,3 +1,4 @@
+import os from 'node:os';
 import sharp from 'sharp';
 import { load } from 'cheerio';
 
@@ -5,9 +6,13 @@ const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, l
 const TEXT_LAYER_SCALE = 0.2;
 const MAX_PAGE_FETCHES = 6;
 const MAX_IMAGE_FETCHES = 8;
+const CPU_COUNT = Math.max(1, os.availableParallelism?.() ?? os.cpus().length);
+const RENDER_CONCURRENCY = Math.max(1, Math.min(Number(process.env.SCRIBD_RENDER_CONCURRENCY || 0) || Math.ceil(CPU_COUNT / 2), 4));
+const SHARP_CONCURRENCY = Math.max(1, Math.min(Number(process.env.SCRIBD_SHARP_CONCURRENCY || 0) || Math.ceil(CPU_COUNT / RENDER_CONCURRENCY), 4));
 const REQUEST_TIMEOUT_MS = 60_000;
 
 sharp.cache(false);
+sharp.concurrency(SHARP_CONCURRENCY);
 
 type FontInfo = {
   family: string;
@@ -395,16 +400,22 @@ const prepareImageLayer = async (layer: ImageLayer, source: Buffer) => {
   };
 };
 
-const renderPage = async (page: PageAsset, fonts: Map<string, FontInfo>, includeText: boolean, referer: string, imageCache: Map<string, Buffer>, signal?: AbortSignal): Promise<RenderedPage> => {
+const getCachedImage = (url: string, referer: string, imageCache: Map<string, Promise<Buffer>>, signal?: AbortSignal) => {
+  const cached = imageCache.get(url);
+  if (cached) return cached;
+  const promise = requestBuffer(url, referer, signal).catch((error) => {
+    imageCache.delete(url);
+    throw error;
+  });
+  imageCache.set(url, promise);
+  return promise;
+};
+
+const renderPage = async (page: PageAsset, fonts: Map<string, FontInfo>, includeText: boolean, referer: string, imageCache: Map<string, Promise<Buffer>>, signal?: AbortSignal): Promise<RenderedPage> => {
   const { images, textRuns } = parseLayers(page.fragment ?? '');
   const loaded = new Array<Buffer>(images.length);
   await runPool(images, MAX_IMAGE_FETCHES, async (layer, index) => {
-    let cached = imageCache.get(layer.url);
-    if (!cached) {
-      cached = await requestBuffer(layer.url, referer, signal);
-      imageCache.set(layer.url, cached);
-    }
-    loaded[index] = cached;
+    loaded[index] = await getCachedImage(layer.url, referer, imageCache, signal);
   }, signal);
 
   const composites = [];
@@ -552,14 +563,16 @@ export const downloadScribdPdf = async ({ url, includeText, onProgress, signal }
     progress(`Fetching pages ${fetchedPages}/${pages.length}`, 1 + fetchedPages, totalSteps);
   }, signal);
 
-  const renderedPages: RenderedPage[] = [];
-  const imageCache = new Map<string, Buffer>();
+  const renderedPages = new Array<RenderedPage>(pages.length);
+  const imageCache = new Map<string, Promise<Buffer>>();
   try {
-    for (const page of pages) {
+    let renderedCount = 0;
+    await runPool(pages, RENDER_CONCURRENCY, async (page, index) => {
       throwIfAborted(signal);
-      renderedPages.push(await renderPage(page, fonts, includeText, sourceUrl, imageCache, signal));
-      progress(`Rendering pages ${renderedPages.length}/${pages.length}`, 1 + pages.length + renderedPages.length, totalSteps);
-    }
+      renderedPages[index] = await renderPage(page, fonts, includeText, sourceUrl, imageCache, signal);
+      renderedCount += 1;
+      progress(`Rendering pages ${renderedCount}/${pages.length}`, 1 + pages.length + renderedCount, totalSteps);
+    }, signal);
     throwIfAborted(signal);
     progress('Writing PDF', totalSteps - 1, totalSteps);
     const pdf = buildPdf(renderedPages, includeText);

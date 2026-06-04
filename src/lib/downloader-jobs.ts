@@ -4,6 +4,7 @@ import {
   type ScribdDownloadProgress,
   type ScribdDownloadResult,
 } from '@/lib/scribd-downloader';
+import { saveLocalPdfDocument } from '@/lib/local-documents';
 
 type JobStatus = 'queued' | 'running' | 'complete' | 'error' | 'cancelled';
 
@@ -86,7 +87,8 @@ export const startDownloaderJob = ({ url, includeText }: { url: string; includeT
         notify(job, 'progress');
       },
     })
-      .then((result: ScribdDownloadResult) => {
+      .then(async (result: ScribdDownloadResult) => {
+        await saveLocalPdfDocument({ filename: result.filename, data: result.pdf });
         job.status = 'complete';
         job.filename = result.filename;
         job.pageCount = result.pageCount;

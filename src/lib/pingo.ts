@@ -6,6 +6,7 @@ import { getSabanciRoomSchedule, searchSabanciRoomAvailability } from '@/lib/sab
 import { searchTextBankForAssistant, type TextBankAssistantSearchOptions } from '@/lib/concord-db';
 import { getPlayedTextBankReferences } from '@/lib/directus';
 import { searchGoogleDriveScript } from '@/lib/google-drive';
+import { searchLocalPdfDocument } from '@/lib/local-documents';
 import { cleanText, query, type YkUser } from '@/lib/yk';
 
 type AuditContext = {
@@ -974,6 +975,11 @@ async function runRoomAvailabilityTool(args: Record<string, unknown>) {
 }
 
 async function runGoogleDriveScriptsTool(args: Record<string, unknown>, context: PingoToolRunContext) {
+  const local = await searchLocalPdfDocument(args);
+  if (local.found) {
+    await sendWahaText(context.incoming.session, context.incoming.chatId, 'metni buldum, şimdi gönderiyorum.');
+    return local;
+  }
   return searchGoogleDriveScript(args, context.tool.config, async () => {
     await sendWahaText(context.incoming.session, context.incoming.chatId, 'metni buldum, şimdi gönderiyorum.');
   });
@@ -1107,7 +1113,7 @@ const googleDriveScriptsToolDeclaration: QwenToolDeclaration = {
   function: {
     name: 'search_google_drive_script',
     description:
-      'Searches the configured Google Drive folders for a requested stage play script, downloads it if needed, and returns a one-day download link. Use only when the user asks for a specific play script/text file.',
+      'Searches the local PDF document library and configured Google Drive folders for a requested stage play script, downloads it if needed, and returns a one-day download link. Use only when the user asks for a specific play script/text file.',
     parameters: {
       type: 'object',
       required: ['title'],

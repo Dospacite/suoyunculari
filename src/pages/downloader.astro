@@ -16,10 +16,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
             <input data-url-input type="url" placeholder="https://www.scribd.com/document/..." required />
           </label>
           <div class="downloader-options">
-            <label class="check-label">
-              <input data-text-toggle type="checkbox" checked />
-              <span>Searchable text</span>
-            </label>
+            <button class="secondary" type="button" data-cancel-button disabled>Cancel</button>
             <button class="button" type="submit" data-submit-button>Generate PDF</button>
           </div>
         </form>
@@ -38,8 +35,8 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 <script is:inline>
   const form = document.querySelector('[data-downloader-form]');
   const urlInput = document.querySelector('[data-url-input]');
-  const textToggle = document.querySelector('[data-text-toggle]');
   const submitButton = document.querySelector('[data-submit-button]');
+  const cancelButton = document.querySelector('[data-cancel-button]');
   const statusText = document.querySelector('[data-status-text]');
   const progressBar = document.querySelector('[data-progress-bar]');
 
@@ -53,6 +50,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 
   const setBusy = (busy) => {
     submitButton.disabled = busy;
+    cancelButton.disabled = !busy;
   };
 
   const cleanupDownloadUrl = () => {
@@ -109,7 +107,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
       activeSocket.send(JSON.stringify({
         type: 'start',
         url: urlInput.value.trim(),
-        includeText: textToggle.checked,
+        includeText: true,
       }));
     });
 
@@ -182,6 +180,13 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
     progressBar.style.width = '0';
     setStatus('Queued');
     bindSocket();
+  });
+
+  cancelButton.addEventListener('click', () => {
+    cancelActiveJob();
+    setBusy(false);
+    progressBar.style.width = '0';
+    setStatus('Cancelled');
   });
 
   window.addEventListener('pagehide', () => {

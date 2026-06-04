@@ -1,0 +1,132 @@
+---
+import YkLayout from '@/layouts/YkLayout.astro';
+import { listLocalPdfDocuments } from '@/lib/local-documents';
+
+const user = Astro.locals.user!;
+const documents = await listLocalPdfDocuments();
+const selectedId = Astro.url.searchParams.get('file') || documents[0]?.id || '';
+const selected = documents.find((document) => document.id === selectedId) || documents[0] || null;
+const formatBytes = (bytes: number) => new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 }).format(bytes / 1024 / 1024);
+const formatDate = (value: string) => new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+---
+
+<YkLayout title="Belgeler" user={user}>
+  <header class="page-head">
+    <h1>Belgeler</h1>
+  </header>
+
+  <section class="panel document-upload-panel">
+    <form class="document-upload" data-upload-form>
+      <label>
+        PDF yükle
+        <input name="file" type="file" accept="application/pdf,.pdf" required />
+      </label>
+      <button type="submit">Yükle</button>
+    </form>
+  </section>
+
+  <section class="documents-workspace">
+    <div class="document-list panel" aria-label="Belgeler">
+      {documents.length ? (
+        documents.map((document) => (
+          <a class:list={['document-row', document.id === selected?.id && 'active']} href={`/belgeler?file=${encodeURIComponent(document.id)}`}>
+            <span class="document-preview-mini">
+              <iframe src={`${document.previewHref}#page=1&toolbar=0&navpanes=0&scrollbar=0`} title={`${document.title} önizleme`} loading="lazy"></iframe>
+            </span>
+            <strong>{document.title}</strong>
+            <span>{formatBytes(document.bytes)} MB</span>
+          </a>
+        ))
+      ) : (
+        <p>PDF dosyası yok.</p>
+      )}
+    </div>
+
+    <aside class="document-detail panel">
+      {selected ? (
+        <>
+          <div class="document-preview">
+            <iframe src={`${selected.previewHref}#page=1&toolbar=0&navpanes=0`} title={`${selected.title} ilk sayfa`}></iframe>
+          </div>
+          <div class="document-detail-head">
+            <h2>{selected.title}</h2>
+            <a class="button" href={selected.downloadHref}>İndir</a>
+          </div>
+          <dl class="detail-list">
+            <div>
+              <dt>Dosya</dt>
+              <dd>{selected.filename}</dd>
+            </div>
+            <div>
+              <dt>Boyut</dt>
+              <dd>{formatBytes(selected.bytes)} MB</dd>
+            </div>
+            <div>
+              <dt>Yüklendi</dt>
+              <dd>{formatDate(selected.createdAt)}</dd>
+            </div>
+            <div>
+              <dt>Güncellendi</dt>
+              <dd>{formatDate(selected.updatedAt)}</dd>
+            </div>
+          </dl>
+          <form class="document-actions" data-rename-form data-id={selected.id}>
+            <label>
+              Yeni ad
+              <input name="title" value={selected.title} required />
+            </label>
+            <button type="submit">Yeniden adlandır</button>
+          </form>
+          <form class="document-actions" data-delete-form data-id={selected.id}>
+            <button class="danger" type="submit">Sil</button>
+          </form>
+        </>
+      ) : (
+        <p>Bir PDF yükle.</p>
+      )}
+    </aside>
+  </section>
+
+  <script>
+    // @ts-nocheck
+    const reloadToDocument = (id) => {
+      window.location.href = id ? `/belgeler?file=${encodeURIComponent(id)}` : '/belgeler';
+    };
+
+    document.querySelector('[data-upload-form]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const response = await fetch('/api/documents', {
+        method: 'POST',
+        body: new FormData(event.currentTarget),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Yükleme başarısız');
+      reloadToDocument(payload.document.id);
+    });
+
+    document.querySelector('[data-rename-form]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const body = Object.fromEntries(new FormData(form).entries());
+      const response = await fetch(`/api/documents/${encodeURIComponent(form.dataset.id)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Yeniden adlandırma başarısız');
+      reloadToDocument(payload.document.id);
+    });
+
+    document.querySelector('[data-delete-form]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!confirm('PDF silinsin mi?')) return;
+      const response = await fetch(`/api/documents/${encodeURIComponent(event.currentTarget.dataset.id)}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Silme başarısız');
+      }
+      reloadToDocument('');
+    });
+  </script>
+</YkLayout>

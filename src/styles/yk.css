@@ -577,6 +577,110 @@ th.current-rehearsal {
   text-align: left;
 }
 
+.document-upload-panel {
+  margin-bottom: 18px;
+}
+
+.document-upload {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.documents-workspace {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(280px, 0.42fr) minmax(0, 1fr);
+}
+
+.document-list {
+  align-content: start;
+  gap: 0;
+  padding: 0;
+}
+
+.document-row {
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: 78px minmax(0, 1fr);
+  min-width: 0;
+  padding: 12px;
+  text-decoration: none;
+}
+
+.document-row:hover,
+.document-row.active {
+  background: #f7f1f0;
+}
+
+.document-row strong,
+.document-row span:last-child {
+  overflow-wrap: anywhere;
+}
+
+.document-row span:last-child {
+  color: var(--muted);
+  font-size: 0.82rem;
+  grid-column: 2;
+}
+
+.document-preview-mini {
+  background: #eee9e4;
+  border: 1px solid var(--line);
+  grid-row: span 2;
+  height: 96px;
+  overflow: hidden;
+}
+
+.document-preview-mini iframe {
+  border: 0;
+  height: 160px;
+  pointer-events: none;
+  transform: scale(0.6);
+  transform-origin: 0 0;
+  width: 130px;
+}
+
+.document-detail {
+  align-content: start;
+}
+
+.document-preview {
+  background: #eee9e4;
+  border: 1px solid var(--line);
+  height: min(62svh, 680px);
+  min-height: 420px;
+  overflow: hidden;
+}
+
+.document-preview iframe {
+  border: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.document-detail-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.document-detail-head h2 {
+  font-size: clamp(1.2rem, 2vw, 1.7rem);
+  overflow-wrap: anywhere;
+}
+
+.document-actions {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .modal {
   border: 0;
   max-width: min(560px, calc(100vw - 32px));
@@ -722,6 +826,16 @@ th.current-rehearsal {
 
   .split {
     grid-template-columns: 1fr;
+  }
+
+  .documents-workspace,
+  .document-upload,
+  .document-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .document-preview {
+    min-height: 360px;
   }
 
   .page-head {

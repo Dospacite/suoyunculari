@@ -1,0 +1,28 @@
+---
+import YkLayout from '@/layouts/YkLayout.astro';
+
+const next = Astro.url.searchParams.get('next') || '/roll-call';
+const error = Astro.url.searchParams.get('error');
+---
+
+<YkLayout title="Giriş">
+  <section class="auth-panel">
+    <div>
+      <h1>YK Giriş</h1>
+      <p>SUOyuncuları yönetim paneli.</p>
+    </div>
+    {error && <p class="error">E-posta ya da şifre hatalı.</p>}
+    <form class="panel" method="post" action="/api/auth/login">
+      <input type="hidden" name="next" value={next} />
+      <label>
+        E-posta
+        <input name="email" type="email" autocomplete="email" required />
+      </label>
+      <label>
+        Şifre
+        <input name="password" type="password" autocomplete="current-password" required />
+      </label>
+      <button type="submit">Giriş yap</button>
+    </form>
+  </section>
+</YkLayout>

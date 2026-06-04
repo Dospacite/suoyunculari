@@ -18,13 +18,14 @@ if (!staging || !play) Astro.response.status = 404;
 
 const coverImage = assetUrl(staging?.cover_image || play?.cover_image);
 const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
-  day: 'numeric',
-  month: 'long',
+  day: '2-digit',
+  month: '2-digit',
   year: 'numeric',
 });
 const timeFormatter = new Intl.DateTimeFormat('tr-TR', {
   hour: '2-digit',
   minute: '2-digit',
+  hour12: false,
 });
 const castText = play?.cast || staging?.cast_notes;
 const videoEmbedUrl = getYouTubeEmbedUrl(staging?.video_url);

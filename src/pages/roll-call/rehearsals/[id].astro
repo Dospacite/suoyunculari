@@ -1,0 +1,88 @@
+---
+import YkLayout from '@/layouts/YkLayout.astro';
+import { getRehearsalIdeas } from '@/lib/directus';
+import { getRehearsalDetails } from '@/lib/yk';
+import { formatDate } from '@/lib/yk-format';
+
+const user = Astro.locals.user!;
+const details = await getRehearsalDetails(String(Astro.params.id));
+const ideas = await getRehearsalIdeas();
+---
+
+<YkLayout title="Prova Detayı" user={user}>
+  {
+    details ? (
+      <>
+        <header class="page-head">
+          <div>
+            <h1>{formatDate(details.rehearsal.rehearsal_date)}</h1>
+            <p>{details.rehearsal.sheet_name} · {details.rehearsal.season_name}</p>
+          </div>
+          <a class="button secondary" href={`/roll-call?sheet=${details.rehearsal.sheet_id}`}>Çizelge</a>
+        </header>
+
+        <form class="panel narrow-panel" data-rehearsal-form data-id={details.rehearsal.id}>
+          <label>
+            Tarih
+            <input name="rehearsal_date" inputmode="numeric" placeholder="gg/aa/yyyy" value={formatDate(details.rehearsal.rehearsal_date)} required />
+          </label>
+          <label>
+            Prova fikri
+            <select name="rehearsal_idea_slug" data-idea-select>
+              <option value="">Seçilmedi</option>
+              {ideas.map((idea) => (
+                <option
+                  value={idea.slug}
+                  data-title={idea.title}
+                  selected={idea.slug === details.rehearsal.rehearsal_idea_slug}
+                >
+                  {idea.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <input type="hidden" name="rehearsal_idea_title" value={details.rehearsal.rehearsal_idea_title || ''} data-idea-title />
+          <label>
+            Not
+            <textarea name="notes" rows="5">{details.rehearsal.notes || ''}</textarea>
+          </label>
+          <button class="icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
+        </form>
+      </>
+    ) : (
+      <section class="panel">
+        <h1>Prova bulunamadı</h1>
+        <a class="button secondary" href="/roll-call">Çizelgelere dön</a>
+      </section>
+    )
+  }
+
+  <script>
+    // @ts-nocheck
+    const postJson = async (url, method, body) => {
+      const response = await fetch(url, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'İşlem başarısız');
+      }
+      return response.json().catch(() => ({}));
+    };
+
+    const ideaSelect = document.querySelector('[data-idea-select]');
+    const ideaTitle = document.querySelector('[data-idea-title]');
+    ideaSelect?.addEventListener('change', () => {
+      ideaTitle.value = ideaSelect.selectedOptions[0]?.dataset.title || '';
+    });
+
+    document.querySelector('[data-rehearsal-form]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      await postJson(`/api/roll-call/rehearsals/${form.dataset.id}`, 'PATCH', Object.fromEntries(new FormData(form).entries()));
+      window.location.reload();
+    });
+  </script>
+</YkLayout>

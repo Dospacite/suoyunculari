@@ -1,0 +1,102 @@
+---
+import YkLayout from '@/layouts/YkLayout.astro';
+import { listSeasons } from '@/lib/yk';
+import { formatDate } from '@/lib/yk-format';
+
+const user = Astro.locals.user!;
+const seasons = await listSeasons();
+---
+
+<YkLayout title="Sezonlar" user={user}>
+  <header class="page-head">
+    <h1>Sezonlar</h1>
+  </header>
+
+  <section class="split">
+    <div class="panel">
+      <h2>Sezon listesi</h2>
+      <div class="user-list">
+        {seasons.map((season) => (
+          <form class="season-row" data-season-form data-id={season.id}>
+            <label>
+              Ad
+              <input name="name" value={season.name} required />
+            </label>
+            <label>
+              Başlangıç
+              <input name="startDate" inputmode="numeric" placeholder="gg/aa/yyyy" value={formatDate(season.start_date)} />
+            </label>
+            <label>
+              Bitiş
+              <input name="endDate" inputmode="numeric" placeholder="gg/aa/yyyy" value={formatDate(season.end_date)} />
+            </label>
+            <label>
+              Durum
+              <select name="archived">
+                <option value="false" selected={!season.archived}>Aktif</option>
+                <option value="true" selected={season.archived}>Arşiv</option>
+              </select>
+            </label>
+            <div class="form-row">
+              <button class="icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
+              <button class="danger icon-button delete" type="button" data-delete-season data-id={season.id} aria-label="Sil" title="Sil">Sil</button>
+            </div>
+          </form>
+        ))}
+      </div>
+    </div>
+
+    <form class="panel" data-create-season>
+      <h2>Sezon ekle</h2>
+      <label>
+        Ad
+        <input name="name" placeholder="2026 Bahar" required />
+      </label>
+      <label>
+        Başlangıç
+        <input name="startDate" inputmode="numeric" placeholder="gg/aa/yyyy" />
+      </label>
+      <label>
+        Bitiş
+        <input name="endDate" inputmode="numeric" placeholder="gg/aa/yyyy" />
+      </label>
+      <button type="submit">Sezon oluştur</button>
+    </form>
+  </section>
+
+  <script>
+    // @ts-nocheck
+    const postJson = async (url, method, body) => {
+      const response = await fetch(url, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error('İşlem başarısız');
+    };
+
+    document.querySelector('[data-create-season]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await postJson('/api/seasons', 'POST', Object.fromEntries(new FormData(event.currentTarget).entries()));
+      window.location.reload();
+    });
+
+    document.querySelectorAll('[data-season-form]').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const body = Object.fromEntries(new FormData(form).entries());
+        body.archived = body.archived === 'true';
+        await postJson(`/api/seasons/${form.dataset.id}`, 'PATCH', body);
+        window.location.reload();
+      });
+    });
+
+    document.querySelectorAll('[data-delete-season]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!confirm('Sezon ve bağlı çizelgeler silinsin mi?')) return;
+        await postJson(`/api/seasons/${button.dataset.id}`, 'DELETE', {});
+        window.location.reload();
+      });
+    });
+  </script>
+</YkLayout>

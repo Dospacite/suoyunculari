@@ -1,0 +1,380 @@
+---
+import YkLayout from '@/layouts/YkLayout.astro';
+import { getRollCallData, listSeasons, listSheetSummaries, memberRoleLabel } from '@/lib/yk';
+import { formatDate } from '@/lib/yk-format';
+
+const user = Astro.locals.user!;
+const selectedId = Astro.url.searchParams.get('sheet') || '';
+const seasons = await listSeasons();
+const sheets = await listSheetSummaries();
+const data = selectedId ? await getRollCallData(selectedId) : null;
+const entryMap = new Map((data?.entries || []).map((entry) => [`${entry.member_id}:${entry.rehearsal_id}`, entry]));
+const weekdayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+const todayParts = Object.fromEntries(
+  new Intl.DateTimeFormat('tr-TR', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date()).map((part) => [part.type, part.value]),
+);
+const todayIso = `${todayParts.year}-${todayParts.month}-${todayParts.day}`;
+const weekdayOptions = [
+  { label: 'Pazartesi', value: 1 },
+  { label: 'Salı', value: 2 },
+  { label: 'Çarşamba', value: 3 },
+  { label: 'Perşembe', value: 4 },
+  { label: 'Cuma', value: 5 },
+  { label: 'Cumartesi', value: 6 },
+  { label: 'Pazar', value: 0 },
+];
+---
+
+<YkLayout title="Yoklama" user={user}>
+  {
+    !data ? (
+      <>
+        <header class="page-head">
+          <h1>Yoklama</h1>
+          <button type="button" data-open-sheet-modal>+ Çizelge</button>
+        </header>
+
+        {sheets.length === 0 ? (
+          <section class="panel">
+            <h2>Çizelge yok</h2>
+            <p>İlk sezonu ve üyeleri ekledikten sonra buradan çizelge oluştur.</p>
+          </section>
+        ) : (
+          <section class="sheet-grid" aria-label="Yoklama çizelgeleri">
+            {sheets.map((sheet: any) => (
+              <a class="sheet-tile" href={`/roll-call?sheet=${sheet.id}`}>
+                <span class="sheet-icon" aria-hidden="true">▦</span>
+                <strong>{sheet.name}</strong>
+                <span>{sheet.season_name}</span>
+                <em>{sheet.rehearsal_count} prova · {sheet.member_count} üye</em>
+                {(sheet.start_date || sheet.end_date) && (
+                  <small>{formatDate(sheet.start_date)}{sheet.end_date ? ` / ${formatDate(sheet.end_date)}` : ''}</small>
+                )}
+              </a>
+            ))}
+            <button class="sheet-tile sheet-add" type="button" data-open-sheet-modal>
+              <span class="sheet-icon" aria-hidden="true">+</span>
+              <strong>Yeni çizelge</strong>
+              <span>Sezon ve prova günleri seç</span>
+            </button>
+          </section>
+        )}
+      </>
+    ) : (
+      <>
+        <header class="page-head">
+          <div>
+            <h1>{data.sheet.name}</h1>
+            <p>{data.season.name} · {data.rehearsals.length} prova · {data.members.length} üye</p>
+          </div>
+          <div class="form-row">
+            <a class="button secondary" href="/roll-call">Çizelgeler</a>
+            <button class="secondary" type="button" data-open-rehearsal-modal>Ek prova</button>
+            <button class="secondary icon-button save" type="button" data-save-member-order data-season={data.season.id} aria-label="Üye sırasını kaydet" title="Üye sırasını kaydet">Kaydet</button>
+            <a class="button" href={`/api/roll-call/${data.sheet.id}/export.xlsx`}>Excel</a>
+          </div>
+        </header>
+
+        <section class="toolbar">
+          <form class="form-row" data-rename-sheet data-id={data.sheet.id}>
+            <label>
+              Çizelge adı
+              <input name="name" value={data.sheet.name} required />
+            </label>
+            <button class="secondary icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
+          </form>
+          <button class="secondary" type="button" data-archive-sheet data-id={data.sheet.id} data-archived={String(!data.sheet.archived)}>
+            {data.sheet.archived ? 'Arşivden çıkar' : 'Arşivle'}
+          </button>
+          <button class="danger icon-button delete" type="button" data-delete-sheet data-id={data.sheet.id} aria-label="Sil" title="Sil">Sil</button>
+        </section>
+
+        <section class="table-wrap" aria-label="Yoklama tablosu" data-roll-call-table>
+          <table data-member-order-table data-season={data.season.id}>
+            <thead>
+              <tr>
+                <th class="sticky-col">Üye</th>
+                {data.rehearsals.map((rehearsal) => {
+                  const isToday = rehearsal.rehearsal_date === todayIso;
+                  return (
+                  <th class={isToday ? 'current-rehearsal' : undefined} data-current-rehearsal={isToday ? 'true' : undefined}>
+                    <div class="date-head">
+                      <a href={`/roll-call/rehearsals/${rehearsal.id}`}>
+                        <strong>{formatDate(rehearsal.rehearsal_date)}</strong>
+                      </a>
+                      <span>{weekdayLabels[new Date(`${rehearsal.rehearsal_date}T00:00:00`).getDay()]}</span>
+                      {rehearsal.rehearsal_idea_title && <span>{rehearsal.rehearsal_idea_title}</span>}
+                      <button class="secondary icon-button delete" type="button" data-delete-rehearsal data-id={rehearsal.id} aria-label="Sil" title="Sil">Sil</button>
+                    </div>
+                  </th>
+                  );
+                })}
+                <th>Toplam</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.members.map((member) => (
+                <tr data-member-row data-member={member.id} draggable="true">
+                  <td class="sticky-col">
+                    <span class="drag-handle" aria-hidden="true">☰</span>
+                    <button class="link-button member-name-button" type="button" data-member-details data-member={member.id}>
+                      {member.display_name}
+                    </button>
+                    <span class="member-sub">{memberRoleLabel(member.member_role)}</span>
+                  </td>
+                  {data.rehearsals.map((rehearsal) => {
+                    const entry = entryMap.get(`${member.id}:${rehearsal.id}`);
+                    const isToday = rehearsal.rehearsal_date === todayIso;
+                    return (
+                      <td class={isToday ? 'current-rehearsal' : undefined}>
+                        <select
+                          class="attendance-select"
+                          data-attendance
+                          data-member={member.id}
+                          data-rehearsal={rehearsal.id}
+                          data-current-points={entry?.points ?? 0}
+                        >
+                          <option value="" selected={!entry?.state_id}>-</option>
+                          {data.states.filter((state) => state.active).map((state) => (
+                            <option value={state.id} data-points={state.points} selected={entry?.state_id === state.id}>
+                              {state.label} ({state.points})
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    );
+                  })}
+                  <td class="total-cell" data-total-cell data-member={member.id}>{data.totals[member.id] ?? 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+        <div class="summary-bar">
+          <span>Ortalama puan</span>
+          <strong data-average>{data.average.toFixed(2)}</strong>
+        </div>
+      </>
+    )
+  }
+
+  <dialog class="modal" data-sheet-modal>
+    <form class="panel" data-create-sheet method="dialog">
+      <div class="page-head">
+        <h2>Çizelge oluştur</h2>
+        <button class="secondary" type="button" data-close-sheet-modal>Kapat</button>
+      </div>
+      <label>
+        Sezon
+        <select name="seasonId" required>
+          <option value="">Seç</option>
+          {seasons.filter((season) => !season.archived).map((season) => <option value={season.id}>{season.name}</option>)}
+        </select>
+      </label>
+      <label>
+        Çizelge adı
+        <input name="name" required />
+      </label>
+      <fieldset class="weekday-picker">
+        <legend>Prova günleri</legend>
+        {weekdayOptions.map((option) => (
+          <label>
+            <input type="checkbox" name="weekdays" value={option.value} />
+            {option.label}
+          </label>
+        ))}
+      </fieldset>
+      <button type="submit">Oluştur</button>
+    </form>
+  </dialog>
+
+  {
+    data && (
+      <dialog class="modal" data-rehearsal-modal>
+        <form class="panel" data-create-rehearsal data-sheet={data.sheet.id} method="dialog">
+          <div class="page-head">
+            <h2>Ek prova oluştur</h2>
+            <button class="secondary" type="button" data-close-rehearsal-modal>Kapat</button>
+          </div>
+          <label>
+            Tarih
+            <input name="date" inputmode="numeric" placeholder="gg/aa/yyyy" pattern="\d{2}/\d{2}/\d{4}" required />
+          </label>
+          <label>
+            Not
+            <textarea name="notes" rows="3"></textarea>
+          </label>
+          <button type="submit">Oluştur</button>
+        </form>
+      </dialog>
+    )
+  }
+
+  <dialog class="modal" data-member-modal>
+    <div class="panel">
+      <div class="page-head">
+        <h2 data-member-modal-name>Üye</h2>
+        <button class="secondary" type="button" data-close-member-modal>Kapat</button>
+      </div>
+      <dl class="detail-list">
+        <div>
+          <dt>Sezon</dt>
+          <dd data-member-modal-season></dd>
+        </div>
+        <div>
+          <dt>Rol</dt>
+          <dd data-member-modal-role></dd>
+        </div>
+        <div>
+          <dt>Toplam puan</dt>
+          <dd data-member-modal-total></dd>
+        </div>
+        <div>
+          <dt>Ortalama puan</dt>
+          <dd data-member-modal-average></dd>
+        </div>
+      </dl>
+      <a class="button secondary icon-button detail" data-member-modal-link href="/members" aria-label="Detay" title="Detay">Detay</a>
+    </div>
+  </dialog>
+
+  <script>
+    // @ts-nocheck
+    const postJson = async (url, method, body = undefined) => {
+      const response = await fetch(url, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'İşlem başarısız');
+      }
+      return response.json().catch(() => ({}));
+    };
+
+    const modal = document.querySelector('[data-sheet-modal]');
+    document.querySelectorAll('[data-open-sheet-modal]').forEach((button) => button.addEventListener('click', () => modal?.showModal()));
+    document.querySelector('[data-close-sheet-modal]')?.addEventListener('click', () => modal?.close());
+    const rehearsalModal = document.querySelector('[data-rehearsal-modal]');
+    document.querySelector('[data-open-rehearsal-modal]')?.addEventListener('click', () => rehearsalModal?.showModal());
+    document.querySelector('[data-close-rehearsal-modal]')?.addEventListener('click', () => rehearsalModal?.close());
+
+    document.querySelector('[data-create-sheet]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const formData = new FormData(form);
+      const body = Object.fromEntries(formData.entries());
+      body.weekdays = formData.getAll('weekdays').map(Number);
+      const data = await postJson('/api/roll-call/sheets', 'POST', body);
+      window.location.href = `/roll-call?sheet=${data.sheet.id}`;
+    });
+
+    document.querySelector('[data-create-rehearsal]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      await postJson(`/api/roll-call/sheets/${form.dataset.sheet}/rehearsals`, 'POST', Object.fromEntries(new FormData(form).entries()));
+      window.location.reload();
+    });
+
+    document.querySelector('[data-rename-sheet]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      await postJson(`/api/roll-call/sheets/${form.dataset.id}`, 'PATCH', Object.fromEntries(new FormData(form).entries()));
+      window.location.reload();
+    });
+
+    document.querySelector('[data-archive-sheet]')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      await postJson(`/api/roll-call/sheets/${button.dataset.id}`, 'PATCH', { archived: button.dataset.archived === 'true' });
+      window.location.href = '/roll-call';
+    });
+
+    document.querySelector('[data-delete-sheet]')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      if (!confirm('Bu çizelge silinsin mi?')) return;
+      await postJson(`/api/roll-call/sheets/${button.dataset.id}`, 'DELETE');
+      window.location.href = '/roll-call';
+    });
+
+    document.querySelectorAll('[data-delete-rehearsal]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!confirm('Bu tarih silinsin mi?')) return;
+        await postJson(`/api/roll-call/rehearsals/${button.dataset.id}`, 'DELETE');
+        window.location.reload();
+      });
+    });
+
+    document.querySelectorAll('[data-attendance]').forEach((select) => {
+      select.addEventListener('change', async () => {
+        const previousPoints = Number(select.dataset.currentPoints || 0);
+        const selected = select.selectedOptions[0];
+        const nextPoints = Number(selected?.dataset.points || 0);
+        await postJson(`/api/roll-call/attendance/${select.dataset.member}/${select.dataset.rehearsal}`, 'PATCH', {
+          stateId: select.value || null,
+        });
+        select.dataset.currentPoints = String(nextPoints);
+        const totalCell = document.querySelector(`[data-total-cell][data-member="${select.dataset.member}"]`);
+        if (totalCell) {
+          totalCell.textContent = String(Number(totalCell.textContent || 0) - previousPoints + nextPoints);
+        }
+        const totals = Array.from(document.querySelectorAll('[data-total-cell]')).map((cell) => Number(cell.textContent || 0));
+        const average = totals.length ? totals.reduce((sum, value) => sum + value, 0) / totals.length : 0;
+        const averageEl = document.querySelector('[data-average]');
+        if (averageEl) averageEl.textContent = average.toFixed(2);
+      });
+    });
+
+    const currentRehearsal = document.querySelector('[data-current-rehearsal]');
+    currentRehearsal?.scrollIntoView({ inline: 'center', block: 'nearest' });
+
+    const memberTable = document.querySelector('[data-member-order-table]');
+    const memberBody = memberTable?.querySelector('tbody');
+    let draggedRow = null;
+    memberBody?.querySelectorAll('[data-member-row]').forEach((row) => {
+      row.addEventListener('dragstart', () => {
+        draggedRow = row;
+        row.classList.add('dragging');
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        draggedRow = null;
+      });
+      row.addEventListener('dragover', (event) => {
+        if (!draggedRow || draggedRow === row) return;
+        event.preventDefault();
+        const rect = row.getBoundingClientRect();
+        const after = event.clientY > rect.top + rect.height / 2;
+        row.parentNode.insertBefore(draggedRow, after ? row.nextSibling : row);
+      });
+    });
+
+    document.querySelector('[data-save-member-order]')?.addEventListener('click', async (event) => {
+      if (!memberBody) return;
+      const button = event.currentTarget;
+      const memberIds = Array.from(memberBody.querySelectorAll('[data-member-row]')).map((row) => row.dataset.member);
+      await postJson(`/api/seasons/${button.dataset.season}/members`, 'PATCH', { memberIds });
+      window.location.reload();
+    });
+
+    const memberModal = document.querySelector('[data-member-modal]');
+    document.querySelector('[data-close-member-modal]')?.addEventListener('click', () => memberModal?.close());
+    document.querySelectorAll('[data-member-details]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const details = await postJson(`/api/roll-call/members/${button.dataset.member}`, 'GET');
+        document.querySelector('[data-member-modal-name]').textContent = details.member.display_name;
+        document.querySelector('[data-member-modal-season]').textContent = details.season.name;
+        document.querySelector('[data-member-modal-role]').textContent = details.member_role_label || details.member.member_role;
+        document.querySelector('[data-member-modal-total]').textContent = String(details.stats.total);
+        document.querySelector('[data-member-modal-average]').textContent = Number(details.stats.average).toFixed(2);
+        document.querySelector('[data-member-modal-link]').href = `/members/${details.member.id}`;
+        memberModal?.showModal();
+      });
+    });
+  </script>
+</YkLayout>

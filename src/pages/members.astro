@@ -1,0 +1,127 @@
+---
+import YkLayout from '@/layouts/YkLayout.astro';
+import { listMembers, listSeasons, memberRoleLabel, type MemberRole } from '@/lib/yk';
+
+const user = Astro.locals.user!;
+const seasons = await listSeasons();
+const selectedSeasonId = Astro.url.searchParams.get('season') || seasons.find((season) => !season.archived)?.id || seasons[0]?.id || '';
+const members = selectedSeasonId ? await listMembers(selectedSeasonId, 'name') : [];
+const memberRoleOptions: Array<{ value: MemberRole; label: string }> = [
+  { value: 'new_member', label: memberRoleLabel('new_member') },
+  { value: 'old_member', label: memberRoleLabel('old_member') },
+  { value: 'yk', label: memberRoleLabel('yk') },
+  { value: 'myk', label: memberRoleLabel('myk') },
+];
+---
+
+<YkLayout title="Üyeler" user={user}>
+  <header class="page-head">
+    <h1>Üyeler</h1>
+  </header>
+
+  {
+    seasons.length === 0 ? (
+      <section class="panel">
+        <h2>Sezon yok</h2>
+        <p>Üye eklemek için önce Sezonlar ekranından sezon oluştur.</p>
+      </section>
+    ) : (
+      <section class="split">
+        <div class="panel">
+          <div class="toolbar">
+            <label>
+              Sezon
+              <select id="season-select">
+                {seasons.map((season) => <option value={season.id} selected={season.id === selectedSeasonId}>{season.name}</option>)}
+              </select>
+            </label>
+          </div>
+          <div class="member-list" data-member-list data-season={selectedSeasonId}>
+            {members.map((member) => (
+              <form class="member-row" data-member-form data-id={member.id}>
+                <label>
+                  Ad
+                  <input name="first_name" value={member.first_name} required />
+                </label>
+                <label>
+                  Soyad
+                  <input name="last_name" value={member.last_name} required />
+                </label>
+                <label>
+                  Rol
+                  <select name="member_role">
+                    {memberRoleOptions.map((option) => <option value={option.value} selected={member.member_role === option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                <div class="form-row">
+                  <a class="button secondary icon-button detail" href={`/members/${member.id}`} aria-label="Detay" title="Detay">Detay</a>
+                  <button class="icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
+                  <button class="danger icon-button delete" type="button" data-delete-member data-id={member.id} aria-label="Sil" title="Sil">Sil</button>
+                </div>
+              </form>
+            ))}
+          </div>
+        </div>
+        <form class="panel" data-add-member data-season={selectedSeasonId}>
+          <h2>Üye ekle</h2>
+          <label>
+            Ad
+            <input name="firstName" required />
+          </label>
+          <label>
+            Soyad
+            <input name="lastName" required />
+          </label>
+          <label>
+            Rol
+            <select name="memberRole">
+              {memberRoleOptions.map((option) => <option value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <button type="submit">Ekle</button>
+        </form>
+      </section>
+    )
+  }
+
+  <script>
+    // @ts-nocheck
+    const postJson = async (url, method, body = undefined) => {
+      const response = await fetch(url, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!response.ok) throw new Error('İşlem başarısız');
+      return response.json().catch(() => ({}));
+    };
+
+    document.querySelector('#season-select')?.addEventListener('change', (event) => {
+      window.location.href = `/members?season=${encodeURIComponent(event.currentTarget.value)}`;
+    });
+
+    document.querySelectorAll('[data-member-form]').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        await postJson(`/api/roll-call/members/${form.dataset.id}`, 'PATCH', Object.fromEntries(new FormData(form).entries()));
+        window.location.reload();
+      });
+    });
+
+    document.querySelectorAll('[data-delete-member]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!confirm('Üye pasifleştirilsin mi?')) return;
+        await postJson(`/api/roll-call/members/${button.dataset.id}`, 'DELETE');
+        window.location.reload();
+      });
+    });
+
+    document.querySelector('[data-add-member]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      await postJson(`/api/seasons/${form.dataset.season}/members`, 'POST', Object.fromEntries(new FormData(form).entries()));
+      window.location.reload();
+    });
+
+  </script>
+</YkLayout>

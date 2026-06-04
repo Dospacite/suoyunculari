@@ -1,0 +1,160 @@
+name: Deploy YK admin
+
+on:
+  push:
+    branches:
+      - yk-admin
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          YK_DATABASE_URL: postgres://suo_yk:${{ secrets.YK_POSTGRES_PASSWORD }}@localhost:5432/suoyunculari_yk
+
+      - name: Check
+        run: npm run check
+
+      - name: Sync app to VPS
+        uses: easingthemes/ssh-deploy@v5.1.0
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
+          REMOTE_HOST: ${{ secrets.VPS_HOST }}
+          REMOTE_USER: ${{ secrets.VPS_USER }}
+          SOURCE: "./"
+          TARGET: "/opt/suoyunculari-yk/"
+          ARGS: "-rlDzvc --delete --chmod=D775,F664"
+          EXCLUDE: "/node_modules/, /dist/, /.astro/, /.git/, /.github/, /.env, /.env.*, /scripts/scraped/"
+
+      - name: Restart YK stack
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /opt/suoyunculari-yk
+
+            existing_value() {
+              if [ -f .env ]; then
+                sed -n "s/^$1=//p" .env | tail -n 1
+              fi
+            }
+
+            YK_POSTGRES_PASSWORD_VALUE='${{ secrets.YK_POSTGRES_PASSWORD }}'
+            YK_SESSION_SECRET_VALUE='${{ secrets.YK_SESSION_SECRET }}'
+            YK_ADMIN_EMAIL_VALUE='${{ secrets.YK_ADMIN_EMAIL }}'
+            YK_ADMIN_INITIAL_PASSWORD_VALUE='${{ secrets.YK_ADMIN_INITIAL_PASSWORD }}'
+            YK_DATABASE_URL_VALUE='${{ secrets.YK_DATABASE_URL }}'
+            DATABASE_URL_VALUE='${{ secrets.DATABASE_URL }}'
+            DATABASE_SSL_VALUE='${{ secrets.DATABASE_SSL }}'
+            GEMINI_API_KEY_VALUE='${{ secrets.GEMINI_API_KEY }}'
+            PINGO_GEMINI_API_KEY_VALUE='${{ secrets.PINGO_GEMINI_API_KEY }}'
+            QWEN_API_KEY_VALUE='${{ secrets.QWEN_API_KEY }}'
+            PINGO_QWEN_API_KEY_VALUE='${{ secrets.PINGO_QWEN_API_KEY }}'
+            PINGO_QWEN_BASE_URL_VALUE='${{ secrets.PINGO_QWEN_BASE_URL }}'
+            PINGO_QWEN_MODEL_VALUE='${{ secrets.PINGO_QWEN_MODEL }}'
+            QWEN_EMBEDDING_API_KEY_VALUE='${{ secrets.QWEN_EMBEDDING_API_KEY }}'
+            PINGO_QWEN_EMBEDDING_API_KEY_VALUE='${{ secrets.PINGO_QWEN_EMBEDDING_API_KEY }}'
+            PINGO_QWEN_EMBEDDING_BASE_URL_VALUE='${{ secrets.PINGO_QWEN_EMBEDDING_BASE_URL }}'
+            PINGO_QWEN_EMBEDDING_MODEL_VALUE='${{ secrets.PINGO_QWEN_EMBEDDING_MODEL }}'
+            PINGO_QWEN_EMBEDDING_DIMENSIONS_VALUE='${{ secrets.PINGO_QWEN_EMBEDDING_DIMENSIONS }}'
+            PINGO_WAHA_URL_VALUE='${{ secrets.PINGO_WAHA_URL }}'
+            PINGO_WAHA_API_KEY_VALUE='${{ secrets.PINGO_WAHA_API_KEY }}'
+            PINGO_WAHA_SESSION_VALUE='${{ secrets.PINGO_WAHA_SESSION }}'
+            PINGO_WAHA_BOT_ID_VALUE='${{ secrets.PINGO_WAHA_BOT_ID }}'
+            PINGO_WAHA_BOT_MENTION_IDS_VALUE='${{ secrets.PINGO_WAHA_BOT_MENTION_IDS }}'
+            PINGO_WEBHOOK_SECRET_VALUE='${{ secrets.PINGO_WEBHOOK_SECRET }}'
+            PINGO_REDIS_PASSWORD_VALUE='${{ secrets.PINGO_REDIS_PASSWORD }}'
+            PINGO_REDIS_URL_VALUE='${{ secrets.PINGO_REDIS_URL }}'
+
+            YK_POSTGRES_PASSWORD_VALUE="${YK_POSTGRES_PASSWORD_VALUE:-$(existing_value YK_POSTGRES_PASSWORD)}"
+            YK_SESSION_SECRET_VALUE="${YK_SESSION_SECRET_VALUE:-$(existing_value YK_SESSION_SECRET)}"
+            YK_ADMIN_EMAIL_VALUE="${YK_ADMIN_EMAIL_VALUE:-$(existing_value YK_ADMIN_EMAIL)}"
+            YK_ADMIN_INITIAL_PASSWORD_VALUE="${YK_ADMIN_INITIAL_PASSWORD_VALUE:-$(existing_value YK_ADMIN_INITIAL_PASSWORD)}"
+            YK_DATABASE_URL_VALUE="${YK_DATABASE_URL_VALUE:-$(existing_value YK_DATABASE_URL)}"
+            DATABASE_URL_VALUE="${DATABASE_URL_VALUE:-$(existing_value DATABASE_URL)}"
+            DATABASE_SSL_VALUE="${DATABASE_SSL_VALUE:-$(existing_value DATABASE_SSL)}"
+            GEMINI_API_KEY_VALUE="${GEMINI_API_KEY_VALUE:-$(existing_value GEMINI_API_KEY)}"
+            PINGO_GEMINI_API_KEY_VALUE="${PINGO_GEMINI_API_KEY_VALUE:-$(existing_value PINGO_GEMINI_API_KEY)}"
+            QWEN_API_KEY_VALUE="${QWEN_API_KEY_VALUE:-$(existing_value QWEN_API_KEY)}"
+            PINGO_QWEN_API_KEY_VALUE="${PINGO_QWEN_API_KEY_VALUE:-$(existing_value PINGO_QWEN_API_KEY)}"
+            PINGO_QWEN_BASE_URL_VALUE="${PINGO_QWEN_BASE_URL_VALUE:-$(existing_value PINGO_QWEN_BASE_URL)}"
+            PINGO_QWEN_MODEL_VALUE="${PINGO_QWEN_MODEL_VALUE:-$(existing_value PINGO_QWEN_MODEL)}"
+            QWEN_EMBEDDING_API_KEY_VALUE="${QWEN_EMBEDDING_API_KEY_VALUE:-$(existing_value QWEN_EMBEDDING_API_KEY)}"
+            PINGO_QWEN_EMBEDDING_API_KEY_VALUE="${PINGO_QWEN_EMBEDDING_API_KEY_VALUE:-$(existing_value PINGO_QWEN_EMBEDDING_API_KEY)}"
+            PINGO_QWEN_EMBEDDING_BASE_URL_VALUE="${PINGO_QWEN_EMBEDDING_BASE_URL_VALUE:-$(existing_value PINGO_QWEN_EMBEDDING_BASE_URL)}"
+            PINGO_QWEN_EMBEDDING_MODEL_VALUE="${PINGO_QWEN_EMBEDDING_MODEL_VALUE:-$(existing_value PINGO_QWEN_EMBEDDING_MODEL)}"
+            PINGO_QWEN_EMBEDDING_DIMENSIONS_VALUE="${PINGO_QWEN_EMBEDDING_DIMENSIONS_VALUE:-$(existing_value PINGO_QWEN_EMBEDDING_DIMENSIONS)}"
+            PINGO_WAHA_URL_VALUE="${PINGO_WAHA_URL_VALUE:-$(existing_value PINGO_WAHA_URL)}"
+            PINGO_WAHA_API_KEY_VALUE="${PINGO_WAHA_API_KEY_VALUE:-$(existing_value PINGO_WAHA_API_KEY)}"
+            PINGO_WAHA_SESSION_VALUE="${PINGO_WAHA_SESSION_VALUE:-$(existing_value PINGO_WAHA_SESSION)}"
+            PINGO_WAHA_BOT_ID_VALUE="${PINGO_WAHA_BOT_ID_VALUE:-$(existing_value PINGO_WAHA_BOT_ID)}"
+            PINGO_WAHA_BOT_MENTION_IDS_VALUE="${PINGO_WAHA_BOT_MENTION_IDS_VALUE:-$(existing_value PINGO_WAHA_BOT_MENTION_IDS)}"
+            PINGO_WEBHOOK_SECRET_VALUE="${PINGO_WEBHOOK_SECRET_VALUE:-$(existing_value PINGO_WEBHOOK_SECRET)}"
+            PINGO_REDIS_PASSWORD_VALUE="${PINGO_REDIS_PASSWORD_VALUE:-$(existing_value PINGO_REDIS_PASSWORD)}"
+            PINGO_REDIS_URL_VALUE="${PINGO_REDIS_URL_VALUE:-$(existing_value PINGO_REDIS_URL)}"
+            YK_DATABASE_URL_VALUE="${YK_DATABASE_URL_VALUE:-postgres://suo_yk:${YK_POSTGRES_PASSWORD_VALUE:-suo_yk_password}@postgres:5432/suoyunculari_yk}"
+            PINGO_REDIS_URL_VALUE="${PINGO_REDIS_URL_VALUE:-redis://ege:${PINGO_REDIS_PASSWORD_VALUE}@redis:6379}"
+
+            tmp_env="$(mktemp)"
+            cat > "$tmp_env" <<EOF
+            YK_POSTGRES_DB=suoyunculari_yk
+            YK_POSTGRES_USER=suo_yk
+            YK_POSTGRES_PASSWORD=${YK_POSTGRES_PASSWORD_VALUE:-suo_yk_password}
+            YK_DATABASE_URL=${YK_DATABASE_URL_VALUE}
+            DATABASE_URL=${DATABASE_URL_VALUE:-}
+            DATABASE_SSL=${DATABASE_SSL_VALUE:-false}
+            YK_SESSION_SECRET=${YK_SESSION_SECRET_VALUE:-}
+            YK_ADMIN_EMAIL=${YK_ADMIN_EMAIL_VALUE:-ege.ertan@sabanciuniv.edu}
+            YK_ADMIN_INITIAL_PASSWORD=${YK_ADMIN_INITIAL_PASSWORD_VALUE:-}
+            GEMINI_API_KEY=${GEMINI_API_KEY_VALUE:-}
+            PINGO_GEMINI_API_KEY=${PINGO_GEMINI_API_KEY_VALUE:-}
+            QWEN_API_KEY=${QWEN_API_KEY_VALUE:-}
+            PINGO_QWEN_API_KEY=${PINGO_QWEN_API_KEY_VALUE:-}
+            PINGO_QWEN_BASE_URL=${PINGO_QWEN_BASE_URL_VALUE:-https://ws-a08mnlbr3e4q9fni.eu-central-1.maas.aliyuncs.com/compatible-mode/v1}
+            PINGO_QWEN_MODEL=${PINGO_QWEN_MODEL_VALUE:-qwen3.5-flash}
+            QWEN_EMBEDDING_API_KEY=${QWEN_EMBEDDING_API_KEY_VALUE:-}
+            PINGO_QWEN_EMBEDDING_API_KEY=${PINGO_QWEN_EMBEDDING_API_KEY_VALUE:-}
+            PINGO_QWEN_EMBEDDING_BASE_URL=${PINGO_QWEN_EMBEDDING_BASE_URL_VALUE:-https://ws-a08mnlbr3e4q9fni.eu-central-1.maas.aliyuncs.com/api/v1}
+            PINGO_QWEN_EMBEDDING_MODEL=${PINGO_QWEN_EMBEDDING_MODEL_VALUE:-text-embedding-v4}
+            PINGO_QWEN_EMBEDDING_DIMENSIONS=${PINGO_QWEN_EMBEDDING_DIMENSIONS_VALUE:-1024}
+            PINGO_WAHA_URL=${PINGO_WAHA_URL_VALUE:-https://waha.services.suoyunculari.com}
+            PINGO_WAHA_API_KEY=${PINGO_WAHA_API_KEY_VALUE:-}
+            PINGO_WAHA_SESSION=${PINGO_WAHA_SESSION_VALUE:-default}
+            PINGO_WAHA_BOT_ID=${PINGO_WAHA_BOT_ID_VALUE:-}
+            PINGO_WAHA_BOT_MENTION_IDS=${PINGO_WAHA_BOT_MENTION_IDS_VALUE:-}
+            PINGO_WEBHOOK_SECRET=${PINGO_WEBHOOK_SECRET_VALUE:-}
+            PINGO_REDIS_PASSWORD=${PINGO_REDIS_PASSWORD_VALUE:-}
+            PINGO_REDIS_URL=${PINGO_REDIS_URL_VALUE:-}
+            EOF
+            rm -f .env || sudo rm -f .env
+            install -m 600 "$tmp_env" .env || sudo install -m 600 -o "$(id -un)" -g "$(id -gn)" "$tmp_env" .env
+            rm -f "$tmp_env"
+
+            docker compose up -d --build --force-recreate
+            docker compose exec -T app npm run yk:migrate
+            if [ -n "${YK_ADMIN_INITIAL_PASSWORD_VALUE:-}" ]; then
+              docker compose exec -T app npm run yk:seed-admin
+            else
+              echo "YK admin seed skipped because YK_ADMIN_INITIAL_PASSWORD is not configured."
+            fi
+            docker image prune -f

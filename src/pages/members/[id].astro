@@ -1,0 +1,59 @@
+---
+import YkLayout from '@/layouts/YkLayout.astro';
+import { getMemberDetails } from '@/lib/yk';
+
+const user = Astro.locals.user!;
+const details = await getMemberDetails(String(Astro.params.id));
+---
+
+<YkLayout title={details?.member.display_name ?? 'Üye'} user={user}>
+  {
+    details ? (
+      <>
+        <header class="page-head">
+          <div>
+            <h1>{details.member.display_name}</h1>
+            <p>{details.season.name}</p>
+          </div>
+          <a class="button secondary" href={`/members?season=${details.season.id}`}>Üyeler</a>
+        </header>
+
+        <section class="stats-line">
+          <div>
+            <span>Toplam puan</span>
+            <strong>{details.stats.total}</strong>
+          </div>
+          <div>
+            <span>Ortalama puan</span>
+            <strong>{details.stats.average.toFixed(2)}</strong>
+          </div>
+          <div>
+            <span>Prova sayısı</span>
+            <strong>{details.stats.rehearsalCount}</strong>
+          </div>
+          <div>
+            <span>Rol</span>
+            <strong>{details.member_role_label}</strong>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Çizelgeler</h2>
+          <div class="plain-list">
+            {details.sheets.map((sheet) => (
+              <a href={`/roll-call?sheet=${sheet.id}`}>
+                <strong>{sheet.name}</strong>
+                <span>{sheet.total} toplam · {sheet.average.toFixed(2)} ortalama · {sheet.rehearsalCount} prova</span>
+              </a>
+            ))}
+          </div>
+        </section>
+      </>
+    ) : (
+      <section class="panel">
+        <h1>Üye bulunamadı</h1>
+        <a class="button secondary" href="/members">Üyelere dön</a>
+      </section>
+    )
+  }
+</YkLayout>

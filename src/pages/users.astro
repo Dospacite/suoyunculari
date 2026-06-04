@@ -1,0 +1,102 @@
+---
+import YkLayout from '@/layouts/YkLayout.astro';
+import { isAdmin, listUsers, roleLabel } from '@/lib/yk';
+
+const user = Astro.locals.user!;
+if (!isAdmin(user)) return Astro.redirect('/roll-call');
+const users = await listUsers();
+---
+
+<YkLayout title="Kullanıcılar" user={user}>
+  <header class="page-head">
+    <h1>Kullanıcılar</h1>
+  </header>
+
+  <section class="split">
+    <div class="panel">
+      <h2>Kullanıcı listesi</h2>
+      <div class="user-list">
+        {users.map((item) => (
+          <form class="user-row" data-user-form data-id={item.id}>
+            <div>
+              <strong>{item.email}</strong>
+              <div class="member-sub">{item.display_name || ''}</div>
+            </div>
+            <label>
+              Rol
+              <select name="role">
+                <option value="admin" selected={item.role === 'admin'}>{roleLabel('admin')}</option>
+                <option value="yonetim_kurulu" selected={item.role === 'yonetim_kurulu'}>{roleLabel('yonetim_kurulu')}</option>
+                <option value="merkezi_yonetim_kurulu" selected={item.role === 'merkezi_yonetim_kurulu'}>{roleLabel('merkezi_yonetim_kurulu')}</option>
+              </select>
+            </label>
+            <label>
+              Aktif
+              <select name="active">
+                <option value="true" selected={item.active}>Aktif</option>
+                <option value="false" selected={!item.active}>Pasif</option>
+              </select>
+            </label>
+            <button class="icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
+          </form>
+        ))}
+      </div>
+    </div>
+
+    <form class="panel" data-create-user>
+      <h2>Kullanıcı ekle</h2>
+      <label>
+        E-posta
+        <input name="email" type="email" required />
+      </label>
+      <label>
+        Ad
+        <input name="displayName" />
+      </label>
+      <label>
+        Rol
+        <select name="role">
+          <option value="yonetim_kurulu">Yönetim Kurulu</option>
+          <option value="merkezi_yonetim_kurulu">Merkezi Yönetim Kurulu</option>
+          <option value="admin">Admin</option>
+        </select>
+      </label>
+      <label>
+        Geçici şifre
+        <input name="password" type="password" minlength="10" required />
+      </label>
+      <button type="submit">Kullanıcı oluştur</button>
+    </form>
+  </section>
+
+  <script>
+    // @ts-nocheck
+    const postJson = async (url, method, body) => {
+      const response = await fetch(url, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'İşlem başarısız');
+      }
+    };
+
+    document.querySelector('[data-create-user]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await postJson('/api/users', 'POST', Object.fromEntries(new FormData(event.currentTarget).entries()));
+      window.location.reload();
+    });
+
+    document.querySelectorAll('[data-user-form]').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const body = Object.fromEntries(new FormData(form).entries());
+        body.active = body.active === 'true';
+        await postJson(`/api/users/${form.dataset.id}`, 'PATCH', body);
+        window.location.reload();
+      });
+    });
+  </script>
+</YkLayout>

@@ -1,0 +1,555 @@
+---
+import YkLayout from '@/layouts/YkLayout.astro';
+import { getPingoDashboardData } from '@/lib/pingo';
+import { isAdmin } from '@/lib/yk';
+
+const user = Astro.locals.user!;
+if (!isAdmin(user)) return Astro.redirect('/roll-call');
+const { settings, actors, accessRules, tools, stats } = await getPingoDashboardData();
+const webhookUrl = `${Astro.url.origin}/api/pingo/waha`;
+const redisConfigured = Boolean(process.env.PINGO_REDIS_URL || process.env.REDIS_URL);
+const formatJson = (value: unknown) => (value ? JSON.stringify(value, null, 2) : '');
+---
+
+<YkLayout title="Pingo" user={user}>
+  <header class="page-head pingo-head">
+    <div>
+      <h1>Pingo</h1>
+      <p>WhatsApp agent control surface</p>
+    </div>
+    <img src="/pingo.svg" alt="" aria-hidden="true" />
+  </header>
+
+  <section class="pingo-stats" aria-label="Pingo istatistikleri">
+    <div>
+      <span>24s mesaj</span>
+      <strong>{stats.total_messages}</strong>
+    </div>
+    <div>
+      <span>Yanıt</span>
+      <strong>{stats.responded}</strong>
+    </div>
+    <div>
+      <span>Engel</span>
+      <strong>{stats.blocked}</strong>
+    </div>
+    <div>
+      <span>Rate limit</span>
+      <strong>{stats.rate_limited}</strong>
+    </div>
+    <div>
+      <span>Tool</span>
+      <strong>{stats.tool_uses}</strong>
+    </div>
+    <div>
+      <span>Ort. yanıt</span>
+      <strong>{stats.avg_response_ms ? `${stats.avg_response_ms}ms` : '-'}</strong>
+    </div>
+  </section>
+
+  <section class="pingo-grid">
+    <form class="panel pingo-settings" data-settings-form>
+      <h2>Davranış</h2>
+      <div class="pingo-form-grid">
+        <label>
+          Durum
+          <select name="enabled">
+            <option value="true" selected={settings.enabled}>Aktif</option>
+            <option value="false" selected={!settings.enabled}>Pasif</option>
+          </select>
+        </label>
+        <label>
+          Tetikleme
+          <select name="triggerMode">
+            <option value="mention" selected={settings.trigger_mode === 'mention'}>Mention</option>
+            <option value="keyword" selected={settings.trigger_mode === 'keyword'}>Keyword</option>
+          </select>
+        </label>
+        <label>
+          Keyword
+          <input name="keyword" value={settings.keyword} />
+        </label>
+        <label>
+          Mention alias
+          <input name="mentionAliases" value={settings.mention_aliases.join(', ')} />
+        </label>
+        <label>
+          Kullanıcı limiti / dk
+          <input name="userRateLimit" type="number" min="1" max="120" value={settings.user_rate_limit} />
+        </label>
+        <label>
+          Chat limiti / dk
+          <input name="chatRateLimit" type="number" min="1" max="600" value={settings.chat_rate_limit} />
+        </label>
+        <label>
+          Kısa hafıza
+          <input name="shortMemoryMessages" type="number" min="1" max="80" value={settings.short_memory_messages} />
+        </label>
+        <label>
+          Uzun hafıza
+          <select name="longMemoryEnabled">
+            <option value="true" selected={settings.long_memory_enabled}>Aktif</option>
+            <option value="false" selected={!settings.long_memory_enabled}>Pasif</option>
+          </select>
+        </label>
+        <label>
+          Hafıza sonucu
+          <input name="longMemoryMaxResults" type="number" min="0" max="20" value={settings.long_memory_max_results} />
+        </label>
+      </div>
+      <label>
+        Sistem yönergesi
+        <textarea name="systemPrompt" rows="7">{settings.system_prompt}</textarea>
+      </label>
+      <button type="submit">Davranışı kaydet</button>
+    </form>
+
+    <section class="panel">
+      <h2>Bağlantılar</h2>
+      <dl class="pingo-kv">
+        <div>
+          <dt>Dashboard</dt>
+          <dd>{Astro.url.origin}/pingo</dd>
+        </div>
+        <div>
+          <dt>WAHA webhook</dt>
+          <dd>{webhookUrl}</dd>
+        </div>
+        <div>
+          <dt>Redis</dt>
+          <dd>{redisConfigured ? 'Yapılandırıldı' : 'Varsayılan servis adı'}</dd>
+        </div>
+      </dl>
+      <h2>Araçlar</h2>
+      <div class="pingo-list">
+        {tools.map((tool) => (
+          <form class="pingo-row" data-tool-form data-key={tool.key}>
+            <div>
+              <strong>{tool.label}</strong>
+              <span>{tool.description}</span>
+            </div>
+            <label>
+              Durum
+              <select name="enabled">
+                <option value="true" selected={tool.enabled}>Aktif</option>
+                <option value="false" selected={!tool.enabled}>Pasif</option>
+              </select>
+            </label>
+            <button class="icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
+          </form>
+        ))}
+      </div>
+    </section>
+  </section>
+
+  <section class="pingo-lower">
+    <section class="panel">
+      <h2>Admin ve moderatörler</h2>
+      <form class="pingo-inline-form" data-create-actor>
+        <input name="identifier" placeholder="905...@c.us veya user id" required />
+        <input name="label" placeholder="Etiket" />
+        <select name="role">
+          <option value="admin">Admin</option>
+          <option value="moderator">Moderatör</option>
+        </select>
+        <button type="submit">Ekle</button>
+      </form>
+      <div class="pingo-list">
+        {actors.map((actor) => (
+          <form class="pingo-row" data-actor-form data-id={actor.id}>
+            <div>
+              <strong>{actor.label || actor.identifier}</strong>
+              <span>{actor.identifier}</span>
+            </div>
+            <select name="role">
+              <option value="admin" selected={actor.role === 'admin'}>Admin</option>
+              <option value="moderator" selected={actor.role === 'moderator'}>Moderatör</option>
+            </select>
+            <select name="active">
+              <option value="true" selected={actor.active}>Aktif</option>
+              <option value="false" selected={!actor.active}>Pasif</option>
+            </select>
+            <button class="icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
+            <button class="icon-button delete danger" type="button" data-delete aria-label="Sil" title="Sil">Sil</button>
+          </form>
+        ))}
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Chat ve kullanıcı erişimi</h2>
+      <form class="pingo-access-form" data-create-access>
+        <input name="identifier" placeholder="chat id veya user id" required />
+        <select name="subjectType">
+          <option value="chat">Chat</option>
+          <option value="user">User</option>
+        </select>
+        <select name="listType">
+          <option value="whitelist">Whitelist</option>
+          <option value="blacklist">Blacklist</option>
+        </select>
+        <button type="submit">Ekle</button>
+      </form>
+      <div class="pingo-list">
+        {accessRules.map((rule) => (
+          <form class="pingo-row" data-access-form data-id={rule.id}>
+            <div>
+              <strong>{rule.identifier}</strong>
+              <span>{rule.list_type} · {rule.subject_type} · {rule.identifier}</span>
+            </div>
+            <select name="listType">
+              <option value="whitelist" selected={rule.list_type === 'whitelist'}>Whitelist</option>
+              <option value="blacklist" selected={rule.list_type === 'blacklist'}>Blacklist</option>
+            </select>
+            <select name="active">
+              <option value="true" selected={rule.active}>Aktif</option>
+              <option value="false" selected={!rule.active}>Pasif</option>
+            </select>
+            <button class="icon-button save" type="submit" aria-label="Kaydet" title="Kaydet">Kaydet</button>
+            <button class="icon-button delete danger" type="button" data-delete aria-label="Sil" title="Sil">Sil</button>
+          </form>
+        ))}
+      </div>
+    </section>
+  </section>
+
+  <section class="panel">
+    <h2>Son olaylar</h2>
+    <div class="pingo-events">
+      {stats.recent.map((event) => (
+        <details>
+          <summary>
+            <span>
+              <strong>{event.event_type}</strong>
+              <small>{event.chat_id || '-'} · {event.user_id || '-'} · {event.created_at}</small>
+            </span>
+            <span>{event.response_ms ? `${event.response_ms}ms` : event.tool_key || ''}</span>
+          </summary>
+          <div class="pingo-event-body">
+            <section>
+              <h3>Mesaj</h3>
+              <pre>{event.message_text || 'Mesaj içeriği kaydedilmedi.'}</pre>
+            </section>
+            <section>
+              <h3>Request JSON</h3>
+              <pre>{formatJson(event.request_json) || 'Request JSON kaydedilmedi.'}</pre>
+            </section>
+            <section>
+              <h3>Response JSON</h3>
+              <pre>{formatJson(event.response_json) || 'Response JSON kaydedilmedi.'}</pre>
+            </section>
+          </div>
+        </details>
+      ))}
+    </div>
+  </section>
+
+  <script>
+    // @ts-nocheck
+    const toBool = (value) => value === 'true';
+    const postJson = async (url, method, body = undefined) => {
+      const response = await fetch(url, {
+        method,
+        headers: body ? { 'content-type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'İşlem başarısız');
+      }
+      return response.json().catch(() => ({}));
+    };
+    const formData = (form) => Object.fromEntries(new FormData(form).entries());
+
+    document.querySelector('[data-settings-form]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const body = formData(event.currentTarget);
+      await postJson('/api/pingo/config', 'PATCH', {
+        enabled: toBool(body.enabled),
+        triggerMode: body.triggerMode,
+        keyword: body.keyword,
+        mentionAliases: body.mentionAliases,
+        userRateLimit: Number(body.userRateLimit),
+        chatRateLimit: Number(body.chatRateLimit),
+        shortMemoryMessages: Number(body.shortMemoryMessages),
+        longMemoryEnabled: toBool(body.longMemoryEnabled),
+        longMemoryMaxResults: Number(body.longMemoryMaxResults),
+        systemPrompt: body.systemPrompt,
+      });
+      window.location.reload();
+    });
+
+    document.querySelectorAll('[data-tool-form]').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const body = formData(form);
+        await postJson(`/api/pingo/tools/${form.dataset.key}`, 'PATCH', { enabled: toBool(body.enabled) });
+        window.location.reload();
+      });
+    });
+
+    document.querySelector('[data-create-actor]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await postJson('/api/pingo/actors', 'POST', formData(event.currentTarget));
+      window.location.reload();
+    });
+
+    document.querySelectorAll('[data-actor-form]').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const body = formData(form);
+        await postJson(`/api/pingo/actors/${form.dataset.id}`, 'PATCH', {
+          role: body.role,
+          active: toBool(body.active),
+        });
+        window.location.reload();
+      });
+      form.querySelector('[data-delete]')?.addEventListener('click', async () => {
+        await postJson(`/api/pingo/actors/${form.dataset.id}`, 'DELETE');
+        window.location.reload();
+      });
+    });
+
+    document.querySelector('[data-create-access]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await postJson('/api/pingo/access', 'POST', formData(event.currentTarget));
+      window.location.reload();
+    });
+
+    document.querySelectorAll('[data-access-form]').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const body = formData(form);
+        await postJson(`/api/pingo/access/${form.dataset.id}`, 'PATCH', {
+          listType: body.listType,
+          active: toBool(body.active),
+        });
+        window.location.reload();
+      });
+      form.querySelector('[data-delete]')?.addEventListener('click', async () => {
+        await postJson(`/api/pingo/access/${form.dataset.id}`, 'DELETE');
+        window.location.reload();
+      });
+    });
+  </script>
+</YkLayout>
+
+<style>
+  .pingo-head {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .pingo-head p {
+    color: var(--muted);
+    margin: 6px 0 0;
+  }
+
+  .pingo-head img {
+    height: 76px;
+    width: 76px;
+  }
+
+  .pingo-stats {
+    display: grid;
+    gap: 1px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    margin-bottom: 22px;
+  }
+
+  .pingo-stats div {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    display: grid;
+    gap: 8px;
+    min-height: 94px;
+    padding: 16px;
+  }
+
+  .pingo-stats span,
+  .pingo-row span,
+  .pingo-kv dt,
+  .pingo-events span {
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 750;
+  }
+
+  .pingo-stats strong {
+    font-size: clamp(1.45rem, 3vw, 2.25rem);
+    line-height: 1;
+  }
+
+  .pingo-grid {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr);
+    margin-bottom: 18px;
+  }
+
+  .pingo-form-grid,
+  .pingo-inline-form {
+    display: grid;
+    gap: 12px;
+  }
+
+  .pingo-form-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pingo-settings {
+    align-content: start;
+    display: grid;
+    gap: 16px;
+  }
+
+  .pingo-list,
+  .pingo-events,
+  .pingo-kv {
+    display: grid;
+    gap: 10px;
+  }
+
+  .pingo-lower {
+    display: grid;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .pingo-row {
+    align-items: end;
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) 130px 110px 40px 40px;
+    padding-top: 10px;
+  }
+
+  [data-tool-form].pingo-row {
+    grid-template-columns: minmax(0, 1fr) 120px 40px;
+  }
+
+  .pingo-row div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .pingo-row strong,
+  .pingo-row span,
+  .pingo-kv dd {
+    overflow-wrap: anywhere;
+  }
+
+  .pingo-inline-form {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 120px 120px auto;
+    margin-bottom: 16px;
+  }
+
+  [data-create-actor].pingo-inline-form {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 130px auto;
+  }
+
+  .pingo-access-form {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(320px, 1fr) 140px 140px auto;
+    margin-bottom: 16px;
+  }
+
+  .pingo-kv {
+    margin: 0 0 24px;
+  }
+
+  .pingo-kv div {
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 4px;
+    padding-top: 10px;
+  }
+
+  .pingo-kv dd {
+    margin: 0;
+  }
+
+  .pingo-events details {
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+  }
+
+  .pingo-events summary {
+    align-items: center;
+    cursor: pointer;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .pingo-events summary span:first-child {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .pingo-events summary strong,
+  .pingo-events summary small,
+  .pingo-events summary span:last-child {
+    overflow-wrap: anywhere;
+  }
+
+  .pingo-events summary small,
+  .pingo-events summary span:last-child {
+    color: var(--muted);
+    font-size: 0.84rem;
+  }
+
+  .pingo-event-body {
+    display: grid;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .pingo-event-body h3 {
+    color: var(--muted);
+    font-size: 0.82rem;
+    margin: 0 0 6px;
+  }
+
+  .pingo-events pre {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font: inherit;
+    margin: 0;
+    max-height: 320px;
+    overflow: auto;
+    padding: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  @media (max-width: 1100px) {
+    .pingo-stats,
+    .pingo-grid,
+    .pingo-form-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .pingo-inline-form,
+    [data-create-actor].pingo-inline-form,
+    .pingo-access-form,
+    .pingo-row,
+    [data-tool-form].pingo-row {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 680px) {
+    .pingo-stats,
+    .pingo-grid,
+    .pingo-form-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

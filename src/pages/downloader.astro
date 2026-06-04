@@ -2,28 +2,30 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="Downloader" description="Server-side Scribd public asset downloader.">
+<BaseLayout title="İndirici" description="Scribd PDF indirici.">
   <main>
     <section class="section compact downloader-page">
       <div class="section-inner downloader-shell">
         <div class="section-heading">
-          <h1>Downloader</h1>
+          <h1>İndirici</h1>
         </div>
 
         <form class="downloader-form" data-downloader-form>
           <label>
-            <span>Scribd document URL</span>
+            <span>Scribd belge bağlantısı</span>
             <input data-url-input type="url" placeholder="https://www.scribd.com/document/..." required />
           </label>
           <div class="downloader-options">
-            <button class="secondary" type="button" data-cancel-button disabled>Cancel</button>
-            <button class="button" type="submit" data-submit-button>Generate PDF</button>
+            <button class="button" type="submit" data-submit-button>PDF oluştur</button>
           </div>
         </form>
 
         <div class="downloader-status" aria-live="polite">
-          <div class="downloader-meter">
-            <span data-progress-bar></span>
+          <div class="downloader-progress-row">
+            <div class="downloader-meter">
+              <span data-progress-bar></span>
+            </div>
+            <button class="button" type="button" data-cancel-button disabled>İptal</button>
           </div>
           <p data-status-text></p>
         </div>
@@ -80,7 +82,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
     const response = await fetch(`/api/downloader?id=${encodeURIComponent(jobId)}`);
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.error || `Downloader returned HTTP ${response.status}.`);
+      throw new Error(payload.error || `İndirici HTTP ${response.status} döndürdü.`);
     }
 
     const pdf = await response.blob();
@@ -134,7 +136,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
           activeJobId = null;
         } catch (error) {
           closeSocket();
-          setStatus(`Error: ${error.message || error}`);
+          setStatus(`Hata: ${error.message || error}`);
           progressBar.style.width = '0';
           activeJobId = null;
         } finally {
@@ -147,7 +149,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
         closeSocket();
         activeJobId = null;
         setBusy(false);
-        setStatus(`Error: ${payload.error || payload.status || 'Downloader error.'}`);
+        setStatus(`Hata: ${payload.error || payload.status || 'İndirici hatası.'}`);
         progressBar.style.width = '0';
         return;
       }
@@ -156,14 +158,14 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
         closeSocket();
         activeJobId = null;
         setBusy(false);
-        setStatus(payload.error || 'Download cancelled.');
+        setStatus(payload.error || 'İndirme iptal edildi.');
         progressBar.style.width = '0';
       }
     });
 
     activeSocket.addEventListener('error', () => {
       setBusy(false);
-      setStatus('Error: WebSocket connection failed.');
+      setStatus('Hata: WebSocket bağlantısı kurulamadı.');
       progressBar.style.width = '0';
     });
 
@@ -178,7 +180,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
     cleanupDownloadUrl();
     setBusy(true);
     progressBar.style.width = '0';
-    setStatus('Queued');
+    setStatus('Sıraya alındı');
     bindSocket();
   });
 
@@ -186,7 +188,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
     cancelActiveJob();
     setBusy(false);
     progressBar.style.width = '0';
-    setStatus('Cancelled');
+    setStatus('İptal edildi');
   });
 
   window.addEventListener('pagehide', () => {

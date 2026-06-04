@@ -34,7 +34,7 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('tr-TR', { dateSty
               <iframe src={`${document.previewHref}#page=1&toolbar=0&navpanes=0&scrollbar=0`} title={`${document.title} önizleme`} loading="lazy"></iframe>
             </span>
             <strong>{document.title}</strong>
-            <span>{document.source === 'drive' ? 'Drive' : 'Yerel'} · {formatBytes(document.bytes)} MB</span>
+            <span>{document.source === 'drive' ? 'Drive copy' : 'Script'} · {formatBytes(document.bytes)} MB</span>
           </a>
         ))
       ) : (
@@ -55,7 +55,7 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('tr-TR', { dateSty
           <dl class="detail-list">
             <div>
               <dt>Kaynak</dt>
-              <dd>{selected.source === 'drive' ? 'Google Drive cache' : 'Local PDF'}</dd>
+              <dd>{selected.source === 'drive' ? 'Google Drive copy' : 'Scripts folder'}</dd>
             </div>
             <div>
               <dt>Dosya</dt>
@@ -74,22 +74,16 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('tr-TR', { dateSty
               <dd>{formatDate(selected.updatedAt)}</dd>
             </div>
           </dl>
-          {selected.source === 'local' ? (
-            <>
-              <form class="document-actions" data-rename-form data-id={selected.id}>
-                <label>
-                  Yeni ad
-                  <input name="title" value={selected.title} required />
-                </label>
-                <button type="submit">Yeniden adlandır</button>
-              </form>
-              <form class="document-actions" data-delete-form data-id={selected.id}>
-                <button class="danger" type="submit">Sil</button>
-              </form>
-            </>
-          ) : (
-            <p>Drive dosyaları burada yeniden adlandırılamaz veya silinemez.</p>
-          )}
+          <form class="document-actions" data-rename-form data-id={selected.id}>
+            <label>
+              Yeni ad
+              <input name="title" value={selected.title} required />
+            </label>
+            <button type="submit">Yeniden adlandır</button>
+          </form>
+          <form class="document-actions" data-delete-form data-id={selected.id}>
+            <button class="danger" type="submit">Sil</button>
+          </form>
         </>
       ) : (
         <p>Bir PDF yükle.</p>

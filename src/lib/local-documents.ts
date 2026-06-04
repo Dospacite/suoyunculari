@@ -5,7 +5,8 @@ import type { QueryResultRow } from 'pg';
 import { cleanText, query } from '@/lib/yk';
 
 const DEFAULT_STORAGE_DIR = '/var/lib/pingo-drive-files';
-const DOCUMENT_DIRNAME = 'local-pdfs';
+const DOCUMENT_DIRNAME = 'scripts';
+const LEGACY_DOCUMENT_DIRNAME = 'local-pdfs';
 const MAX_PDF_BYTES = 80 * 1024 * 1024;
 
 export type LocalPdfDocument = {
@@ -56,9 +57,11 @@ export type LocalPdfSearchResult =
       candidates?: Array<{ name: string; id: string }>;
     };
 
-export const getLocalPdfDirectory = () => path.join(process.env.PINGO_DRIVE_STORAGE_DIR || DEFAULT_STORAGE_DIR, DOCUMENT_DIRNAME);
+export const getScriptsDirectory = () => path.join(process.env.PINGO_DRIVE_STORAGE_DIR || DEFAULT_STORAGE_DIR, DOCUMENT_DIRNAME);
+export const getLocalPdfDirectory = getScriptsDirectory;
 
 export async function listLocalPdfDocuments(): Promise<LocalPdfDocument[]> {
+  await migrateDocumentsToScriptsDirectory();
   const [localDocuments, driveDocuments] = await Promise.all([listUploadedPdfDocuments(), listDrivePdfDocuments()]);
   return [...localDocuments, ...driveDocuments]
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title, 'tr'));
@@ -96,12 +99,14 @@ async function listDrivePdfDocuments(): Promise<LocalPdfDocument[]> {
 }
 
 export async function getLocalPdfDocument(id: string) {
+  await migrateDocumentsToScriptsDirectory();
   const ref = parseDocumentId(id);
   if (ref.source === 'local') return documentFromFilename(ref.value);
   return getDrivePdfDocument(ref.value);
 }
 
 export async function readLocalPdf(id: string) {
+  await migrateDocumentsToScriptsDirectory();
   const ref = parseDocumentId(id);
   const document = await getLocalPdfDocument(id);
   const data = await fs.readFile(ref.source === 'local' ? localPathForId(ref.value) : await drivePathForId(ref.value));
@@ -131,22 +136,44 @@ export async function uploadLocalPdfDocument(file: File) {
 
 export async function renameLocalPdfDocument(id: string, title: string) {
   await ensureDocumentDir();
+  await migrateDocumentsToScriptsDirectory();
   const ref = parseDocumentId(id);
-  if (ref.source !== 'local') throw new Error('Drive PDFs cannot be renamed here.');
-  const current = await documentFromFilename(ref.value);
-  const nextTitle = sanitizePdfTitle(title);
-  const prefix = ref.value.split('-', 1)[0] || randomBytes(5).toString('hex');
-  const nextId = uniqueFilename(`${prefix}-${nextTitle}.pdf`);
-  if (nextId !== current.filename) {
-    await fs.rename(localPathForId(current.filename), localPathForId(nextId));
+  if (ref.source === 'local') {
+    const current = await documentFromFilename(ref.value);
+    const nextId = buildRenamedFilename(ref.value, title);
+    if (nextId !== current.filename) {
+      await fs.rename(localPathForId(current.filename), localPathForId(nextId));
+    }
+    return documentFromFilename(nextId);
   }
-  return documentFromFilename(nextId);
+  const row = await getDrivePdfRow(ref.value);
+  const nextId = buildRenamedFilename(row.local_filename, title);
+  const nextPath = localPathForId(nextId);
+  if (nextPath !== row.local_path) {
+    await fs.rename(row.local_path, nextPath);
+  }
+  await query(
+    `update pingo_drive_files
+        set drive_name = $1,
+            local_filename = $2,
+            local_path = $3,
+            updated_at = now()
+      where file_id = $4`,
+    [titleFromFilename(nextId), nextId, nextPath, ref.value],
+  );
+  return getDrivePdfDocument(ref.value);
 }
 
 export async function deleteLocalPdfDocument(id: string) {
   const ref = parseDocumentId(id);
-  if (ref.source !== 'local') throw new Error('Drive PDFs cannot be deleted here.');
-  await fs.unlink(localPathForId(ref.value));
+  await migrateDocumentsToScriptsDirectory();
+  if (ref.source === 'local') {
+    await fs.unlink(localPathForId(ref.value));
+    return;
+  }
+  const row = await getDrivePdfRow(ref.value);
+  await fs.unlink(row.local_path).catch(() => undefined);
+  await query(`delete from pingo_drive_files where file_id = $1`, [ref.value]);
 }
 
 export async function searchLocalPdfDocument(args: Record<string, unknown>): Promise<LocalPdfSearchResult> {
@@ -279,17 +306,75 @@ async function getDrivePdfRow(fileId: string) {
   return row;
 }
 
+async function migrateDocumentsToScriptsDirectory() {
+  await ensureDocumentDir();
+  await Promise.all([migrateLegacyLocalPdfs(), migrateDrivePdfsToScripts()]);
+}
+
+async function migrateLegacyLocalPdfs() {
+  const legacyDir = path.join(process.env.PINGO_DRIVE_STORAGE_DIR || DEFAULT_STORAGE_DIR, LEGACY_DOCUMENT_DIRNAME);
+  const filenames = await fs.readdir(legacyDir).catch(() => []);
+  for (const filename of filenames.filter(isPdfFilename)) {
+    const from = path.join(legacyDir, filename);
+    const to = localPathForId(filename);
+    if (from === to) continue;
+    await fs.rename(from, to).catch(async (error) => {
+      if (error?.code !== 'EEXIST') throw error;
+      await fs.unlink(from).catch(() => undefined);
+    });
+  }
+}
+
+async function migrateDrivePdfsToScripts() {
+  const result = await query<DriveCachedPdfRow>(
+    `select file_id,
+            drive_name,
+            local_filename,
+            local_path,
+            download_mime_type,
+            bytes,
+            downloaded_at::text,
+            updated_at::text
+       from pingo_drive_files
+      where download_mime_type = 'application/pdf'
+         or local_filename ~* '\\.pdf$'`,
+  ).catch(() => ({ rows: [] as DriveCachedPdfRow[] }));
+
+  for (const row of result.rows) {
+    const currentPath = row.local_path;
+    const desiredFilename = uniqueFilename(row.local_filename || buildDocumentFilename(row.file_id, row.drive_name, 'pdf'));
+    const desiredPath = localPathForId(desiredFilename);
+    if (currentPath === desiredPath) continue;
+    const exists = await fs.access(currentPath).then(() => true).catch(() => false);
+    if (!exists) continue;
+    await fs.rename(currentPath, desiredPath).catch(async (error) => {
+      if (error?.code !== 'EEXIST') throw error;
+      await fs.unlink(currentPath).catch(() => undefined);
+    });
+    const stats = await fs.stat(desiredPath).catch(() => null);
+    await query(
+      `update pingo_drive_files
+          set local_filename = $1,
+              local_path = $2,
+              bytes = coalesce($3, bytes),
+              updated_at = now()
+        where file_id = $4`,
+      [desiredFilename, desiredPath, stats?.size ?? null, row.file_id],
+    );
+  }
+}
+
 async function assertPdf(data: Buffer) {
   if (data.byteLength > MAX_PDF_BYTES) throw new Error('PDF is too large.');
   if (!data.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new Error('Only PDF files are supported.');
 }
 
 async function ensureDocumentDir() {
-  await fs.mkdir(getLocalPdfDirectory(), { recursive: true });
+  await fs.mkdir(getScriptsDirectory(), { recursive: true });
 }
 
 function localPathForId(id: string) {
-  return path.join(getLocalPdfDirectory(), assertSafeDocumentFilename(id));
+  return path.join(getScriptsDirectory(), assertSafeDocumentFilename(id));
 }
 
 function assertSafeDocumentFilename(id: string) {
@@ -311,13 +396,21 @@ function parseDocumentId(id: string): { source: 'local' | 'drive'; value: string
 }
 
 function normalizeDocumentId(id: string) {
-  const value = cleanText(id, 260);
+  const value = cleanText(safeUrlDecode(id), 260);
   const [source, ...rest] = value.split(':');
   const raw = rest.join(':');
   if (source === 'local') return `local:${assertSafeDocumentFilename(raw)}`;
   if (source === 'drive') return `drive:${assertSafeDriveFileId(raw)}`;
   if (isPdfFilename(value)) return `local:${assertSafeDocumentFilename(value)}`;
   throw new Error('Invalid PDF id.');
+}
+
+function safeUrlDecode(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function assertSafeDriveFileId(id: string) {
@@ -334,6 +427,17 @@ function sanitizePdfTitle(value: string) {
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 110) || 'document';
+}
+
+export function buildDocumentFilename(seed: string, name: string, extension = 'pdf') {
+  const base = sanitizePdfTitle(name);
+  const digest = createHmac('sha256', 'document-filename').update(seed).digest('hex').slice(0, 16);
+  return uniqueFilename(`${digest}-${base}.${extension || 'pdf'}`);
+}
+
+function buildRenamedFilename(currentFilename: string, title: string) {
+  const prefix = currentFilename.split('-', 1)[0] || randomBytes(5).toString('hex');
+  return uniqueFilename(`${prefix}-${sanitizePdfTitle(title)}.pdf`);
 }
 
 function titleFromFilename(filename: string) {

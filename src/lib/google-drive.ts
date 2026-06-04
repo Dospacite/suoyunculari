@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { APIContext } from 'astro';
 import type { QueryResultRow } from 'pg';
+import { buildDocumentFilename, getScriptsDirectory } from '@/lib/local-documents';
 import { cleanText, hashToken, query } from '@/lib/yk';
 
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
@@ -12,7 +13,6 @@ const GOOGLE_USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo';
 const DRIVE_FOLDER_MIME = 'application/vnd.google-apps.folder';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly openid email profile';
 const DEFAULT_PUBLIC_BASE_URL = 'https://assets.suoyunculari.com';
-const DEFAULT_STORAGE_DIR = '/var/lib/pingo-drive-files';
 const MAX_FOLDER_SCAN = 500;
 const MAX_FILE_SCAN = 700;
 
@@ -309,10 +309,6 @@ function getPublicDownloadBaseUrl() {
   return (process.env.PINGO_DRIVE_PUBLIC_BASE_URL || DEFAULT_PUBLIC_BASE_URL).replace(/\/+$/, '');
 }
 
-function getStorageDir() {
-  return process.env.PINGO_DRIVE_STORAGE_DIR || DEFAULT_STORAGE_DIR;
-}
-
 async function getDriveAuth() {
   const result = await query<DriveAuthRow>(
     `select id,
@@ -482,13 +478,13 @@ async function listDriveFiles(
 async function ensureDriveFileDownloaded(accessToken: string, file: DriveFile) {
   const cached = await getCachedDriveFile(file.id);
   if (cached && (!file.md5Checksum || cached.md5_checksum === file.md5Checksum) && (await fileExists(cached.local_path))) {
-    return { file: cached, wasCached: true };
+    return { file: await ensureCachedDriveFileInScripts(cached), wasCached: true };
   }
 
   const download = await downloadDriveFile(accessToken, file);
-  await fs.mkdir(getStorageDir(), { recursive: true });
-  const localFilename = buildLocalFilename(file, download.extension);
-  const localPath = path.join(getStorageDir(), localFilename);
+  await fs.mkdir(getScriptsDirectory(), { recursive: true });
+  const localFilename = buildDocumentFilename(file.id, file.name, download.extension);
+  const localPath = path.join(getScriptsDirectory(), localFilename);
   await fs.writeFile(localPath, download.data);
   const result = await query<DriveCachedFileRow>(
     `insert into pingo_drive_files
@@ -548,6 +544,39 @@ async function getCachedDriveFile(fileId: string) {
     [fileId],
   );
   return result.rows[0] ?? null;
+}
+
+async function ensureCachedDriveFileInScripts(file: DriveCachedFileRow) {
+  await fs.mkdir(getScriptsDirectory(), { recursive: true });
+  const nextFilename = buildDocumentFilename(file.file_id, file.drive_name, extensionFromName(file.local_filename) || extensionFromMime(file.download_mime_type));
+  const nextPath = path.join(getScriptsDirectory(), nextFilename);
+  if (file.local_path === nextPath) return file;
+
+  await fs.rename(file.local_path, nextPath).catch(async (error) => {
+    if (error?.code !== 'EEXIST') throw error;
+    await fs.unlink(file.local_path).catch(() => undefined);
+  });
+  const stats = await fs.stat(nextPath).catch(() => null);
+  const result = await query<DriveCachedFileRow>(
+    `update pingo_drive_files
+        set local_filename = $1,
+            local_path = $2,
+            bytes = coalesce($3, bytes),
+            updated_at = now()
+      where file_id = $4
+      returning file_id,
+                drive_name,
+                drive_mime_type,
+                local_filename,
+                local_path,
+                download_mime_type,
+                bytes,
+                md5_checksum,
+                downloaded_at::text,
+                updated_at::text`,
+    [nextFilename, nextPath, stats?.size ?? null, file.file_id],
+  );
+  return result.rows[0] ?? { ...file, local_filename: nextFilename, local_path: nextPath, bytes: stats?.size ?? file.bytes };
 }
 
 async function createDriveDownloadToken(fileId: string) {
@@ -633,17 +662,6 @@ function extensionFromName(name: string) {
 
 function removeExtension(name: string) {
   return name.replace(/\.[a-z0-9]{1,12}$/i, '');
-}
-
-function buildLocalFilename(file: DriveFile, extension: string) {
-  const base = removeExtension(file.name)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 96) || 'script';
-  const digest = createHash('sha256').update(file.id).digest('hex').slice(0, 16);
-  return `${digest}-${base}.${extension || 'bin'}`;
 }
 
 async function fileExists(filePath: string) {

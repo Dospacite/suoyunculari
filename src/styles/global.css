@@ -729,24 +729,15 @@ textarea:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  justify-content: space-between;
+  justify-content: end;
   min-width: 0;
 }
 
-.check-label {
+.downloader-progress-row {
   align-items: center;
   display: flex;
-  gap: 10px;
-}
-
-.check-label input {
-  accent-color: var(--accent);
-  min-height: 18px;
-  width: 18px;
-}
-
-.check-label span {
-  color: var(--ink);
+  gap: 14px;
+  min-width: 0;
 }
 
 .downloader-status p {
@@ -757,8 +748,10 @@ textarea:focus {
 
 .downloader-meter {
   background: var(--line);
+  flex: 1 1 auto;
   height: 8px;
   overflow: hidden;
+  min-width: 0;
   width: 100%;
 }
 
@@ -770,14 +763,8 @@ textarea:focus {
   width: 0;
 }
 
-.downloader-status ol {
-  color: var(--muted);
-  display: grid;
-  font-size: 0.88rem;
-  gap: 8px;
-  line-height: 1.45;
-  margin: 0;
-  padding-left: 20px;
+.downloader-progress-row .button {
+  flex: 0 0 auto;
 }
 
 .sr-only {
@@ -2243,6 +2230,12 @@ dd {
     align-items: flex-start;
     grid-template-columns: minmax(0, 1fr);
     flex-direction: column;
+  }
+
+  .downloader-progress-row {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .text-bank-assistant {

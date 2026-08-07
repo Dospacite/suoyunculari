@@ -22,7 +22,7 @@ type FontInfo = {
 
 type PageAsset = {
   pageNum: number;
-  contentUrl?: string;
+  contentUrl: string;
   origWidth: number;
   origHeight: number;
   fragment?: string;
@@ -314,8 +314,8 @@ const parsePages = (pageHtml: string) => {
     const origWidth = Number(block.match(/origWidth:\s*(\d+)/s)?.[1]);
     const origHeight = Number(block.match(/origHeight:\s*(\d+)/s)?.[1]);
     const contentUrl = block.match(/contentUrl:\s*"([^"]+)"/s)?.[1];
-    if (pageNum && origWidth && origHeight) {
-      pages.push({ pageNum, origWidth, origHeight, contentUrl: contentUrl ? assertAllowedAssetUrl(contentUrl) : undefined });
+    if (pageNum && origWidth && origHeight && contentUrl) {
+      pages.push({ pageNum, origWidth, origHeight, contentUrl: assertAllowedAssetUrl(contentUrl) });
     }
   }
   pages.sort((a, b) => a.pageNum - b.pageNum);
@@ -493,20 +493,39 @@ const renderPage = async (page: PageAsset, fonts: Map<string, FontInfo>, include
   return { image, width: page.origWidth, height: page.origHeight, textRuns };
 };
 
-const pdfString = (value: string) => {
-  const bytes = Buffer.from(value.replace(/\0/g, ''), 'latin1');
-  const escaped: number[] = [40];
-  for (const byte of bytes) {
-    if (byte === 40 || byte === 41 || byte === 92) {
-      escaped.push(92, byte);
-    } else if (byte < 32 || byte > 126) {
-      escaped.push(...Buffer.from(`\\${byte.toString(8).padStart(3, '0')}`, 'ascii'));
-    } else {
-      escaped.push(byte);
-    }
+const unicodeTextCMap = () => {
+  const cmap = [
+    '/CIDInit /ProcSet findresource begin',
+    '12 dict begin',
+    'begincmap',
+    '/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def',
+    '/CMapName /Adobe-Identity-UCS def',
+    '/CMapType 2 def',
+    '1 begincodespacerange',
+    '<0000> <FFFF>',
+    'endcodespacerange',
+    '1 beginbfrange',
+    '<0000> <FFFF> <0000>',
+    'endbfrange',
+    'endcmap',
+    'CMapName currentdict /CMap defineresource pop',
+    'end',
+    'end',
+  ].join('\n');
+  return Buffer.concat([
+    Buffer.from(`<< /Length ${Buffer.byteLength(cmap, 'ascii')} >>\nstream\n`, 'ascii'),
+    Buffer.from(cmap, 'ascii'),
+    Buffer.from('\nendstream', 'ascii'),
+  ]);
+};
+
+const pdfUtf16HexString = (value: string) => {
+  const bytes = Buffer.from(value.replace(/\0/g, ''), 'utf16le');
+  const hex: string[] = [];
+  for (let index = 0; index < bytes.length; index += 2) {
+    hex.push(bytes[index + 1].toString(16).padStart(2, '0'), bytes[index].toString(16).padStart(2, '0'));
   }
-  escaped.push(41);
-  return Buffer.from(escaped);
+  return Buffer.from(`<${hex.join('')}>`, 'ascii');
 };
 
 const buildPdf = (pages: RenderedPage[], includeText: boolean) => {
@@ -516,7 +535,10 @@ const buildPdf = (pages: RenderedPage[], includeText: boolean) => {
     return objects.length;
   };
 
-  const fontRef = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  const toUnicodeRef = add(unicodeTextCMap());
+  const fontDescriptorRef = add('<< /Type /FontDescriptor /FontName /Helvetica /Flags 32 /FontBBox [-166 -225 1000 931] /ItalicAngle 0 /Ascent 931 /Descent -225 /CapHeight 718 /StemV 80 >>');
+  const cidFontRef = add(`<< /Type /Font /Subtype /CIDFontType0 /BaseFont /Helvetica /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor ${fontDescriptorRef} 0 R /DW 500 >>`);
+  const fontRef = add(`<< /Type /Font /Subtype /Type0 /BaseFont /Helvetica /Encoding /Identity-H /DescendantFonts [${cidFontRef} 0 R] /ToUnicode ${toUnicodeRef} 0 R >>`);
   const pageRefs: number[] = [];
   const pageObjectIndexes: number[] = [];
 
@@ -540,7 +562,7 @@ const buildPdf = (pages: RenderedPage[], includeText: boolean) => {
           lastSize = fontSize;
         }
         contentParts.push(Buffer.from(`1 0 0 1 ${run.left.toFixed(3)} ${(page.height - run.top - fontSize).toFixed(3)} Tm\n`, 'ascii'));
-        contentParts.push(pdfString(text));
+        contentParts.push(pdfUtf16HexString(text));
         contentParts.push(Buffer.from(' Tj\n', 'ascii'));
       }
       contentParts.push(Buffer.from('ET\n', 'ascii'));
@@ -608,9 +630,7 @@ export const downloadScribdPdf = async ({ url, includeText, onProgress, signal }
 
   let fetchedPages = 0;
   await runPool(pages, MAX_PAGE_FETCHES, async (page) => {
-    if (page.contentUrl) {
-      page.fragment = decodeJsonp(await requestText(page.contentUrl, referer, signal), page.pageNum);
-    }
+    page.fragment = decodeJsonp(await requestText(page.contentUrl, referer, signal), page.pageNum);
     fetchedPages += 1;
     progress(`Fetching pages ${fetchedPages}/${pages.length}`, 1 + fetchedPages, totalSteps);
   }, signal);

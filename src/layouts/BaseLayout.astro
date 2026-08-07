@@ -110,6 +110,9 @@ const imageUrl = new URL(image, canonicalUrl);
         <a href="/sitemap-index.xml">Sitemap</a>
       </div>
     </footer>
+    <script>
+      import '@/scripts/firebase-analytics';
+    </script>
     <script is:inline>
       const header = document.querySelector('[data-site-header]');
       const toggle = header?.querySelector('.menu-toggle');

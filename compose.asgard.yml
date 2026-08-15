@@ -54,9 +54,7 @@ services:
       - cms_uploads:/directus/uploads
 
   website:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/dospacite/suoyunculari:asgard-20260816
     restart: unless-stopped
     depends_on:
       website-db:

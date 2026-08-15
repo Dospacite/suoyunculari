@@ -1,0 +1,100 @@
+services:
+  website-db:
+    image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: suoyunculari
+      POSTGRES_USER: suo
+      POSTGRES_PASSWORD: change-at-runtime
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U suo -d suoyunculari"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - website_db_data:/var/lib/postgresql/data
+
+  cms-db:
+    image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: directus
+      POSTGRES_USER: directus
+      POSTGRES_PASSWORD: change-at-runtime
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U directus -d directus"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - cms_db_data:/var/lib/postgresql/data
+
+  cms:
+    image: directus/directus:11.17.4@sha256:eb326f679ae847c0a776f93b972761dc2ebe84980e0b9d274a6bc31cd62809f7
+    restart: unless-stopped
+    depends_on:
+      cms-db:
+        condition: service_healthy
+    environment:
+      KEY: change-at-runtime
+      SECRET: change-at-runtime
+      ADMIN_EMAIL: admin@example.invalid
+      ADMIN_PASSWORD: change-at-runtime
+      DB_CLIENT: pg
+      DB_HOST: cms-db
+      DB_PORT: "5432"
+      DB_DATABASE: directus
+      DB_USER: directus
+      DB_PASSWORD: change-at-runtime
+      PUBLIC_URL: https://cms.suoyunculari.com
+      WEBSOCKETS_ENABLED: "true"
+      CORS_ENABLED: "true"
+      CORS_ORIGIN: https://suoyunculari.com,https://www.suoyunculari.com
+    volumes:
+      - cms_uploads:/directus/uploads
+
+  website:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      website-db:
+        condition: service_healthy
+      cms:
+        condition: service_healthy
+    environment:
+      HOST: 0.0.0.0
+      PORT: "4321"
+      DATABASE_URL: postgres://suo:change-at-runtime@website-db:5432/suoyunculari
+      PUBLIC_DIRECTUS_URL: https://cms.suoyunculari.com
+      GEMINI_API_KEY: ""
+
+volumes:
+  website_db_data:
+  cms_db_data:
+  cms_uploads:
+
+x-asgard:
+  primary-service: website
+  services:
+    website:
+      role: web
+      public: true
+      port: 4321
+      health-path: /healthz
+    website-db:
+      role: stateful
+      public: false
+      port: 5432
+      health-path: /
+    cms:
+      role: web
+      public: true
+      port: 8055
+      health-path: /server/health
+    cms-db:
+      role: stateful
+      public: false
+      port: 5432
+      health-path: /

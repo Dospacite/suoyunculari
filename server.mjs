@@ -31,6 +31,11 @@ if (!startDownloaderJob || !subscribeDownloaderJob || !cancelDownloaderJob) {
 const port = Number(process.env.PORT || 4321);
 const host = process.env.HOST || '0.0.0.0';
 const server = http.createServer((req, res) => {
+  if (req.url === '/healthz') {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end('{"status":"ok"}');
+    return;
+  }
   void handler(req, res);
 });
 const wss = new WebSocketServer({ noServer: true });
@@ -104,3 +109,15 @@ server.on('upgrade', (req, socket, head) => {
 server.listen(port, host, () => {
   console.log(`Server listening on http://${host}:${port}`);
 });
+
+const shutdown = (signal) => {
+  console.log(`Received ${signal}; shutting down.`);
+  server.close(() => {
+    wss.close(() => process.exit(0));
+  });
+
+  setTimeout(() => process.exit(1), 9_000).unref();
+};
+
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT', () => shutdown('SIGINT'));

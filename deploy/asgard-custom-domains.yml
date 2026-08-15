@@ -1,0 +1,29 @@
+http:
+  routers:
+    suoyunculari-apex-custom:
+      rule: Host(`suoyunculari.com`)
+      entryPoints:
+        - websecure
+      service: svc-7497ed29-8508-48a6-84c9-8a6ba5c7e817@file
+      middlewares:
+        - asgard-security@file
+      tls:
+        certResolver: letsencrypt
+    suoyunculari-www-custom:
+      rule: Host(`www.suoyunculari.com`)
+      entryPoints:
+        - websecure
+      service: svc-7497ed29-8508-48a6-84c9-8a6ba5c7e817@file
+      middlewares:
+        - asgard-security@file
+      tls:
+        certResolver: letsencrypt
+    suoyunculari-cms-custom:
+      rule: Host(`cms.suoyunculari.com`)
+      entryPoints:
+        - websecure
+      service: svc-f8e61b8e-34cf-4c93-9940-8f353e77feb4@file
+      middlewares:
+        - asgard-security@file
+      tls:
+        certResolver: letsencrypt

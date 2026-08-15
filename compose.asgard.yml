@@ -1,6 +1,6 @@
 services:
   website-db:
-    image: postgres:16.10-alpine
+    image: postgres:16.14-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: suoyunculari
@@ -15,7 +15,7 @@ services:
       - website_db_data:/var/lib/postgresql/data
 
   cms-db:
-    image: postgres:16.10-alpine
+    image: postgres:16.14-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: directus

@@ -1,6 +1,6 @@
 services:
   website-db:
-    image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
+    image: postgres:16.10-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: suoyunculari
@@ -15,7 +15,7 @@ services:
       - website_db_data:/var/lib/postgresql/data
 
   cms-db:
-    image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
+    image: postgres:16.10-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: directus
@@ -30,7 +30,7 @@ services:
       - cms_db_data:/var/lib/postgresql/data
 
   cms:
-    image: directus/directus:11.17.4@sha256:eb326f679ae847c0a776f93b972761dc2ebe84980e0b9d274a6bc31cd62809f7
+    image: directus/directus:11.17.4
     restart: unless-stopped
     depends_on:
       cms-db:
